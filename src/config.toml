@@ -1,0 +1,8 @@
+[api]
+host = "mafreebox.freebox.fr"
+port = 443
+expose = { connection = true,  settings = true, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
+
+[core]
+data_dir = "/usr/share/freebox-exporter"
+port = 9102

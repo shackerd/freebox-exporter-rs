@@ -1,0 +1,338 @@
+{
+  "uuid": "f770a808-13ed-4d7d-ac50-d721ac41befe",
+  "lastMigration": 32,
+  "name": "Api mock",
+  "endpointPrefix": "",
+  "latency": 0,
+  "port": 3001,
+  "hostname": "",
+  "folders": [],
+  "routes": [
+    {
+      "uuid": "685567e5-cd75-4cbc-8026-eef31390e813",
+      "type": "http",
+      "documentation": "Discovery",
+      "method": "get",
+      "endpoint": "api_version",
+      "responses": [
+        {
+          "uuid": "84fc5ca6-f06d-4c32-88f9-616f938c2091",
+          "body": "{\n  \"box_model_name\":\"Freebox v8 (r1)\",\n  \"api_base_url\":\"\\/api\\/\",\n  \"https_port\":3001,\n  \"device_name\":\"Freebox Server\",\n  \"https_available\":true,\n  \"box_model\":\"fbxgw8-r1\",\n  \"api_domain\":\"localhost\",\n  \"uid\":\"uid\",\n  \"api_version\":\"11.1\",\n  \"device_type\":\"FreeboxServer8,1\"\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null
+    },
+    {
+      "uuid": "07c2053e-f7ad-4040-ab70-411cd894a5b3",
+      "type": "http",
+      "documentation": "Track authorization progress",
+      "method": "get",
+      "endpoint": "api/v4/login/authorize/:track_id",
+      "responses": [
+        {
+          "uuid": "e239ec8b-06c1-4662-94ce-ce2bf862262d",
+          "body": "{\n    \"success\": true,\n    \"result\": {\n        \"status\": \"pending\",\n        \"challenge\": \"ch4ll3ng3\"\n    }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Pending",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "f1e4ca78-c47c-489d-a714-dd5f5a562abf",
+          "body": "{\n    \"success\": true,\n    \"result\": {\n        \"status\": \"granted\",\n        \"challenge\": \"ch4ll3nge\"\n    }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Granted",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "e0ba5188-1e33-4c66-a7a0-e11703d5cc10",
+          "body": "{\n    \"success\": true,\n    \"result\": {\n        \"status\": \"timeout\",\n        \"challenge\": \"ch4ll3nge\"\n    }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Timeout",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "0a019b2e-b8f1-4bd9-8413-7996efc92f74",
+          "body": "{\n    \"success\": true,\n    \"result\": {\n        \"status\": \"denied\",\n        \"challenge\": \"ch4ll3nge\"\n    }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Denied",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "c418abfe-26f7-4d27-bc7c-8701507f5cef",
+          "body": "{\n    \"success\": true,\n    \"result\": {\n        \"status\": \"unknown\",\n        \"challenge\": \"ch4ll3nge\"\n    }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Unknown",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null
+    },
+    {
+      "uuid": "ee6a03b0-b161-4dad-a4b6-a9e9bf8b3d14",
+      "type": "http",
+      "documentation": "Request authorization",
+      "method": "post",
+      "endpoint": "api/v4/login/authorize/",
+      "responses": [
+        {
+          "uuid": "31326b07-75c0-4a7c-b4e2-36a7baa36ec0",
+          "body": "{\n   \"success\": true,\n   \"result\": {\n      \"app_token\": \"foo.bar\",\n      \"track_id\": {{faker 'number.int' min=1 max=100}}\n   }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null
+    },
+    {
+      "uuid": "79a8576d-3b74-4321-ae76-38558ed3bbe3",
+      "type": "http",
+      "documentation": "Get the challenge value",
+      "method": "get",
+      "endpoint": "api/v4/login",
+      "responses": [
+        {
+          "uuid": "8a719f07-cf88-470d-90cc-e2f6f998fad6",
+          "body": "{\n\t\"success\": true,\n\t\"result\": {\n\t\t\"logged_in\": false,\n\t\t\"challenge\": \"ch4ll3ng3#1\",\n\t\t\"password_salt\": \"5417ED\",\n\t\t\"password_set\": true\n\t}\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Logged Out",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "291b79f7-3144-46b3-a64f-08276a89cd6c",
+          "body": "{\n\t\"success\": true,\n\t\"result\": {\n\t\t\"logged_in\": true,\n\t\t\"challenge\": \"ch4ll3ng3#1\",\n\t\t\"password_salt\": \"5417ED\",\n\t\t\"password_set\": true\n\t}\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Logged In",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null
+    },
+    {
+      "uuid": "678653dd-3596-4f38-b986-c4f8c3abe92c",
+      "type": "http",
+      "documentation": "Open a session",
+      "method": "post",
+      "endpoint": "api/v4/login/session/",
+      "responses": [
+        {
+          "uuid": "b8fbb338-8611-49df-b41b-f5b52d2305db",
+          "body": "{\n   \"success\": true,\n   \"result\" : \n   {\n       \"session_token\" : \"35JYdQSvkcBYK84IFMU7H86clfhS75OzwlQrKlQN1gBch\\/Dd62RGzDpgC7YB9jB2\",\n       \"challenge\":\"jdGL6CtuJ3Dm7p9nkcIQ8pjB+eLwr4Ya\",\n       \"permissions\": \n       {\n             \"downloader\": true\n       }\n    }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "b5dfc3e8-2b7b-42f5-ad16-f2abbb7f96bf",
+          "body": "{\n    \"msg\": \"Erreur d'authentification de l'application\",\n    \"success\": false,\n    \"uid\": \"23b86ec8091013d668829fe12791fdab\",\n    \"error_code\": \"invalid_token\",\n    \"result\": {\n         \"challenge\": \"ch4ll3ng3#3\"\n    }\n}",
+          "latency": 0,
+          "statusCode": 403,
+          "label": "",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null
+    }
+  ],
+  "rootChildren": [
+    {
+      "type": "route",
+      "uuid": "685567e5-cd75-4cbc-8026-eef31390e813"
+    },
+    {
+      "type": "route",
+      "uuid": "ee6a03b0-b161-4dad-a4b6-a9e9bf8b3d14"
+    },
+    {
+      "type": "route",
+      "uuid": "07c2053e-f7ad-4040-ab70-411cd894a5b3"
+    },
+    {
+      "type": "route",
+      "uuid": "79a8576d-3b74-4321-ae76-38558ed3bbe3"
+    },
+    {
+      "type": "route",
+      "uuid": "678653dd-3596-4f38-b986-c4f8c3abe92c"
+    }
+  ],
+  "proxyMode": false,
+  "proxyHost": "",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": true,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [
+    {
+      "key": "Content-Type",
+      "value": "application/json"
+    },
+    {
+      "key": "Access-Control-Allow-Origin",
+      "value": "*"
+    },
+    {
+      "key": "Access-Control-Allow-Methods",
+      "value": "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
+    },
+    {
+      "key": "Access-Control-Allow-Headers",
+      "value": "Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With"
+    }
+  ],
+  "proxyReqHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyResHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "data": [],
+  "callbacks": []
+}
