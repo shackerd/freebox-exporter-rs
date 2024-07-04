@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'freebox-exporter-rs'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=freebox-exporter-rs",
+                    "--package=freebox-exporter-rs"
+                ],
+                "filter": {
+                    "name": "freebox-exporter-rs",
+                    "kind": "bin"
+                }
+            },
+            "args": ["serve"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'freebox-exporter-rs'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=freebox-exporter-rs",
+                    "--package=freebox-exporter-rs"
+                ],
+                "filter": {
+                    "name": "freebox-exporter-rs",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
