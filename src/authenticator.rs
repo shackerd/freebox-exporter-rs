@@ -99,23 +99,16 @@ impl Authenticator {
 
     pub async fn login(&self) -> Result<FreeboxClient, Box<dyn std::error::Error>>{
 
-        match self.load_app_token().await {
-            Ok(v) => {
+        let token = self.load_app_token().await.expect("Cannot load app_token!");
+        let challenge = self.get_challenge().await?.result;
 
-                let challenge = self.get_challenge().await?.result;
+        let password = self.compute_password(token, challenge).unwrap();
 
-                let password = self.compute_password(v, challenge).unwrap();
+        let session_token = self.get_session_token(password).await?.result;
+        let permissions = session_token.permissions;
+        println!("{permissions:#?}");
 
-                let session_token = self.get_session_token(password).await?.result;
-                let permissions = session_token.permissions;
-                println!("{permissions:#?}");
-
-                return Ok(FreeboxClient::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
-            },
-            Err(_) => {
-                panic!()
-            }
-        }
+        return Ok(FreeboxClient::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
     }
 
     async fn prompt(&self) -> Result<FreeboxResponse<PromptResult>, Box<dyn std::error::Error>> {
