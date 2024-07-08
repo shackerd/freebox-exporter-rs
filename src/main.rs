@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None => { 6 }
                 };
 
-            register(interval).await?;
+            register(conf.api.host, interval).await?;
         } ,
         Command::Serve { port } => {
             let serve_port =
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None => { conf.core.port }
                 };
 
-            serve(serve_port).await?;
+            serve(conf.api.host, serve_port).await?;
         },
         Command::Revoke => {
             todo!()
@@ -50,8 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn register(interval: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let api_url = discovery::get_api_url("mafreebox.freebox.fr", false).await?;
+async fn register(freebox_host: String, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
+    let api_url = discovery::get_api_url(freebox_host.as_str(), true).await?;
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned());
@@ -61,9 +61,9 @@ async fn register(interval: u64) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+async fn serve(freebox_host: String, port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
-    let api_url = discovery::get_api_url("mafreebox.freebox.fr", false).await?;
+    let api_url = discovery::get_api_url(freebox_host.as_str(), true).await?;
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned());
 
