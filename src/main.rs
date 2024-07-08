@@ -1,25 +1,27 @@
 use std::net::SocketAddr;
 
 use clap::{command, Parser, Subcommand};
+use configuration::get_configuration;
 use prometheus_exporter::prometheus::{register_counter, register_gauge, register_histogram, register_int_counter_vec};
 
 mod common;
 mod authenticator;
 mod discovery;
 mod prometheus;
+mod configuration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    let configuration: &str =
+    let conf_path: &str =
         match &cli.configuration_file {
-            Some(c) => {
-                ""
-            },
-            None => { "" }
+            Some(c) => { &c },
+            None => { "config.toml" }
         };
+
+    let conf = get_configuration(conf_path.to_string()).await?;
 
     match &cli.command {
         Command::Register { pooling_interval } => {
@@ -61,11 +63,13 @@ async fn register(interval: u64) -> Result<(), Box<dyn std::error::Error>> {
 
 async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
-    // let api_url = discovery::get_api_url("mafreebox.freebox.fr", false).await?;
-    // let authenticator =
-    //     authenticator::Authenticator::new(api_url.to_owned());
-    // // server startup procedure
-    // let client = authenticator.login().await?;
+    let api_url = discovery::get_api_url("mafreebox.freebox.fr", false).await?;
+    let authenticator =
+        authenticator::Authenticator::new(api_url.to_owned());
+
+    // server startup procedure
+    let client = authenticator.login().await?;
+
 
     let addr_raw = format!("0.0.0.0:{}", port);
     let addr: SocketAddr = addr_raw.parse().expect("Cannot parse addr");
@@ -78,6 +82,10 @@ async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
         let guard = exporter.wait_duration(duration);
         metric1.set(i as f64);
         i = i + 1;
+
+        if i > 100 { // dummy code
+            break;
+        }
     }
 
     Ok(())

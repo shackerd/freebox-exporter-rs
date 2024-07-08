@@ -1,10 +1,10 @@
 use core::str;
-use std::{path::Path, thread, time::Duration};
+use std::{path::Path, thread::{self}, time::Duration};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}};
-use crate::common::{http_client_factory, FreeboxClient, FreeboxResponse};
+use crate::common::{http_client_factory, FreeboxClient, FreeboxResponse, Permissions};
 
 type HmacSha1 = Hmac<Sha1>;
 
@@ -110,7 +110,7 @@ impl Authenticator {
                 let permissions = session_token.permissions;
                 println!("{permissions:#?}");
 
-                return Ok(FreeboxClient::new(self.api_url.to_owned(), session_token.session_token.to_owned()));
+                return Ok(FreeboxClient::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
             },
             Err(_) => {
                 panic!()
@@ -230,13 +230,13 @@ impl Authenticator {
 
         let client = http_client_factory().unwrap();
 
-        let resp =
+        let body =
             client.get(format!("{}v4/login/", self.api_url))
                 .send().await?
                 .text().await?;
 
         let res =
-            serde_json::from_str::<FreeboxResponse<ChallengeResult>>(&resp)?;
+            serde_json::from_str::<FreeboxResponse<ChallengeResult>>(&body)?;
 
         Ok(res)
     }
@@ -247,7 +247,7 @@ impl Authenticator {
 
         let payload = SessionPayload {
             app_id : String::from("fr.freebox.prometheus.exporter"),
-            app_version : "v1.0.0.0".to_string(),
+            // app_version : "1.0.0.0".to_string(),
             password
         };
 
@@ -261,20 +261,22 @@ impl Authenticator {
         let res =
             serde_json::from_str::<FreeboxResponse<SessionResult>>(&body)?;
 
+        if !res.success {
+            panic!("{}", res.msg)
+        }
+
         Ok(res)
     }
 
 
     fn compute_password(&self, app_token: String, result: ChallengeResult) -> Result<String, ()>{
 
-        let mut mac = HmacSha1::new_from_slice(result.challenge.as_bytes()).unwrap();
-        // password = hmac-sha1(app_token, challenge) + salt??
-
-        mac.update(app_token.as_bytes());
+        let mut mac = HmacSha1::new_from_slice(app_token.as_bytes()).unwrap();
+        mac.update(result.challenge.as_bytes());
         let code = mac.finalize().into_bytes();
-        let result = code.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join("");
+        let res = code.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join("");
 
-        Ok(result)
+        Ok(res)
     }
 }
 
@@ -308,57 +310,25 @@ impl std::error::Error for AuthorizationError { }
 #[derive(Deserialize, Debug)]
 pub struct ChallengeResult {
     logged_in: bool,
-    challenge: String
+    challenge: String,
+    // password_salt: String
 }
 
 #[derive(Serialize, Debug)]
 pub struct SessionPayload {
     app_id: String,
-    app_version: String,
+    // app_version: String,
     password: String
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SessionResult {
-    session_token: String,
-    challenge: String,
-    #[serde(default, with= "SessionPermissions")]
-    permissions: SessionPermissions
+    // #[serde(default, with="String")]
+    session_token: Option<String>,
+    // challenge: String,
+    // #[serde(default, with= "Permissions")]
+    permissions: Option<Permissions>
 }
-
-#[derive(Deserialize, Debug)]
-#[allow(unused)] // deserialized object
-pub struct SessionPermissions {
-    #[serde(default, with= "bool")]
-    settings: bool,
-    #[serde(default, with= "bool")]
-    contacts: bool,
-    #[serde(default, with= "bool")]
-    calls: bool,
-    #[serde(default, with= "bool")]
-    explorer: bool,
-    #[serde(default, with= "bool")]
-    downloader: bool,
-    #[serde(default, with= "bool")]
-    parental: bool,
-    #[serde(default, with= "bool")]
-    pvr: bool
-}
-
-impl Default for SessionPermissions {
-    fn default() -> Self {
-        Self {
-            settings: Default::default(),
-            contacts: Default::default(),
-            calls: Default::default(),
-            explorer: Default::default(),
-            downloader: Default::default(),
-            parental: Default::default(),
-            pvr: Default::default()
-        }
-    }
-}
-
 
 #[cfg(test)]
 mod tests {

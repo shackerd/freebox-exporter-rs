@@ -13,6 +13,39 @@ pub struct FreeboxResponse<T> {
     pub result: T
 }
 
+#[derive(Deserialize, Debug)]
+#[allow(unused)] // deserialized object
+pub struct Permissions {
+    #[serde(default, with= "bool")]
+    settings: bool,
+    #[serde(default, with= "bool")]
+    contacts: bool,
+    #[serde(default, with= "bool")]
+    calls: bool,
+    #[serde(default, with= "bool")]
+    explorer: bool,
+    #[serde(default, with= "bool")]
+    downloader: bool,
+    #[serde(default, with= "bool")]
+    parental: bool,
+    #[serde(default, with= "bool")]
+    pvr: bool
+}
+
+impl Default for Permissions {
+    fn default() -> Self {
+        Self {
+            settings: Default::default(),
+            contacts: Default::default(),
+            calls: Default::default(),
+            explorer: Default::default(),
+            downloader: Default::default(),
+            parental: Default::default(),
+            pvr: Default::default()
+        }
+    }
+}
+
 pub struct FreeboxClient {
     api_url: String,
     session_token: String
