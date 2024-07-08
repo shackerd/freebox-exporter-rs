@@ -60,18 +60,45 @@ impl FreeboxClient {
         }
     }
 
-    async fn test(&self) -> Result<(),()> {
+    pub async fn test(&self) -> Result<FreeboxResponse<Connection>,()> {
 
-        let resp =
-            self.append_token(http_client_factory().unwrap().get("")).send().await.unwrap();
+        let body =
+            self.append_token(http_client_factory().unwrap().get(format!("{}v4/connection", self.api_url)))
+            .send().await.unwrap()
+            .text().await.unwrap();
 
-        Ok(())
+        let res = serde_json::from_str::<FreeboxResponse<Connection>>(&body);
+
+        match res {
+            Ok(c) => {
+                return Ok(c);
+            },
+            Err(e) => {
+                panic!("{}", e);
+            }
+        }
     }
 
     fn append_token(&self, request_builder: RequestBuilder) -> RequestBuilder
     {
         request_builder.header("X-Fbx-App-Auth", self.session_token.as_str())
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Connection {
+    #[serde(alias="type")]
+    pub _type: String,
+    pub rate_down: u64,
+    pub bytes_up: u64,
+    pub rate_up: u64,
+    pub bandwidth_up: u64,
+    pub ipv4: String,
+    pub ipv6: String,
+    pub bandwidth_down: u64,
+    pub state: String,
+    pub bytes_down: u64,
+    pub media: String
 }
 /*
 auth_required 	Invalid session token, or not session token sent
