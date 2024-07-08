@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let serve_port =
                 match &port {
                     Some(p) => { *p },
-                    None => { 9186 }
+                    None => { conf.core.port }
                 };
 
             serve(serve_port).await?;
