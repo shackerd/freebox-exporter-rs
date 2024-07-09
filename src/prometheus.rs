@@ -29,7 +29,7 @@ impl Server {
         let mut i = 0;
 
         loop {
-            let guard = exporter.wait_duration(duration);
+            let _guard = exporter.wait_duration(duration);
             let connection = self.translator.connection().await.unwrap();
 
             metric1.set(connection.result.bytes_down as f64);
