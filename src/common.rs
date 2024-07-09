@@ -74,7 +74,7 @@ impl AuthenticatedHttpClientFactory {
                 .danger_accept_invalid_certs(true)
                 .default_headers(headers)
                 .build()
-                .unwrap();
+                .expect("cannot create HTTP Client");
         Ok(client)
     }
 }
@@ -97,6 +97,6 @@ pub fn http_client_factory() -> Result<Client, ()> {
         reqwest::ClientBuilder::new()
             .danger_accept_invalid_certs(true)
             .build()
-            .unwrap();
+            .expect("cannot create HTTP Client");
     Ok(client)
 }
