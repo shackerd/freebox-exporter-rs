@@ -1,5 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use configuration::{get_configuration, Configuration};
+use prometheus::Translator;
 
 mod common;
 mod authenticator;
@@ -69,9 +70,9 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir);
 
-    let client = authenticator.login().await?;
+    let factory = authenticator.login().await?;
 
-    let server = prometheus::Server::new(port, client);
+    let server = prometheus::Server::new(port, Translator::new(factory));
 
     server.run().await?;
 

@@ -4,7 +4,7 @@ use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}};
-use crate::common::{http_client_factory, FreeboxClient, FreeboxResponse, Permissions};
+use crate::common::{http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, Permissions};
 
 type HmacSha1 = Hmac<Sha1>;
 
@@ -50,7 +50,7 @@ impl Authenticator {
     fn get_token_file_path(data_dir: String) -> String {
 
         let sep = if cfg!(windows) { '\\' } else { '/' };
-        format!("{}{}{}", data_dir, sep, "token2.dat")
+        format!("{}{}{}", data_dir, sep, "token.dat")
     }
 
     async fn store_app_token(&self, token: String) -> Result<(), Box<dyn std::error::Error>>
@@ -75,7 +75,7 @@ impl Authenticator {
         let path = Path::new(self.token_file.as_str());
 
         if !path.exists() {
-            panic!("token file does not exist, did you registered the application? See register command")
+            panic!("token file does not exist {}, did you registered the application? See register command", self.token_file)
         }
 
         let mut file = File::open(self.token_file.as_str()).await?;
@@ -103,7 +103,7 @@ impl Authenticator {
         Ok(())
     }
 
-    pub async fn login(&self) -> Result<FreeboxClient, Box<dyn std::error::Error>>{
+    pub async fn login(&self) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error>>{
 
         let token = self.load_app_token().await.expect("Cannot load app_token!");
         let challenge = self.get_challenge().await?.result;
@@ -114,7 +114,7 @@ impl Authenticator {
         let permissions = session_token.permissions;
         println!("{permissions:#?}");
 
-        return Ok(FreeboxClient::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
+        return Ok(AuthenticatedHttpClientFactory::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
     }
 
     async fn prompt(&self) -> Result<FreeboxResponse<PromptResult>, Box<dyn std::error::Error>> {

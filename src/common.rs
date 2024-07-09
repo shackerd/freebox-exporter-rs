@@ -1,4 +1,4 @@
-use reqwest::{Client, RequestBuilder};
+use reqwest::{header::{HeaderMap, HeaderValue}, Client };
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,12 +49,12 @@ impl Default for Permissions {
     }
 }
 
-pub struct FreeboxClient {
-    api_url: String,
+pub struct AuthenticatedHttpClientFactory {
+    pub api_url: String,
     session_token: String
 }
 
-impl FreeboxClient {
+impl AuthenticatedHttpClientFactory {
 
     pub fn new(api_url: String, session_token: String) -> Self {
         Self {
@@ -63,46 +63,22 @@ impl FreeboxClient {
         }
     }
 
-    pub async fn connection_test(&self) -> Result<FreeboxResponse<Connection>,()> {
+    pub fn create_client(&self) -> Result<Client, ()> {
 
-        let body =
-            self.append_token(http_client_factory().unwrap().get(format!("{}v4/connection", self.api_url)))
-            .send().await.unwrap()
-            .text().await.unwrap();
+        let mut headers = HeaderMap::new();
 
-        let res = serde_json::from_str::<FreeboxResponse<Connection>>(&body);
+        headers.append("X-Fbx-App-Auth", HeaderValue::from_str(self.session_token.as_str()).unwrap());
 
-        match res {
-            Ok(c) => {
-                return Ok(c);
-            },
-            Err(e) => {
-                panic!("{}", e);
-            }
-        }
-    }
-
-    fn append_token(&self, request_builder: RequestBuilder) -> RequestBuilder
-    {
-        request_builder.header("X-Fbx-App-Auth", self.session_token.as_str())
+        let client =
+            reqwest::ClientBuilder::new()
+                .danger_accept_invalid_certs(true)
+                .default_headers(headers)
+                .build()
+                .unwrap();
+        Ok(client)
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Connection {
-    #[serde(alias="type")]
-    pub _type: String,
-    pub rate_down: u64,
-    pub bytes_up: u64,
-    pub rate_up: u64,
-    pub bandwidth_up: u64,
-    pub ipv4: String,
-    pub ipv6: String,
-    pub bandwidth_down: u64,
-    pub state: String,
-    pub bytes_down: u64,
-    pub media: String
-}
 /*
 auth_required 	Invalid session token, or not session token sent
 invalid_token 	The app token you are trying to use is invalid or has been revoked

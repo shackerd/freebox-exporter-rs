@@ -4,5 +4,5 @@ port = 443
 expose = { connection = true,  settings = true, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
 
 [core]
-data_dir = "/usr/share/freebox-exporter"
+data_dir = "/home/shackerd/.freebox-exporter"
 port = 9102
