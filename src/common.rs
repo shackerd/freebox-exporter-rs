@@ -17,24 +17,27 @@ pub struct FreeboxResponse<T> {
 #[allow(unused)] // deserialized object
 pub struct Permissions {
     #[serde(default, with= "bool")]
-    settings: bool,
+    pub connection: bool,
     #[serde(default, with= "bool")]
-    contacts: bool,
+    pub settings: bool,
     #[serde(default, with= "bool")]
-    calls: bool,
+    pub contacts: bool,
     #[serde(default, with= "bool")]
-    explorer: bool,
+    pub calls: bool,
     #[serde(default, with= "bool")]
-    downloader: bool,
+    pub explorer: bool,
     #[serde(default, with= "bool")]
-    parental: bool,
+    pub downloader: bool,
     #[serde(default, with= "bool")]
-    pvr: bool
+    pub parental: bool,
+    #[serde(default, with= "bool")]
+    pub pvr: bool
 }
 
 impl Default for Permissions {
     fn default() -> Self {
         Self {
+            connection: Default::default(),
             settings: Default::default(),
             contacts: Default::default(),
             calls: Default::default(),
