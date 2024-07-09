@@ -29,7 +29,7 @@ impl Server {
 
         loop {
             let guard = exporter.wait_duration(duration);
-            let connection = self.client.test().await.unwrap();
+            let connection = self.client.connection_test().await.unwrap();
 
             metric1.set(connection.result.bytes_down as f64);
 

@@ -14,7 +14,7 @@ pub struct FreeboxResponse<T> {
 }
 
 #[derive(Deserialize, Debug)]
-#[allow(unused)] // deserialized object
+#[allow(unused)]
 pub struct Permissions {
     #[serde(default, with= "bool")]
     pub connection: bool,
@@ -63,7 +63,7 @@ impl FreeboxClient {
         }
     }
 
-    pub async fn test(&self) -> Result<FreeboxResponse<Connection>,()> {
+    pub async fn connection_test(&self) -> Result<FreeboxResponse<Connection>,()> {
 
         let body =
             self.append_token(http_client_factory().unwrap().get(format!("{}v4/connection", self.api_url)))

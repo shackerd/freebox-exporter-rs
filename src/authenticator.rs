@@ -35,8 +35,7 @@ pub struct PromptResult {
 
 pub struct Authenticator {
     api_url: String,
-    token_file: String,
-    data_dir: String
+    token_file: String
 }
 
 
@@ -44,8 +43,7 @@ impl Authenticator {
     pub fn new(api_url: String, data_dir: String) -> Self {
         Self {
             api_url,
-            token_file: Authenticator::get_token_file_path(data_dir.to_owned()),
-            data_dir
+            token_file: Authenticator::get_token_file_path(data_dir.to_owned())
         }
     }
 
@@ -309,7 +307,7 @@ impl std::error::Error for AuthorizationError { }
 
 #[derive(Deserialize, Debug)]
 pub struct ChallengeResult {
-    logged_in: bool,
+    // logged_in: bool,
     challenge: String,
     // password_salt: String
 }
