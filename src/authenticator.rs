@@ -35,16 +35,24 @@ pub struct PromptResult {
 
 pub struct Authenticator {
     api_url: String,
-    token_file: String
+    token_file: String,
+    data_dir: String
 }
 
 
 impl Authenticator {
-    pub fn new(api_url: String) -> Self {
+    pub fn new(api_url: String, data_dir: String) -> Self {
         Self {
             api_url,
-            token_file: "./token.dat".to_string()
+            token_file: Authenticator::get_token_file_path(data_dir.to_owned()),
+            data_dir
         }
+    }
+
+    fn get_token_file_path(data_dir: String) -> String {
+
+        let sep = if cfg!(windows) { '\\' } else { '/' };
+        format!("{}{}{}", data_dir, sep, "token2.dat")
     }
 
     async fn store_app_token(&self, token: String) -> Result<(), Box<dyn std::error::Error>>
@@ -69,7 +77,7 @@ impl Authenticator {
         let path = Path::new(self.token_file.as_str());
 
         if !path.exists() {
-            panic!("token file does not exist, did you registered the application? See -r option")
+            panic!("token file does not exist, did you registered the application? See register command")
         }
 
         let mut file = File::open(self.token_file.as_str()).await?;
@@ -240,7 +248,6 @@ impl Authenticator {
 
         let payload = SessionPayload {
             app_id : String::from("fr.freebox.prometheus.exporter"),
-            // app_version : "1.0.0.0".to_string(),
             password
         };
 
@@ -334,7 +341,7 @@ mod tests {
         let api_url = discovery::get_api_url("localhost:3001", true).await.unwrap();
 
         let authenticator =
-            authenticator::Authenticator::new(api_url.to_owned());
+            authenticator::Authenticator::new(api_url.to_owned(), "./".to_string());
 
         match authenticator.register(1).await {
             Ok(_) => { },
@@ -352,7 +359,7 @@ mod tests {
         let api_url = discovery::get_api_url("localhost:3001", true).await.unwrap();
 
         let authenticator =
-            authenticator::Authenticator::new(api_url.to_owned());
+            authenticator::Authenticator::new(api_url.to_owned(), "./".to_string());
 
         match authenticator.login().await {
             Ok(_) => { },

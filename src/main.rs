@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use clap::{command, Parser, Subcommand};
-use configuration::get_configuration;
+use configuration::{get_configuration, Configuration};
 use prometheus_exporter::prometheus::{register_counter, register_gauge, register_histogram, register_int_counter_vec};
 
 mod common;
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None => { 6 }
                 };
 
-            register(conf.api.host, interval).await?;
+            register(conf, interval).await?;
         } ,
         Command::Serve { port } => {
             let serve_port =
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None => { conf.core.port }
                 };
 
-            serve(conf.api.host, serve_port).await?;
+            serve(conf, serve_port).await?;
         },
         Command::Revoke => {
             todo!()
@@ -50,45 +50,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn register(freebox_host: String, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let api_url = discovery::get_api_url(freebox_host.as_str(), true).await?;
+async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
+    let api_url = discovery::get_api_url(&conf.api.host.to_owned(), true).await?;
 
     let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned());
+        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir);
 
-    authenticator.register(interval).await?;
+    match authenticator.register(interval).await {
+        Ok(_) => {
+            println!("Successfully registered application");
+        },
+        Err(e) => panic!("{e:#?}")
+    }
 
     Ok(())
 }
 
-async fn serve(freebox_host: String, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
-    let api_url = discovery::get_api_url(freebox_host.as_str(), true).await?;
+    let api_url = discovery::get_api_url(conf.api.host.as_str(), true).await?;
     let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned());
+        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir);
 
-    // server startup procedure
     let client = authenticator.login().await?;
 
-    let addr_raw = format!("0.0.0.0:{}", port);
-    let addr: SocketAddr = addr_raw.parse().expect("Cannot parse addr");
-    let exporter = prometheus_exporter::start(addr).expect("Cannot start exporter");
-    let duration = std::time::Duration::from_millis(5000);
-    let metric1 = register_gauge!("bytes_down", "bytes_down").expect("cannot create test gauge");
+    let server = prometheus::Server::new(port, client);
 
-    let mut i = 0;
-    loop {
-        let guard = exporter.wait_duration(duration);
-        let connection = client.test().await.unwrap();
-
-        metric1.set(connection.result.bytes_down as f64);
-
-        i = i + 1;
-
-        if i > 100 { // dummy code
-            break;
-        }
-    }
+    server.run().await?;
 
     Ok(())
 }
