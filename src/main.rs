@@ -1,8 +1,5 @@
-use std::net::SocketAddr;
-
 use clap::{command, Parser, Subcommand};
 use configuration::{get_configuration, Configuration};
-use prometheus_exporter::prometheus::{register_counter, register_gauge, register_histogram, register_int_counter_vec};
 
 mod common;
 mod authenticator;
