@@ -4,7 +4,7 @@ use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}};
-use crate::common::{http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, Permissions};
+use crate::core::common::{http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, Permissions};
 
 type HmacSha1 = Hmac<Sha1>;
 

@@ -49,10 +49,13 @@ impl Default for Permissions {
     }
 }
 
+#[derive(Clone)]
 pub struct AuthenticatedHttpClientFactory {
     pub api_url: String,
     session_token: String
 }
+
+
 
 impl AuthenticatedHttpClientFactory {
 

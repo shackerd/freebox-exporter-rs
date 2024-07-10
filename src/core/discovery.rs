@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::common::http_client_factory;
+use crate::core::common::http_client_factory;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApiVersion {

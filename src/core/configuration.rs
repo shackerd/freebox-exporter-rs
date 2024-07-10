@@ -2,7 +2,7 @@ use serde::Deserialize;
 use tokio::{fs::File, io::AsyncReadExt};
 use std::path::Path;
 
-use crate::common::Permissions;
+use crate::core::common::Permissions;
 
 #[derive(Deserialize, Debug)]
 pub struct Configuration {
@@ -53,7 +53,7 @@ mod test {
 
     use tokio::{fs::{self, File}, io::AsyncWriteExt};
 
-    use crate::configuration::get_configuration;
+    use crate::core::configuration::get_configuration;
 
     async fn create_sample_file(path: &Path) -> Result<(), Box<dyn std::error::Error>>{
 

@@ -1,12 +1,9 @@
 use clap::{command, Parser, Subcommand};
-use configuration::{get_configuration, Configuration};
-use prometheus::Translator;
+use translators::Translator;
+use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
 
-mod common;
-mod authenticator;
-mod discovery;
-mod prometheus;
-mod configuration;
+mod core;
+mod translators;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -71,8 +68,8 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir);
 
     let factory = authenticator.login().await?;
-
-    let server = prometheus::Server::new(port, Translator::new(factory));
+    let translator = Translator::new(factory, conf.api.expose);
+    let server = prometheus::Server::new(port, translator);
 
     server.run().await?;
 

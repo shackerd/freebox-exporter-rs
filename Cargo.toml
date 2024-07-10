@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.81"
 clap = { version = "4.5.8", features = ["derive"] }
 hmac = { version = "0.12.1", features = ["std"] }
 prometheus_exporter = "0.8.5"
