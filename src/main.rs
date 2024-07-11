@@ -17,6 +17,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
     let conf = get_configuration(conf_path.to_string()).await?;
+    conf.assert_data_dir_permissions()?;
+
+    // TODO :
+    // assert data_dir is writable / readable
+    // add cache expiry (prometheus refresh interval)
 
     match &cli.command {
         Command::Register { pooling_interval } => {

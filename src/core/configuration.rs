@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use tokio::{fs::File, io::AsyncReadExt};
-use std::path::Path;
+use std::{fs::{self}, path::Path};
 
 use crate::core::common::Permissions;
 
@@ -23,8 +23,27 @@ pub struct ApiConfiguration {
     pub expose: Permissions
 }
 
+impl Configuration {
+    pub fn assert_data_dir_permissions(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = Path::new(&self.core.data_dir);
+
+        if !path.try_exists().expect("Access is denied") {
+            panic!("data dir does not exist");
+        }
+
+        let permissions =
+            fs::metadata(path).expect("cannot read metadata").permissions();
+
+        if permissions.readonly() {
+            panic!("data_dir cannot be readonly");
+        }
+
+        Ok(())
+    }
+}
+
 pub async fn get_configuration(file_path: String) -> Result<Configuration, Box<dyn std::error::Error>> {
-    let path = Path::new(file_path.as_str());
+    let path = Path::new(&file_path);
 
     if !path.exists() {
         panic!("Configuration file is missing");
