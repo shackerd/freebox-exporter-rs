@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prometheus_exporter::prometheus::{core::{AtomicF64, GenericGauge}, register_gauge};
+use prometheus_exporter::prometheus::{core::GenericGauge, register, register_histogram, register_int_gauge};
 use serde::Deserialize;
 
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse};
@@ -24,14 +24,26 @@ pub struct Connection {
 
 pub struct ConnectionTap {
     factory: AuthenticatedHttpClientFactory,
-    bytes_down_metric: GenericGauge<AtomicF64>
+    bytes_down_metric:  GenericGauge<prometheus_exporter::prometheus::core::AtomicI64>,
+    bytes_up_metric:  GenericGauge<prometheus_exporter::prometheus::core::AtomicI64>,
+    rate_down_metric:  GenericGauge<prometheus_exporter::prometheus::core::AtomicI64>,
+    rate_up_metric:  GenericGauge<prometheus_exporter::prometheus::core::AtomicI64>,
+    bandwidth_down_metric:  GenericGauge<prometheus_exporter::prometheus::core::AtomicI64>,
+    bandwidth_up_metric:  GenericGauge<prometheus_exporter::prometheus::core::AtomicI64>
+
 }
 
 impl ConnectionTap {
     pub fn new(factory: AuthenticatedHttpClientFactory) -> Self {
+
         Self {
             factory,
-            bytes_down_metric : register_gauge!("bytes_down", "bytes_down").expect("cannot create test gauge")
+            bytes_down_metric : register_int_gauge!("connection_bytes_down", "connection_bytes_down").expect("cannot create connection_bytes_down gauge"),
+            bytes_up_metric : register_int_gauge!("connection_bytes_up", "connection_bytes_up").expect("cannot create connection_bytes_up gauge"),
+            rate_down_metric : register_int_gauge!("connection_rate_down", "connection_rate_down").expect("cannot create connection_rate_down gauge"),
+            rate_up_metric : register_int_gauge!("connection_rate_up", "connection_rate_up").expect("cannot create connection_rate_up gauge"),
+            bandwidth_down_metric : register_int_gauge!("connection_bandwidth_down", "connection_bandwidth_down").expect("cannot create connection_bandwidth_down gauge"),
+            bandwidth_up_metric : register_int_gauge!("connection_bandwidth_up", "connection_bandwidth_up").expect("cannot create connection_bandwidth_up gauge"),
         }
     }
 }
@@ -49,7 +61,12 @@ impl TranslatorMetricTap for ConnectionTap {
 
         let connection = res.expect("Cannot read response").result;
 
-        self.bytes_down_metric.set(connection.bytes_down as f64);
+        self.bytes_down_metric.set(connection.bytes_down as i64);
+        self.bytes_up_metric.set(connection.bytes_up as i64);
+        self.rate_down_metric.set(connection.rate_down as i64);
+        self.rate_up_metric.set(connection.rate_up as i64);
+        self.bandwidth_down_metric.set(connection.bandwidth_down as i64);
+        self.bandwidth_up_metric.set(connection.bandwidth_up as i64);
 
         Ok(())
     }

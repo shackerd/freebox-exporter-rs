@@ -27,14 +27,13 @@ impl Server {
         let mut i = 0;
 
         loop {
-            let _guard = exporter.wait_duration(duration);
 
             self.translator.set_all().await?;
 
             i = i + 1;
+
+            let _guard = exporter.wait_duration(duration);
         }
-
-
     }
 }
 
