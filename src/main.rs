@@ -19,10 +19,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conf = get_configuration(conf_path.to_string()).await?;
     conf.assert_data_dir_permissions()?;
 
-    // TODO :
-    // assert data_dir is writable / readable
-    // add cache expiry (prometheus refresh interval)
-
     match &cli.command {
         Command::Register { pooling_interval } => {
             let interval =
@@ -74,7 +70,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
 
     let factory = authenticator.login().await?;
     let translator = Translator::new(factory, conf.api.expose);
-    let server = prometheus::Server::new(port, translator);
+    let server = prometheus::Server::new(port, conf.api.refresh_interval_secs, translator);
 
     server.run().await?;
 

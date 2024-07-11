@@ -20,7 +20,8 @@ pub struct CoreConfiguration {
 pub struct ApiConfiguration {
     pub host: String,
     pub port: u16,
-    pub expose: Permissions
+    pub expose: Permissions,
+    pub refresh_interval_secs: u64
 }
 
 impl Configuration {
