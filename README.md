@@ -13,6 +13,7 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 
 ## Roadmap
 
+* Fix Github action (missing API mock, unit tests wont run)
 * Expose all Freebox API
 * Loggin
 * Provide systemd registration
