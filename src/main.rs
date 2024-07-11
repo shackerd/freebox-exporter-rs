@@ -5,13 +5,6 @@ use core::{authenticator, configuration::{get_configuration, Configuration}, dis
 mod core;
 mod translators;
 
-//  Todo:
-//      * Add logger
-//      * Rework configuration data_dir check for unit tests
-//      * Add API gauges
-//      * Add documentation
-//      * Add MIT licence
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
