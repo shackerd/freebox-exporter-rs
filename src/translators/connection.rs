@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prometheus_exporter::prometheus::{core::GenericGauge, register, register_histogram, register_int_gauge};
+use prometheus_exporter::prometheus::{core::GenericGauge, register_int_gauge};
 use serde::Deserialize;
 
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse};
