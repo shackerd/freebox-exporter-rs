@@ -110,8 +110,8 @@ impl ConnectionTap {
 
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection", self.factory.api_url))
-            .send().await.unwrap()
-            .text().await.unwrap();
+            .send().await?
+            .text().await?;
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionStatus>>(&body);
 
@@ -136,8 +136,8 @@ impl ConnectionTap {
 
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection/config", self.factory.api_url))
-            .send().await.unwrap()
-            .text().await.unwrap();
+            .send().await?
+            .text().await?;
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionConfiguration>>(&body);
 
@@ -161,8 +161,8 @@ impl ConnectionTap {
 
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection/ipv6/config", self.factory.api_url))
-            .send().await.unwrap()
-            .text().await.unwrap();
+            .send().await?
+            .text().await?;
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body);
 
