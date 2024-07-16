@@ -144,10 +144,18 @@ Then run the following command.
 cargo test
 ```
 
+### Verify it works
+
+If you changed port in `conf.toml`, update the command line below.
+
+``` bash
+curl http://localhost:9102/metrics
+```
+
 ## License
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fshackerd%2Ffreebox-exporter-rs.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fshackerd%2Ffreebox-exporter-rs?ref=badge_large)
 
-## Support
+## Support this project
 
 If you want to help, you can contribute or you can still [buy me a coffee](https://buymeacoffee.com/shackerd)!
