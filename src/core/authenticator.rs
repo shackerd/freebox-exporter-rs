@@ -332,6 +332,8 @@ pub struct SessionResult {
 mod tests {
 
     use crate::{authenticator, discovery};
+    use std::path::Path;
+    use tokio::{fs::{self, File}, io::AsyncWriteExt};
 
     #[tokio::test]
     async fn register_test() {
@@ -351,13 +353,37 @@ mod tests {
         };
     }
 
+    async fn create_sample_token() -> Result<&'static Path, Box<dyn std::error::Error>> {
+
+        let data_dir_path = Path::new("./test/");
+        let token_path = Path::new("./test/token.dat");
+
+        if !data_dir_path.exists() {
+            fs::create_dir(data_dir_path).await.expect("cannot create test directory");
+        }
+
+        if token_path.exists() {
+            fs::remove_file(token_path).await.expect("cannot remove sample token file");
+        }
+
+        let mut file = File::create(token_path).await.expect("cannot create sample token file");
+        let content = "foo.bar";
+
+        file.write_all(content.as_bytes()).await.expect("cannot write to sample token file");
+        file.shutdown().await.unwrap();
+
+        Ok(token_path)
+    }
+
     #[tokio::test]
     async fn login_test() {
 
         let api_url = discovery::get_api_url("localhost:3001", true).await.unwrap();
 
+        let path = create_sample_token().await.unwrap();
+
         let authenticator =
-            authenticator::Authenticator::new(api_url.to_owned(), ".".to_string());
+            authenticator::Authenticator::new(api_url.to_owned(), "./test".to_string());
 
         match authenticator.login().await {
             Ok(_) => { },
@@ -367,5 +393,7 @@ mod tests {
                 panic!();
             }
         }
+
+        fs::remove_file(path).await.expect("cannot cleanup sample token file");
     }
 }
