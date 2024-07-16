@@ -5,5 +5,5 @@ expose = { connection = true,  settings = true, contacts = true, calls = true, e
 refresh_interval_secs = 5
 
 [core]
-data_dir = "./"
+data_dir = "."
 port = 9102

@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let serve_port =
                 match &port {
                     Some(p) => { *p },
-                    None => { conf.core.port }
+                    None => { conf.core.port.unwrap() }
                 };
 
             serve(conf, serve_port).await?;
@@ -47,10 +47,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let api_url = discovery::get_api_url(&conf.api.host.to_owned(), true).await?;
+    let api_url = discovery::get_api_url(&conf.api.host.unwrap().to_owned(), true).await?;
 
     let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir);
+        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir.unwrap());
 
     match authenticator.register(interval).await {
         Ok(_) => {
@@ -64,13 +64,13 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
 
 async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
-    let api_url = discovery::get_api_url(conf.api.host.as_str(), true).await?;
+    let api_url = discovery::get_api_url(conf.api.host.unwrap().as_str(), true).await?;
     let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir);
+        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir.unwrap());
 
     let factory = authenticator.login().await?;
-    let translator = Translator::new(factory, conf.api.expose);
-    let server = prometheus::Server::new(port, conf.api.refresh_interval_secs, translator);
+    let translator = Translator::new(factory, conf.api.expose.unwrap());
+    let server = prometheus::Server::new(port, conf.api.refresh_interval_secs.unwrap(), translator);
 
     server.run().await?;
 

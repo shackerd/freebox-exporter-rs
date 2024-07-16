@@ -357,7 +357,7 @@ mod tests {
         let api_url = discovery::get_api_url("localhost:3001", true).await.unwrap();
 
         let authenticator =
-            authenticator::Authenticator::new(api_url.to_owned(), "./".to_string());
+            authenticator::Authenticator::new(api_url.to_owned(), ".".to_string());
 
         match authenticator.login().await {
             Ok(_) => { },
