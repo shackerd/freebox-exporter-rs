@@ -16,8 +16,8 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 ## Current API progress
 
 * &#10134; Authentication
-  * &#9989; Register: 100%
-  * &#9989; Login: 100%
+  * &#9989; Register: **100%**
+  * &#9989; Login: **100%**
 * &#10134; Configuration
   * &#10134; Connection
     * &#9989; Status: **100%**
