@@ -281,7 +281,6 @@ impl Authenticator {
 #[derive(Deserialize, Debug)]
 pub struct AuthorizationResult {
     status: String,
-    // challenge: String
 }
 
 #[derive(Debug)]
@@ -307,24 +306,18 @@ impl std::error::Error for AuthorizationError { }
 
 #[derive(Deserialize, Debug)]
 pub struct ChallengeResult {
-    // logged_in: bool,
     challenge: String,
-    // password_salt: String
 }
 
 #[derive(Serialize, Debug)]
 pub struct SessionPayload {
     app_id: String,
-    // app_version: String,
     password: String
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SessionResult {
-    // #[serde(default, with="String")]
     session_token: Option<String>,
-    // challenge: String,
-    // #[serde(default, with= "Permissions")]
     permissions: Option<Permissions>
 }
 
