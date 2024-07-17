@@ -113,8 +113,9 @@ Actually `data_dir` folder is set to my home directory, you need to change it in
 [api]
 host = "mafreebox.freebox.fr"
 port = 443
-expose = { connection = true,  settings = true, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
 refresh_interval_secs = 5
+use_discovery = false
+expose = { connection = true,  settings = true, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
 
 [core]
 data_dir = "<your path>"

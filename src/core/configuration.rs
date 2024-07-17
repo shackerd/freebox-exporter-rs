@@ -20,8 +20,9 @@ pub struct CoreConfiguration {
 pub struct ApiConfiguration {
     pub host: Option<String>,
     pub port: Option<u16>,
-    pub expose: Option<Permissions>,
-    pub refresh_interval_secs: Option<u64>
+    pub use_discovery : Option<bool>,
+    pub refresh_interval_secs: Option<u64>,
+    pub expose: Option<Permissions>
 }
 
 impl Configuration {
@@ -90,8 +91,9 @@ mod test {
 "[api]
 host = \"mafreebox.freebox.fr\"
 port = 443
-expose = { connection = true,  settings = false, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
+use_discovery = false
 refresh_interval_secs = 5
+expose = { connection = true,  settings = false, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
 
 [core]
 data_dir = \"/usr/share/freebox-exporter\"

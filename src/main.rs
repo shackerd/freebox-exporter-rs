@@ -47,7 +47,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let api_url = discovery::get_api_url(&conf.api.host.unwrap().to_owned(), true).await?;
+
+
+    let api_url =
+        if conf.api.use_discovery.unwrap() {
+            discovery::get_api_url(&conf.api.host.unwrap().to_owned(), true).await?
+        }
+        else {
+            discovery::use_static_api().unwrap()
+        };
+
+    println!("using {}", api_url);
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir.unwrap());
@@ -64,7 +74,16 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
 
 async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
-    let api_url = discovery::get_api_url(conf.api.host.unwrap().as_str(), true).await?;
+    let api_url =
+        if conf.api.use_discovery.unwrap() {
+            discovery::get_api_url(&conf.api.host.unwrap().to_owned(), true).await?
+        }
+        else {
+            discovery::use_static_api().unwrap()
+        };
+
+    println!("using {}", api_url);
+
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_dir.unwrap());
 
