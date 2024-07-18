@@ -4,7 +4,8 @@
 
 Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually under development, feel free to contribute!
 
-**Disclaimer:** This project is unofficial and is **not affiliated with Illiad Group**
+> [!IMPORTANT]
+> **Disclaimer:** This project is unofficial and is **not affiliated with Illiad Group**
 
 ## Features
 
@@ -136,7 +137,8 @@ cargo run register
 
 ### Running tests
 
-This project uses [Mockoon](https://mockoon.com/) for API mocking, you need to install GUI or CLI and start it with `api-mock.json` file.
+> [!TIP]
+> This project uses [Mockoon](https://mockoon.com/) for API mocking, you need to install GUI or CLI and start it with `api-mock.json` file.
 
 Then run the following command.
 
