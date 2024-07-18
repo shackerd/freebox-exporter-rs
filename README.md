@@ -24,7 +24,7 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
     * &#9989; Configuration: **100%**
     * &#9989; Configuration IPV6: **100%**
     * &#10060; xDSL: 0%
-    * &#10060; FFTH: 0%
+    * &#9989; FFTH: **100%**
     * &#10060; DynDNS: 0%
   * &#10060; Lan: 0%
   * &#10060; Lan Browser: 0%

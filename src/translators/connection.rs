@@ -48,6 +48,20 @@ pub struct ConnectionIpv6Configuration {
     delegations: Option<Vec<ConnectionIpv6Delegation>>
 }
 
+#[derive(Deserialize, Debug)]
+pub struct ConnectionFtth {
+    sfp_has_power_report: Option<bool>,
+    sfp_has_signal: Option<bool>,
+    sfp_model: Option<String>,
+    sfp_vendor: Option<String>,
+    sfp_pwr_tx: Option<i64>,
+    sfp_pwr_rx: Option<i64>,
+    link: Option<bool>,
+    sfp_alim_ok: Option<bool>,
+    sfp_serial: Option<String>,
+    sfp_present: Option<bool>
+}
+
 pub struct ConnectionTap {
     factory: AuthenticatedHttpClientFactory,
     bytes_down_metric:  IntGauge,
@@ -72,7 +86,17 @@ pub struct ConnectionTap {
     allow_token_request_metric: IntGauge,
     remote_access_ip_metric: IntGaugeVec,
     ipv6_enabled_metric: IntGauge,
-    delegations_metric: IntGaugeVec
+    delegations_metric: IntGaugeVec,
+    sfp_has_power_report_metric: IntGauge,
+    sfp_has_signal_metric: IntGauge,
+    sfp_model_metric: IntGaugeVec,
+    sfp_vendor_metric: IntGaugeVec,
+    sfp_pwr_tx_metric: IntGauge,
+    sfp_pwr_rx_metric: IntGauge,
+    link_metric: IntGauge,
+    sfp_alim_ok_metric: IntGauge,
+    sfp_serial_metric: IntGaugeVec,
+    sfp_present_metric: IntGauge
 }
 
 impl ConnectionTap {
@@ -95,15 +119,49 @@ impl ConnectionTap {
             is_secure_pass_metric: register_int_gauge!("connection_conf_is_secure_pass", "connection_conf_is_secure_pass").expect("cannot create connection_conf_is_secure_pass gauge"),
             remote_access_port_metric: register_int_gauge!("connection_conf_remote_access_port", "connection_conf_remote_access_port").expect("cannot create connection_conf_remote_access_port gauge"),
             remote_access_metric: register_int_gauge!("connection_conf_remote_access", "connection_conf_remote_access").expect("cannot create connection_conf_remote_access gauge"),
-            wol_metric: register_int_gauge!("connection_wol_conf_metric", "connection_conf_wol_metric").expect("cannot create connection_conf_wol_metric gauge"),
-            adblock_metric: register_int_gauge!("connection_conf_adblock_metric", "connection_conf_adblock_metric").expect("cannot create connection_conf_adblock_metric gauge"),
-            adblock_not_set_metric: register_int_gauge!("connection_conf_adblock_not_set_metric", "connection_conf_adblock_not_set_metric").expect("cannot create connection_conf_adblock_not_set_metric"),
-            api_remote_access_metric: register_int_gauge!("connection_conf_api_remote_access_metric", "connection_conf_api_remote_access_metric").expect("cannot create connection_conf_api_remote_access_metric gauge"),
-            allow_token_request_metric: register_int_gauge!("connection_conf_allow_token_request_metric", "connection_conf_allow_token_request_metric").expect("cannot create connection_conf_allow_token_request_metric gauge"),
+            wol_metric: register_int_gauge!("connection_wol_conf", "connection_conf_wol").expect("cannot create connection_conf_wol gauge"),
+            adblock_metric: register_int_gauge!("connection_conf_adblock", "connection_conf_adblock").expect("cannot create connection_conf_adblock gauge"),
+            adblock_not_set_metric: register_int_gauge!("connection_conf_adblock_not_set", "connection_conf_adblock_not_set").expect("cannot create connection_conf_adblock_not_set"),
+            api_remote_access_metric: register_int_gauge!("connection_conf_api_remote_access", "connection_conf_api_remote_access").expect("cannot create connection_conf_api_remote_access gauge"),
+            allow_token_request_metric: register_int_gauge!("connection_conf_allow_token_request", "connection_conf_allow_token_request").expect("cannot create connection_conf_allow_token_request gauge"),
             remote_access_ip_metric: register_int_gauge_vec!("connection_conf_remote_access_ip", "connection_conf_remote_access_ip", &["remote_access_ip"]).expect("cannot create connection_conf_remote_access_ip gauge"),
             ipv6_enabled_metric: register_int_gauge!("connection_ipv6_conf_ipv6_enabled", "connection_ipv6_conf_ipv6_enabled").expect("cannot create connection_ipv6_conf_ipv6_enabled"),
-            delegations_metric: register_int_gauge_vec!("connection_ipv6_conf_delegations", "connection_ipv6_conf_delegations", &["prefix", "next_hop"]).expect("cannot create connection_ipv6_conf_delegations")
+            delegations_metric: register_int_gauge_vec!("connection_ipv6_conf_delegations", "connection_ipv6_conf_delegations", &["prefix", "next_hop"]).expect("cannot create connection_ipv6_conf_delegations"),
+            sfp_has_power_report_metric: register_int_gauge!("connection_ftth_sfp_has_power_report", "connection_ftth_sfp_has_power_report").expect("cannot create connection_ftth_sfp_has_power_report gauge"),
+            sfp_has_signal_metric: register_int_gauge!("connection_ftth_sfp_has_signal", "connection_ftth_sfp_has_signal").expect("cannot create connection_ftth_sfp_has_signal gauge"),
+            sfp_model_metric: register_int_gauge_vec!("connection_ftth_sfp_model", "connection_ftth_sfp_model", &["sfp_model"]).expect("cannot create connection_ftth_sfp_model gauge"),
+            sfp_vendor_metric: register_int_gauge_vec!("connection_ftth_sfp_vendor", "connection_ftth_sfp_vendor", &["sfp_vendor"]).expect("cannot create connection_ftth_sfp_vendor gauge"),
+            sfp_pwr_tx_metric: register_int_gauge!("connection_ftth_sfp_pwr_tx", "connection_ftth_sfp_pwr_tx").expect("cannot create connection_ftth_sfp_pwr_tx gauge"),
+            sfp_pwr_rx_metric: register_int_gauge!("connection_ftth_sfp_pwr_rx", "connection_ftth_sfp_pwr_rx").expect("cannot create connection_ftth_sfp_pwr_rx gauge"),
+            link_metric: register_int_gauge!("connection_ftth_link", "connection_ftth_link").expect("cannot create connection_ftth_link gauge"),
+            sfp_alim_ok_metric: register_int_gauge!("connection_ffth_sfp_alim_ok", "connection_ffth_sfp_alim_ok").expect("cannot create connection_ffth_sfp_alim_ok gauge"),
+            sfp_serial_metric: register_int_gauge_vec!("connection_ftth_sfp_serial", "connection_ftth_sfp_serial", &["sfp_serial"]).expect("cannot create connection_ftth_sfp_serial gauge"),
+            sfp_present_metric: register_int_gauge!("connection_ffth_sfp_present", "connection_ffth_sfp_present").expect("cannot create connection_ffth_sfp_present gauge")
         }
+    }
+
+    async fn set_connection_ftth(&self) -> Result<(), Box<dyn std::error::Error>> {
+
+        let body =
+            self.factory.create_client().unwrap().get(format!("{}v4/connection/ftth", self.factory.api_url))
+            .send().await?
+            .text().await?;
+
+        let res = serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body);
+
+        let ftth = res.expect("Cannot read response").result;
+
+        self.sfp_has_power_report_metric.set(ftth.sfp_has_power_report.unwrap_or_default().into());
+        self.sfp_has_signal_metric.set(ftth.sfp_has_signal.unwrap_or_default().into());
+        self.sfp_model_metric.with_label_values(&[&ftth.sfp_model.clone().unwrap_or_default()]).set(ftth.sfp_model.is_some().into());
+        self.sfp_vendor_metric.with_label_values(&[&ftth.sfp_vendor.clone().unwrap_or_default()]).set(ftth.sfp_vendor.is_some().into());
+        self.sfp_pwr_tx_metric.set(ftth.sfp_pwr_tx.unwrap_or_default());
+        self.sfp_pwr_rx_metric.set(ftth.sfp_pwr_rx.unwrap_or_default());
+        self.link_metric.set(ftth.link.unwrap_or_default().into());
+        self.sfp_alim_ok_metric.set(ftth.sfp_alim_ok.unwrap_or_default().into());
+        self.sfp_serial_metric.with_label_values(&[&ftth.sfp_serial.clone().unwrap_or_default()]).set(ftth.sfp_serial.is_some().into());
+        self.sfp_present_metric.set(ftth.sfp_present.unwrap_or_default().into());
+        Ok(())
     }
 
     async fn set_connection_status(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -143,15 +201,15 @@ impl ConnectionTap {
 
         let conf = res.expect("Cannot read response").result;
 
-        self.ping_metric.set(conf.ping.unwrap_or_else(|| false).into());
-        self.is_secure_pass_metric.set(conf.is_secure_pass.unwrap_or_else(|| false).into());
+        self.ping_metric.set(conf.ping.unwrap_or_default().into());
+        self.is_secure_pass_metric.set(conf.is_secure_pass.unwrap_or_default().into());
         self.remote_access_port_metric.set(conf.remote_access_port.unwrap_or_else(|| 0).into());
-        self.remote_access_metric.set(conf.remote_access.unwrap_or_else(|| false).into());
-        self.wol_metric.set(conf.wol.unwrap_or_else(|| false).into());
-        self.adblock_metric.set(conf.adblock.unwrap_or_else(|| false).into());
-        self.adblock_not_set_metric.set(conf.adblock_not_set.unwrap_or_else(|| false).into());
-        self.api_remote_access_metric.set(conf.api_remote_access.unwrap_or_else(|| false).into());
-        self.allow_token_request_metric.set(conf.allow_token_request.unwrap_or_else(|| false).into());
+        self.remote_access_metric.set(conf.remote_access.unwrap_or_default().into());
+        self.wol_metric.set(conf.wol.unwrap_or_default().into());
+        self.adblock_metric.set(conf.adblock.unwrap_or_default().into());
+        self.adblock_not_set_metric.set(conf.adblock_not_set.unwrap_or_default().into());
+        self.api_remote_access_metric.set(conf.api_remote_access.unwrap_or_default().into());
+        self.allow_token_request_metric.set(conf.allow_token_request.unwrap_or_default().into());
         self.remote_access_ip_metric.with_label_values(&[&conf.remote_access_ip.unwrap_or_else(|| String::new())]).set(conf.remote_access.is_some().into());
 
         Ok(())
@@ -168,7 +226,7 @@ impl ConnectionTap {
 
         let conf = res.expect("Cannot read response").result;
 
-        self.ipv6_enabled_metric.set(conf.ipv6_enabled.unwrap_or_else(|| false).into());
+        self.ipv6_enabled_metric.set(conf.ipv6_enabled.unwrap_or_default().into());
 
         if conf.delegations.is_some() {
             for delegation in conf.delegations.unwrap() {
@@ -186,9 +244,10 @@ impl TranslatorMetricTap for ConnectionTap {
 
     async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
 
-        self.set_connection_status().await.expect("cannot set connection status gauge");
-        self.set_connection_conf().await.expect("cannot set connection configuration gauge");
-        self.set_connection_ipv6_conf().await.expect("cannot set connection ipv6 configuration gauge");
+        self.set_connection_status().await.expect("cannot set connection status gauges");
+        self.set_connection_conf().await.expect("cannot set connection configuration gauges");
+        self.set_connection_ipv6_conf().await.expect("cannot set connection ipv6 configuration gauges");
+        self.set_connection_ftth().await.expect("cannot set connection ftth gauges");
         Ok(())
     }
 }
