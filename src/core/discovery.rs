@@ -42,7 +42,7 @@ pub async fn get_api_url(fqdn: &str, use_tls: bool) -> Result<String, Box<dyn st
     Ok(url)
 }
 
-pub fn use_static_api() -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_static_api_url() -> Result<String, Box<dyn std::error::Error>> {
     let url = "https://mafreebox.freebox.fr/api/".to_string();
     Ok(url)
 }

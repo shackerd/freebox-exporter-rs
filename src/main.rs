@@ -54,7 +54,7 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
             discovery::get_api_url(&conf.api.host.unwrap().to_owned(), true).await?
         }
         else {
-            discovery::use_static_api().unwrap()
+            discovery::get_static_api_url().unwrap()
         };
 
     println!("using {}", api_url);
@@ -79,7 +79,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
             discovery::get_api_url(&conf.api.host.unwrap().to_owned(), true).await?
         }
         else {
-            discovery::use_static_api().unwrap()
+            discovery::get_static_api_url().unwrap()
         };
 
     println!("using {}", api_url);
