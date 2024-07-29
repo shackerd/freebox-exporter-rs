@@ -1,7 +1,7 @@
 use core::str;
 use std::{path::Path, thread::{self}, time::Duration};
 use hmac::{Hmac, Mac};
-use log::{debug, info};
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}};
@@ -80,7 +80,8 @@ impl Authenticator {
         let path = Path::new(self.token_file.as_str());
 
         if !path.exists() {
-            panic!("token file does not exist {}, did you registered the application? See register command", self.token_file)
+            error!("token file does not exist {}, did you registered the application? See register command", self.token_file);
+            panic!("token file does not exist")
         }
 
         let mut file = File::open(self.token_file.as_str()).await?;
@@ -99,16 +100,19 @@ impl Authenticator {
 
         self.store_app_token(prompt_result.result.app_token).await?;
 
-        let authorized = self.monitor_prompt(prompt_result.result.track_id, pool_interval).await?;
+        let monitor_result = self.monitor_prompt(prompt_result.result.track_id, pool_interval).await;
 
-        if !authorized {
-            panic!("unauthorized");
+        match monitor_result {
+            Err(e) => {
+                error!("{e:#?}");
+                return Err(e);
+            },
+            _ => { }
         }
 
         Ok(())
     }
 
-    #[allow(unused)]
     pub async fn login(&self) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error>>{
 
         debug!("login in");
@@ -120,8 +124,8 @@ impl Authenticator {
 
         let session_token = self.get_session_token(password).await?.result;
 
-        // this value will be logged
-        let permissions = session_token.permissions;
+        let permissions = session_token.permissions.unwrap();
+        debug!("app permissions: {permissions:#?}");
 
         return Ok(AuthenticatedHttpClientFactory::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
     }
@@ -152,7 +156,7 @@ impl Authenticator {
         Ok(res)
     }
 
-    async fn monitor_prompt(&self, track_id: i32, pool_interval: u64) -> Result<bool, Box<dyn std::error::Error>> {
+    async fn monitor_prompt(&self, track_id: i32, pool_interval: u64) -> Result<(), Box<dyn std::error::Error>> {
 
         debug!("monitoring registration prompt");
 
@@ -217,7 +221,7 @@ impl Authenticator {
             return Err(err);
         }
 
-        Ok(result)
+        Ok(())
 
     }
 
@@ -278,6 +282,7 @@ impl Authenticator {
             serde_json::from_str::<FreeboxResponse<SessionResult>>(&body)?;
 
         if !res.success {
+            error!("{}", res.msg);
             panic!("{}", res.msg)
         }
 

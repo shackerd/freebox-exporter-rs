@@ -6,7 +6,8 @@ use std::{fs::{self}, path::Path};
 pub struct Configuration {
     pub api: ApiConfiguration,
     pub publish: PublishConfiguration,
-    pub core: CoreConfiguration
+    pub core: CoreConfiguration,
+    pub log: LogConfiguration
 }
 
 #[derive(Deserialize, Debug)]
@@ -31,6 +32,12 @@ pub struct PublishConfiguration {
     pub downloader: Option<bool>,
     pub parental: Option<bool>,
     pub pvr: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LogConfiguration {
+    pub level: Option<String>,
+    pub retention: Option<usize>
 }
 
 impl Configuration {
@@ -99,7 +106,7 @@ mod test {
 "[api]
 # acceptable values: \"router\" or \"bridge\"
 # this option will determine whether use discovery or not see: https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496
-mode = \"router\"
+mode = \"bridge\"
 
 # interval in seconds
 refresh = 5
@@ -116,7 +123,10 @@ pvr = true
 
 [core]
 data_directory = \".\"
-port = 9102";
+port = 9102
+[log]
+level = \"Info\"
+retention = 31";
 
         file.write_all(content.as_bytes()).await.expect("cannot write to sample configuration file");
         file.shutdown().await?;
@@ -135,16 +145,21 @@ port = 9102";
 
         fs::remove_file(path).await.expect("cannot cleanup sample configuration file");
 
-        assert_eq!(conf.publish.connection.unwrap(), true);
-        assert_eq!(conf.publish.settings.unwrap(), false);
-        assert_eq!(conf.publish.contacts.unwrap(), true);
-        assert_eq!(conf.publish.calls.unwrap(), true);
-        assert_eq!(conf.publish.explorer.unwrap(), true);
-        assert_eq!(conf.publish.downloader.unwrap(), true);
-        assert_eq!(conf.publish.parental.unwrap(), true);
-        assert_eq!(conf.publish.pvr.unwrap(), true);
+        assert_eq!("bridge", conf.api.mode.unwrap());
+        assert_eq!(5, conf.api.refresh.unwrap());
 
-        assert_eq!(conf.core.data_directory.unwrap(), ".".to_string());
-        assert_eq!(conf.core.port.unwrap(), 9102);
+        assert_eq!(true, conf.publish.connection.unwrap());
+        assert_eq!(false, conf.publish.settings.unwrap());
+        assert_eq!(true, conf.publish.contacts.unwrap());
+        assert_eq!(true, conf.publish.calls.unwrap());
+        assert_eq!(true, conf.publish.explorer.unwrap());
+        assert_eq!(true, conf.publish.downloader.unwrap());
+        assert_eq!(true, conf.publish.parental.unwrap());
+        assert_eq!(true, conf.publish.pvr.unwrap());
+
+        assert_eq!(".".to_string(), conf.core.data_directory.unwrap());
+        assert_eq!(9102, conf.core.port.unwrap());
+        assert_eq!("Info", conf.log.level.unwrap());
+        assert_eq!(31, conf.log.retention.unwrap());
     }
 }

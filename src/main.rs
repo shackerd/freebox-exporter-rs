@@ -1,8 +1,9 @@
 use clap::{command, Parser, Subcommand};
+use flexi_logger::FileSpec;
 use log::info;
-use time::macros::format_description;
 use translators::Translator;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
+use std::str::FromStr;
 mod core;
 mod translators;
 
@@ -11,19 +12,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    simple_logger::SimpleLogger::new()
-        .env()
-        .with_colors(true)
-        .with_level(cli.verbosity.unwrap_or_else(|| log::LevelFilter::Info))
-        .with_timestamp_format(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
-        .init()
-        .expect("cannot create logger");
-
     let conf_path: &str = &cli.configuration_file.unwrap_or_else(|| "config.toml".to_string());
 
     let conf = get_configuration(conf_path.to_string()).await?;
 
     conf.assert_data_dir_permissions()?;
+
+    let specs =
+        FileSpec::default()
+            .directory(conf.core.data_directory.clone().expect("Please configure data_directory in config.toml"));
+
+    flexi_logger::Logger::try_with_env_or_str(
+        cli.verbosity.unwrap_or_else(
+            || log::LevelFilter::from_str(
+                &conf.log.level.clone().unwrap_or_else(|| "Info".to_string())
+            ).unwrap()).as_str())?
+        .log_to_file(specs)
+        .write_mode(flexi_logger::WriteMode::BufferAndFlush)
+        .duplicate_to_stdout(flexi_logger::Duplicate::Info)
+        .cleanup_in_background_thread(true)
+        .rotate(
+            flexi_logger::Criterion::Age(flexi_logger::Age::Day),
+            flexi_logger::Naming::TimestampsDirect,
+            flexi_logger::Cleanup::KeepCompressedFiles(conf.log.retention.unwrap_or_else(|| 31)))
+        .start()?;
 
     match &cli.command {
         Command::Register { pooling_interval } => {
