@@ -1,5 +1,7 @@
 use std::net::SocketAddr;
 
+use log::debug;
+
 use crate::translators::Translator;
 
 pub struct Server {
@@ -19,6 +21,8 @@ impl Server {
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
 
+        debug!("initiating prometheus server");
+
         let addr_raw = format!("0.0.0.0:{}", self.port);
         let addr: SocketAddr = addr_raw.parse().expect("Cannot parse addr");
         let exporter = prometheus_exporter::start(addr).expect("Cannot start exporter");
@@ -27,6 +31,8 @@ impl Server {
         let mut i = 0;
 
         loop {
+
+            debug!("fetching result from translator's taps");
 
             self.translator.set_all().await?;
 

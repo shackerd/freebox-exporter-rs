@@ -1,7 +1,8 @@
 use clap::{command, Parser, Subcommand};
+use log::info;
+use time::macros::format_description;
 use translators::Translator;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
-
 mod core;
 mod translators;
 
@@ -10,32 +11,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    let conf_path: &str =
-        match &cli.configuration_file {
-            Some(c) => { &c },
-            None => { "config.toml" }
-        };
+    simple_logger::SimpleLogger::new()
+        .env()
+        .with_colors(true)
+        .with_level(cli.verbosity.unwrap_or_else(|| log::LevelFilter::Info))
+        .with_timestamp_format(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
+        .init()
+        .expect("cannot create logger");
+
+    let conf_path: &str = &cli.configuration_file.unwrap_or_else(|| "config.toml".to_string());
 
     let conf = get_configuration(conf_path.to_string()).await?;
+
     conf.assert_data_dir_permissions()?;
 
     match &cli.command {
         Command::Register { pooling_interval } => {
-            let interval =
-                match &pooling_interval {
-                    Some(i) => { *i },
-                    None => { 6 }
-                };
-
+            let interval = pooling_interval.unwrap_or_else(|| 6);
             register(conf, interval).await?;
         } ,
         Command::Serve { port } => {
-            let serve_port =
-                match &port {
-                    Some(p) => { *p },
-                    None => { conf.core.port.unwrap() }
-                };
-
+            let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
             serve(conf, serve_port).await?;
         },
         Command::Revoke => {
@@ -55,14 +51,14 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
             _ => { panic!("Unrecognized freebox mode") }
         };
 
-    println!("Now using api url: {api_url}");
+    info!("using api url: {api_url}");
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
 
     match authenticator.register(interval).await {
         Ok(_) => {
-            println!("Successfully registered application");
+            info!("Successfully registered application");
         },
         Err(e) => panic!("{e:#?}")
     }
@@ -79,7 +75,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
             _ => { panic!("Unrecognized freebox mode") }
         };
 
-    println!("Now using api url: {api_url}");
+    info!("using api url: {api_url}");
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
@@ -99,7 +95,9 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
     #[arg(short, long)]
-    configuration_file: Option<String>
+    configuration_file: Option<String>,
+    #[arg(short, long)]
+    verbosity: Option<log::LevelFilter>
 }
 
 #[derive(Subcommand)]

@@ -9,10 +9,13 @@ edition = "2021"
 async-trait = "0.1.81"
 clap = { version = "4.5.8", features = ["derive"] }
 hmac = { version = "0.12.1", features = ["std"] }
+log = "0.4.22"
 prometheus_exporter = "0.8.5"
 reqwest = { version = "0.12.5", features = ["json"] }
 serde = {version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.120"
 sha1 = "0.10.6"
+simple_logger = "5.0.0"
+time = "0.3.36"
 tokio = { version = "1.38.0", features = ["full"]}
 toml = "0.8.14"
