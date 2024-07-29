@@ -94,6 +94,7 @@ Commands:
 
 Options:
   -c, --configuration-file <CONFIGURATION_FILE>
+  -v, --verbosity <VERBOSITY>
   -h, --help                                     Print help
   -V, --version                                  Print version
 ```
@@ -108,18 +109,49 @@ git clone https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-expo
 
 ### Configuration
 
-Actually `data_dir` folder is set to my home directory, you need to change it in configuration file (`conf.toml`) to get it working properly.
-
 ``` toml
 [api]
-host = "mafreebox.freebox.fr"
-port = 443
-refresh_interval_secs = 5
-use_discovery = false
-expose = { connection = true,  settings = true, contacts = true, calls = true, explorer = true, downloader = true, parental = true, pvr = true }
+# Acceptable values: "router" or "bridge"
+# These values will determine whether use discovery or not, see: https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496
+# * discovery on:
+#   * Traffic will be using host like xxxxxxxx.fbxos.fr
+#   * FQDN resolves to your public IP address.
+#   * However, you do not need to activate remote_access from local network to get API working.
+# * discovery off:
+#   * Traffic will be using host mafreebox.freebox.fr
+#   * FQDN resolves to a public IP address (not yours), which allows you to reach your freebox API even if it's set to bridge mode.
+# Remark: setting bridge as value works for both freebox mode router & bridge
+mode = "bridge"
+
+# Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
+# This does not affect prometheus scrap agents, application will use cached values between calls
+# Remark:
+#   more you set API exposition (c.f: [publish] section) more requests will be sent,
+#   setting a too low interval between refreshs could lead to request rate limiting from freebox host
+refresh = 5
+
+[publish]
+# Exposes connection API
+connection = true
+# Exposes settings API
+settings = false
+# Exposes contacts API
+contacts = true
+# Exposes calls API
+calls = true
+# Exposes explorer API
+explorer = true
+# Exposes downloader API
+downloader = true
+# Exposes parental API
+parental = true
+# Exposes pvr API
+pvr = true
 
 [core]
-data_dir = "<your path>"
+# Specify where to store data for exporter such as APP_TOKEN, logs, etc.
+data_directory = "."
+# Specify which TCP port to listen to, for the /metrics HTTP endpoint
 port = 9102
 ```
 
@@ -128,6 +160,9 @@ port = 9102
 ``` bash
 cargo run serve
 ```
+
+> [!TIP]
+> You can change output log level by specifying verbosity, such as `cargo run -- -v Debug serve`
 
 ### Register application if application is not registered on Freebox host
 
