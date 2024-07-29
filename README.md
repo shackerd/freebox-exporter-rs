@@ -13,6 +13,7 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 * Caching & background update
 * Customizable data directory
 * Can specify configuration file
+* File/console logging
 
 ## Current API progress
 
@@ -74,7 +75,6 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 ## Roadmap
 
 * Expose all Freebox API
-* Loggin
 * Provide systemd registration
 * Provide container support
 * Publish to crates.io (cargo install)
