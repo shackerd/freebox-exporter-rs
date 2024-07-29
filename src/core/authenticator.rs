@@ -122,12 +122,20 @@ impl Authenticator {
 
         let password = self.compute_password(token, challenge).unwrap();
 
-        let session_token = self.get_session_token(password).await?.result;
+        let session_token_result = self.get_session_token(password).await;
 
-        let permissions = session_token.permissions.unwrap();
+        match session_token_result {
+            Err(e) => {
+                return Err(e);
+            },
+            _ => { }
+        }
+
+        let result = session_token_result.unwrap().result;
+        let permissions = result.permissions.unwrap();
         debug!("app permissions: {permissions:#?}");
 
-        return Ok(AuthenticatedHttpClientFactory::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
+        return Ok(AuthenticatedHttpClientFactory::new(self.api_url.to_owned(), result.session_token.unwrap().to_owned()));
     }
 
     async fn prompt(&self) -> Result<FreeboxResponse<PromptResult>, Box<dyn std::error::Error>> {
@@ -283,7 +291,7 @@ impl Authenticator {
 
         if !res.success {
             error!("{}", res.msg);
-            panic!("{}", res.msg)
+            return Err(Box::new(AuthorizationError::new(res.msg)));
         }
 
         Ok(res)
