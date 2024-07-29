@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "wip-initial" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "wip-initial" ]
+    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
