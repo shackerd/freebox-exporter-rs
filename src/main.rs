@@ -3,7 +3,7 @@ use flexi_logger::FileSpec;
 use log::{error, info};
 use translators::Translator;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
-use std::{str::FromStr, thread::sleep, time::Duration};
+use std::str::FromStr;
 mod core;
 mod translators;
 
@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         FileSpec::default()
             .directory(conf.core.data_directory.clone().expect("Please configure data_directory in config.toml"));
 
-    flexi_logger::Logger::try_with_env_or_str(
+    let logger = flexi_logger::Logger::try_with_env_or_str(
         cli.verbosity.unwrap_or_else(
             || log::LevelFilter::from_str(
                 &conf.log.level.clone().unwrap_or_else(|| "Info".to_string())
@@ -59,8 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Wait for logging buffer flush before exit
-    sleep(Duration::from_secs(5));
+    // force flush before exit
+    logger.flush();
 
     Ok(())
 }
