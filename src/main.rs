@@ -1,9 +1,9 @@
 use clap::{command, Parser, Subcommand};
 use flexi_logger::FileSpec;
-use log::info;
+use log::{error, info};
 use translators::Translator;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
-use std::str::FromStr;
+use std::{str::FromStr, thread::sleep, time::Duration};
 mod core;
 mod translators;
 
@@ -40,16 +40,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match &cli.command {
         Command::Register { pooling_interval } => {
             let interval = pooling_interval.unwrap_or_else(|| 6);
-            register(conf, interval).await?;
+
+            match register(conf, interval).await {
+                Err(e) => error!("{e:#?}"),
+                _ => { }
+            }
         } ,
         Command::Serve { port } => {
             let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
-            serve(conf, serve_port).await?;
+
+            match serve(conf, serve_port).await {
+                Err(e) => error!("{e:#?}"),
+                _ => { }
+            }
         },
         Command::Revoke => {
             todo!()
         }
     }
+
+    // Wait for logging buffer flush before exit
+    sleep(Duration::from_secs(5));
 
     Ok(())
 }
@@ -72,7 +83,7 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
         Ok(_) => {
             info!("Successfully registered application");
         },
-        Err(e) => panic!("{e:#?}")
+        Err(e) => return Err(e)
     }
 
     Ok(())
@@ -92,7 +103,14 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
 
-    let factory = authenticator.login().await?;
+    let login_result = authenticator.login().await;
+
+    match login_result {
+        Err(e) => return Err(e),
+        _ => {}
+    }
+
+    let factory = login_result.unwrap();
     let translator = Translator::new(factory, conf.publish);
     let server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), translator);
 
