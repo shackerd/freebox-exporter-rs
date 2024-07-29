@@ -1,7 +1,9 @@
 use clap::{command, Parser, Subcommand};
+use flexi_logger::FileSpec;
+use log::info;
 use translators::Translator;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
-
+use std::str::FromStr;
 mod core;
 mod translators;
 
@@ -10,32 +12,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    let conf_path: &str =
-        match &cli.configuration_file {
-            Some(c) => { &c },
-            None => { "config.toml" }
-        };
+    let conf_path: &str = &cli.configuration_file.unwrap_or_else(|| "config.toml".to_string());
 
     let conf = get_configuration(conf_path.to_string()).await?;
+
     conf.assert_data_dir_permissions()?;
+
+    let specs =
+        FileSpec::default()
+            .directory(conf.core.data_directory.clone().expect("Please configure data_directory in config.toml"));
+
+    flexi_logger::Logger::try_with_env_or_str(
+        cli.verbosity.unwrap_or_else(
+            || log::LevelFilter::from_str(
+                &conf.log.level.clone().unwrap_or_else(|| "Info".to_string())
+            ).unwrap()).as_str())?
+        .log_to_file(specs)
+        .write_mode(flexi_logger::WriteMode::BufferAndFlush)
+        .duplicate_to_stdout(flexi_logger::Duplicate::Info)
+        .cleanup_in_background_thread(true)
+        .rotate(
+            flexi_logger::Criterion::Age(flexi_logger::Age::Day),
+            flexi_logger::Naming::TimestampsDirect,
+            flexi_logger::Cleanup::KeepCompressedFiles(conf.log.retention.unwrap_or_else(|| 31)))
+        .start()?;
 
     match &cli.command {
         Command::Register { pooling_interval } => {
-            let interval =
-                match &pooling_interval {
-                    Some(i) => { *i },
-                    None => { 6 }
-                };
-
+            let interval = pooling_interval.unwrap_or_else(|| 6);
             register(conf, interval).await?;
         } ,
         Command::Serve { port } => {
-            let serve_port =
-                match &port {
-                    Some(p) => { *p },
-                    None => { conf.core.port.unwrap() }
-                };
-
+            let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
             serve(conf, serve_port).await?;
         },
         Command::Revoke => {
@@ -55,14 +63,14 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
             _ => { panic!("Unrecognized freebox mode") }
         };
 
-    println!("Now using api url: {api_url}");
+    info!("using api url: {api_url}");
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
 
     match authenticator.register(interval).await {
         Ok(_) => {
-            println!("Successfully registered application");
+            info!("Successfully registered application");
         },
         Err(e) => panic!("{e:#?}")
     }
@@ -79,7 +87,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
             _ => { panic!("Unrecognized freebox mode") }
         };
 
-    println!("Now using api url: {api_url}");
+    info!("using api url: {api_url}");
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
@@ -99,7 +107,9 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
     #[arg(short, long)]
-    configuration_file: Option<String>
+    configuration_file: Option<String>,
+    #[arg(short, long)]
+    verbosity: Option<log::LevelFilter>
 }
 
 #[derive(Subcommand)]

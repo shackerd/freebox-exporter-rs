@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 
@@ -142,6 +143,8 @@ impl ConnectionTap {
 
     async fn set_connection_ftth(&self) -> Result<(), Box<dyn std::error::Error>> {
 
+        debug!("fetching connection ftth");
+
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection/ftth", self.factory.api_url))
             .send().await?
@@ -166,6 +169,7 @@ impl ConnectionTap {
 
     async fn set_connection_status(&self) -> Result<(), Box<dyn std::error::Error>> {
 
+        debug!("fetching connection status");
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection", self.factory.api_url))
             .send().await?
@@ -192,6 +196,8 @@ impl ConnectionTap {
 
     async fn set_connection_conf(&self) -> Result<(), Box<dyn std::error::Error>> {
 
+        debug!("fetching connection configuration");
+
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection/config", self.factory.api_url))
             .send().await?
@@ -216,6 +222,8 @@ impl ConnectionTap {
     }
 
     async fn set_connection_ipv6_conf(&self) -> Result<(), Box<dyn std::error::Error>> {
+
+        debug!("fetching connection ipv6 configuration");
 
         let body =
             self.factory.create_client().unwrap().get(format!("{}v4/connection/ipv6/config", self.factory.api_url))

@@ -1,6 +1,7 @@
 use core::str;
 use std::{path::Path, thread::{self}, time::Duration};
 use hmac::{Hmac, Mac};
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}};
@@ -55,6 +56,8 @@ impl Authenticator {
 
     async fn store_app_token(&self, token: String) -> Result<(), Box<dyn std::error::Error>>
     {
+        debug!("storing APP_TOKEN");
+
         let path = Path::new(self.token_file.as_str());
 
         if path.exists() {
@@ -72,10 +75,13 @@ impl Authenticator {
 
     async fn load_app_token(&self) -> Result<String, Box<dyn std::error::Error>> {
 
+        debug!("loading APP_TOKEN");
+
         let path = Path::new(self.token_file.as_str());
 
         if !path.exists() {
-            panic!("token file does not exist {}, did you registered the application? See register command", self.token_file)
+            error!("token file does not exist {}, did you registered the application? See register command", self.token_file);
+            panic!("token file does not exist")
         }
 
         let mut file = File::open(self.token_file.as_str()).await?;
@@ -94,17 +100,22 @@ impl Authenticator {
 
         self.store_app_token(prompt_result.result.app_token).await?;
 
-        let authorized = self.monitor_prompt(prompt_result.result.track_id, pool_interval).await?;
+        let monitor_result = self.monitor_prompt(prompt_result.result.track_id, pool_interval).await;
 
-        if !authorized {
-            panic!("unauthorized");
+        match monitor_result {
+            Err(e) => {
+                error!("{e:#?}");
+                return Err(e);
+            },
+            _ => { }
         }
 
         Ok(())
     }
 
-    #[allow(unused)]
     pub async fn login(&self) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error>>{
+
+        debug!("login in");
 
         let token = self.load_app_token().await.expect("Cannot load app_token!");
         let challenge = self.get_challenge().await?.result;
@@ -113,13 +124,15 @@ impl Authenticator {
 
         let session_token = self.get_session_token(password).await?.result;
 
-        // this value will be logged
-        let permissions = session_token.permissions;
+        let permissions = session_token.permissions.unwrap();
+        debug!("app permissions: {permissions:#?}");
 
         return Ok(AuthenticatedHttpClientFactory::new(self.api_url.to_owned(), session_token.session_token.unwrap().to_owned()));
     }
 
     async fn prompt(&self) -> Result<FreeboxResponse<PromptResult>, Box<dyn std::error::Error>> {
+
+        debug!("prompting for registration");
 
         let client = http_client_factory().unwrap();
 
@@ -143,11 +156,13 @@ impl Authenticator {
         Ok(res)
     }
 
-    async fn monitor_prompt(&self, track_id: i32, pool_interval: u64) -> Result<bool, Box<dyn std::error::Error>> {
+    async fn monitor_prompt(&self, track_id: i32, pool_interval: u64) -> Result<(), Box<dyn std::error::Error>> {
+
+        debug!("monitoring registration prompt");
 
         let mut result = false;
 
-        println!("Requested authorization, please go to the Freebox and check LCD screen instructions");
+        info!("Requested authorization, please go to the Freebox and check LCD screen instructions");
 
         for _ in 0..100 {
 
@@ -206,11 +221,13 @@ impl Authenticator {
             return Err(err);
         }
 
-        Ok(result)
+        Ok(())
 
     }
 
     async fn get_authorization_status(&self, track_id: i32) -> Result<FreeboxResponse<AuthorizationResult>, Box<dyn std::error::Error>> {
+
+        debug!("checking authorization status");
 
         let client = http_client_factory().unwrap();
 
@@ -228,6 +245,8 @@ impl Authenticator {
 
     async fn get_challenge(&self) -> Result<FreeboxResponse<ChallengeResult>, Box<dyn std::error::Error>> {
 
+        debug!("fetching challenge");
+
         let client = http_client_factory().unwrap();
 
         let body =
@@ -242,6 +261,8 @@ impl Authenticator {
     }
 
     async fn get_session_token(&self, password: String) -> Result<FreeboxResponse<SessionResult>, Box<dyn std::error::Error>> {
+
+        debug!("negociating session token");
 
         let client = http_client_factory().unwrap();
 
@@ -261,6 +282,7 @@ impl Authenticator {
             serde_json::from_str::<FreeboxResponse<SessionResult>>(&body)?;
 
         if !res.success {
+            error!("{}", res.msg);
             panic!("{}", res.msg)
         }
 
@@ -269,6 +291,8 @@ impl Authenticator {
 
 
     fn compute_password(&self, app_token: String, result: ChallengeResult) -> Result<String, ()>{
+
+        debug!("computing session password");
 
         let mut mac = HmacSha1::new_from_slice(app_token.as_bytes()).unwrap();
         mac.update(result.challenge.as_bytes());
