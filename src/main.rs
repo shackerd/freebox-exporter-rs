@@ -7,12 +7,15 @@ use std::str::FromStr;
 mod core;
 mod translators;
 
+const DEFAULT_CONF_FILE : &str = "config.toml";
+const DEFAULT_LOG_LEVEL : &str = "Info";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    let conf_path: &str = &cli.configuration_file.unwrap_or_else(|| "config.toml".to_string());
+    let conf_path: &str = &cli.configuration_file.unwrap_or_else(|| DEFAULT_CONF_FILE.to_string());
 
     let conf = get_configuration(conf_path.to_string()).await?;
 
@@ -25,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let logger = flexi_logger::Logger::try_with_env_or_str(
         cli.verbosity.unwrap_or_else(
             || log::LevelFilter::from_str(
-                &conf.log.level.clone().unwrap_or_else(|| "Info".to_string())
+                &conf.log.level.clone().unwrap_or_else(|| DEFAULT_LOG_LEVEL.to_string())
             ).unwrap()).as_str())?
         .log_to_file(specs)
         .write_mode(flexi_logger::WriteMode::BufferAndFlush)
@@ -80,9 +83,7 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
 
     match authenticator.register(interval).await {
-        Ok(_) => {
-            info!("Successfully registered application");
-        },
+        Ok(_) => info!("Successfully registered application"),
         Err(e) => return Err(e)
     }
 
@@ -93,9 +94,9 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
 
     let api_url =
         match conf.api.mode.expect("Please specify freebox mode").as_str() {
-            "router" => { discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await? },
-            "bridge" => { discovery::get_static_api_url().unwrap() }
-            _ => { panic!("Unrecognized freebox mode") }
+            "router" => discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await?,
+            "bridge" => discovery::get_static_api_url().unwrap(),
+            _ => panic!("Unrecognized freebox mode")
         };
 
     info!("using api url: {api_url}");

@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use connection::ConnectionTap;
+use system::SystemTap;
 
 use crate::core::{common::AuthenticatedHttpClientFactory, configuration::PublishConfiguration};
 
 pub mod connection;
+pub mod system;
 
 #[async_trait]
 pub trait TranslatorMetricTap {
@@ -21,6 +23,9 @@ impl Translator {
 
         if conf.connection.unwrap() {
             taps.push(Box::new(ConnectionTap::new(factory.clone())));
+        }
+        if conf.settings.unwrap() {
+            taps.push(Box::new(SystemTap::new(factory.clone())));
         }
         Self { taps }
     }

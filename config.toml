@@ -22,7 +22,7 @@ refresh = 5
 # Exposes connection API
 connection = true
 # Exposes settings API
-settings = false
+settings = true
 # Exposes contacts API
 contacts = true
 # Exposes calls API
