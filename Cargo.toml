@@ -19,4 +19,4 @@ serde_json = "1.0.120"
 sha1 = "0.10.6"
 time = "0.3.36"
 tokio = { version = "1.38.0", features = ["full"]}
-toml = "0.8.14"
+toml = "0.8.17"
