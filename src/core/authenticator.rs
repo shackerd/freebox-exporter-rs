@@ -105,7 +105,7 @@ impl Authenticator {
         match monitor_result {
             Err(e) => {
                 error!("{e:#?}");
-                return Err(e);
+                return Err(Box::new(AuthenticatorError::new("Failed to register application".to_string())));
             },
             _ => { }
         }
@@ -181,10 +181,7 @@ impl Authenticator {
 
             let res = match resp {
                 Ok(r) => r,
-                Err(e) => {
-                    println!("{e:#?}");
-                    panic!();
-                }
+                Err(e) => return Err(e),
             };
 
             match res.result.status.as_str() {
@@ -198,7 +195,7 @@ impl Authenticator {
                 "timeout" | "unknown" | "denied" => {
                     let err =
                         Box::new(
-                            AuthorizationError::new(
+                            AuthenticatorError::new(
                                 std::format!(
                                     "Authorization has failed, reason: {}",
                                     res.result.status
@@ -210,7 +207,7 @@ impl Authenticator {
                 _ => {
                     let err =
                         Box::new(
-                            AuthorizationError::new(
+                            AuthenticatorError::new(
                                 "Incorrect response from server, escaping".to_string()
                             )
                         );
@@ -222,7 +219,7 @@ impl Authenticator {
         if !result {
             let err =
                 Box::new(
-                    AuthorizationError::new(
+                    AuthenticatorError::new(
                         "Authorization aborted, reason: too much attempts".to_string()
                     )
                 );
@@ -291,7 +288,7 @@ impl Authenticator {
 
         if !res.success {
             error!("{}", res.msg);
-            return Err(Box::new(AuthorizationError::new(res.msg)));
+            return Err(Box::new(AuthenticatorError::new("Failed to get session token".to_string())));
         }
 
         Ok(res)
@@ -317,11 +314,11 @@ pub struct AuthorizationResult {
 }
 
 #[derive(Debug)]
-pub struct AuthorizationError {
+pub struct AuthenticatorError {
     reason: String
 }
 
-impl AuthorizationError {
+impl AuthenticatorError {
     fn new(reason: String) -> Self {
         Self {
             reason
@@ -329,13 +326,13 @@ impl AuthorizationError {
     }
 }
 
-impl std::fmt::Display for AuthorizationError {
+impl std::fmt::Display for AuthenticatorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.reason)
     }
 }
 
-impl std::error::Error for AuthorizationError { }
+impl std::error::Error for AuthenticatorError { }
 
 #[derive(Deserialize, Debug)]
 pub struct ChallengeResult {
