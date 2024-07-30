@@ -42,7 +42,7 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
   * &#10060; UPnP AV: 0%
   * &#10060; Switch: 0%
   * &#10060; Wi-Fi: 0%
-  * &#10060; System: 0%
+  * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
   * &#10060; VPN Client: 0%
 
