@@ -14,27 +14,29 @@ mode = "bridge"
 # Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
 # This does not affect prometheus scrap agents, application will use cached values between calls
 # Remark:
-#   more you set API exposition (c.f: [publish] section) more requests will be sent,
+#   more you set API exposition (c.f: [metrics] section) more requests will be sent,
 #   setting a too low interval between refreshs could lead to request rate limiting from freebox host
 refresh = 5
 
-[publish]
-# Exposes connection API
+[metrics]
+# Exposes connection
 connection = true
-# Exposes settings API
+# Exposes settings
 settings = true
-# Exposes contacts API
+# Exposes contacts
 contacts = true
-# Exposes calls API
+# Exposes calls
 calls = true
-# Exposes explorer API
+# Exposes explorer
 explorer = true
-# Exposes downloader API
+# Exposes downloader
 downloader = true
-# Exposes parental API
+# Exposes parental
 parental = true
-# Exposes pvr API
+# Exposes pvr
 pvr = true
+# Sets metrics prefix, it cannot be empty
+prefix = "fbx_exporter"
 
 [core]
 # Specify where to store data for exporter such as APP_TOKEN, logs, etc.

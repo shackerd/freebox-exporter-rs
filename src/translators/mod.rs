@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use connection::ConnectionTap;
 use system::SystemTap;
 
-use crate::core::{common::AuthenticatedHttpClientFactory, configuration::PublishConfiguration};
+use crate::core::{common::AuthenticatedHttpClientFactory, configuration::MetricsConfiguration};
 
 pub mod connection;
 pub mod system;
@@ -17,15 +17,15 @@ pub struct Translator {
 }
 
 impl Translator {
-    pub fn new(factory: AuthenticatedHttpClientFactory, conf: PublishConfiguration) -> Self {
+    pub fn new(factory: AuthenticatedHttpClientFactory, conf: MetricsConfiguration) -> Self {
 
         let mut taps: Vec<Box<dyn TranslatorMetricTap>> = vec![];
 
         if conf.connection.unwrap() {
-            taps.push(Box::new(ConnectionTap::new(factory.clone())));
+            taps.push(Box::new(ConnectionTap::new(factory.clone(), conf.prefix.clone().unwrap())));
         }
         if conf.settings.unwrap() {
-            taps.push(Box::new(SystemTap::new(factory.clone())));
+            taps.push(Box::new(SystemTap::new(factory.clone(), conf.prefix.clone().unwrap())));
         }
         Self { taps }
     }

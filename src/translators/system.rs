@@ -44,23 +44,22 @@ pub struct SystemTap {
 }
 
 impl SystemTap {
-    pub fn new(factory: AuthenticatedHttpClientFactory) -> Self {
+    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
         Self {
             factory,
-            mac_metric: register_int_gauge_vec!("system_mac", "system_mac", &["mac"]).expect("cannot create system_mac gauge"),
-            box_flavor_metric: register_int_gauge_vec!("system_box_flavor", "system_box_flavor", &["box_flavor"]).expect("cannot create system_box_flavor gauge"),
-            temp_cpub_metric: register_int_gauge!("system_temp_cpub", "system_temp_cpub").expect("cannot create system_temp_cpub gauge"),
-            disk_status_metric: register_int_gauge_vec!("system_disk_status", "system_disk_status", &["disk_status"]).expect("cannot create system_disk_status gauge"),
-            box_authenticated_metric: register_int_gauge!("system_box_authenticated", "system_box_authenticated").expect("cannot create system_box_authenticated gauge"),
-            board_name_metric: register_int_gauge_vec!("system_board_name", "system_board_name", &["board_name"]).expect("cannot create system_board_name gauge"),
-            fan_rpm_metric: register_int_gauge!("system_fan_rpm", "system_fan_rpm").expect("cannot create system_fan_rpm gauge"),
-            temp_sw_metric: register_int_gauge!("system_temp_sw", "system_temp_sw").expect("cannot create system_temp_sw gauge"),
-            // uptime_metric: register_int_gauge_vec!("system_uptime", "system_uptime", &["uptime"]).expect("cannot create system_uptime gauge"),
-            uptime_val_metric: register_int_gauge!("system_uptime_val", "system_uptime_val").expect("cannot create system_uptime_val gauge"),
-            user_main_storage_metric: register_int_gauge_vec!("system_user_main_storage", "system_user_main_storage", &["user_main_storage"]).expect("cannot create system_user_main_storage gauge"),
-            temp_cpum_metric: register_int_gauge!("system_temp_cpum", "system_temp_cpum").expect("cannot create system_temp_cpum gauge"),
-            serial_metric: register_int_gauge_vec!("system_serial", "system_serial", &["serial"]).expect("cannot create system_serial gauge"),
-            firmware_version_metric: register_int_gauge_vec!("system_firmware_version", "system_firmware_version", &["firmware_version"]).expect("cannot create system_firmware_version gauge")
+            mac_metric: register_int_gauge_vec!(format!("{prefix}_system_mac"), format!("{prefix}_system_mac"), &["mac"]).expect(&format!("cannot create {prefix}_system_mac gauge")),
+            box_flavor_metric: register_int_gauge_vec!(format!("{prefix}_system_box_flavor"), format!("{prefix}_system_box_flavor"), &["box_flavor"]).expect(&format!("cannot create {prefix}_system_box_flavor gauge")),
+            temp_cpub_metric: register_int_gauge!(format!("{prefix}_system_temp_cpub"), format!("{prefix}_system_temp_cpub")).expect(&format!("cannot create {prefix}_system_temp_cpub gauge")),
+            disk_status_metric: register_int_gauge_vec!(format!("{prefix}_system_disk_status"), format!("{prefix}_system_disk_status"), &["disk_status"]).expect(&format!("cannot create {prefix}_system_disk_status gauge")),
+            box_authenticated_metric: register_int_gauge!(format!("{prefix}_system_box_authenticated"), format!("{prefix}_system_box_authenticated")).expect(&format!("cannot create {prefix}_system_box_authenticated gauge")),
+            board_name_metric: register_int_gauge_vec!(format!("{prefix}_system_board_name"), format!("{prefix}_system_board_name"), &["board_name"]).expect(&format!("cannot create {prefix}_system_board_name gauge")),
+            fan_rpm_metric: register_int_gauge!(format!("{prefix}_system_fan_rpm"), format!("{prefix}_system_fan_rpm")).expect(&format!("cannot create {prefix}_system_fan_rpm gauge")),
+            temp_sw_metric: register_int_gauge!(format!("{prefix}_system_temp_sw"), format!("{prefix}_system_temp_sw")).expect(&format!("cannot create {prefix}_system_temp_sw gauge")),
+            uptime_val_metric: register_int_gauge!(format!("{prefix}_system_uptime_val"), format!("{prefix}_system_uptime_val")).expect(&format!("cannot create {prefix}_system_uptime_val gauge")),
+            user_main_storage_metric: register_int_gauge_vec!(format!("{prefix}_system_user_main_storage"), format!("{prefix}_system_user_main_storage"), &["user_main_storage"]).expect(&format!("cannot create {prefix}_system_user_main_storage gauge")),
+            temp_cpum_metric: register_int_gauge!(format!("{prefix}_system_temp_cpum"), format!("{prefix}_system_temp_cpum")).expect(&format!("cannot create {prefix}_system_temp_cpum gauge")),
+            serial_metric: register_int_gauge_vec!(format!("{prefix}_system_serial"), format!("{prefix}_system_serial"), &["serial"]).expect(&format!("cannot create {prefix}_system_serial gauge")),
+            firmware_version_metric: register_int_gauge_vec!(format!("{prefix}_system_firmware_version"), format!("{prefix}_system_firmware_version"), &["firmware_version"]).expect(&format!("cannot create {prefix}_system_firmware_version gauge"))
         }
     }
 

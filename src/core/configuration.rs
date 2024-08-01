@@ -5,7 +5,7 @@ use std::{fs::{self}, path::Path};
 #[derive(Deserialize, Debug)]
 pub struct Configuration {
     pub api: ApiConfiguration,
-    pub publish: PublishConfiguration,
+    pub metrics: MetricsConfiguration,
     pub core: CoreConfiguration,
     pub log: LogConfiguration
 }
@@ -23,7 +23,7 @@ pub struct ApiConfiguration {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct PublishConfiguration {
+pub struct MetricsConfiguration {
     pub connection: Option<bool>,
     pub settings: Option<bool>,
     pub contacts: Option<bool>,
@@ -32,6 +32,7 @@ pub struct PublishConfiguration {
     pub downloader: Option<bool>,
     pub parental: Option<bool>,
     pub pvr: Option<bool>,
+    pub prefix: Option<String>
 }
 
 #[derive(Deserialize, Debug)]
@@ -41,24 +42,32 @@ pub struct LogConfiguration {
 }
 
 impl Configuration {
-    pub fn assert_data_dir_permissions(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn assert_data_dir_permissions(&self) -> Result<(), &str> {
 
         let data_dir = self.core.data_directory.to_owned().unwrap();
 
         let path = Path::new(&data_dir);
 
         if !path.try_exists().expect("Access is denied") {
-            panic!("data dir does not exist");
+            return Err("data dir does not exist");
         }
 
         let permissions =
             fs::metadata(path).expect("cannot read metadata").permissions();
 
         if permissions.readonly() {
-            panic!("data_dir cannot be readonly");
+            return Err("data_dir cannot be readonly");
         }
 
         Ok(())
+    }
+
+    pub fn assert_metrics_prefix_is_not_empty(&self) -> Result<(), ()> {
+
+        self.metrics.prefix.clone()
+            .map_or_else(
+                || Err(()),
+                |v| match v.trim() { "" => { Err(()) }, _ => { Ok(()) } })
     }
 }
 
@@ -95,6 +104,8 @@ mod test {
 
     use crate::core::configuration::get_configuration;
 
+    use super::{ApiConfiguration, Configuration, CoreConfiguration, LogConfiguration, MetricsConfiguration};
+
     async fn create_sample_file(path: &Path) -> Result<(), Box<dyn std::error::Error>>{
 
         if path.exists() {
@@ -111,7 +122,7 @@ mode = \"bridge\"
 # interval in seconds
 refresh = 5
 
-[publish]
+[metrics]
 connection = true
 settings = false
 contacts = true
@@ -120,6 +131,7 @@ explorer = true
 downloader = true
 parental = true
 pvr = true
+prefix = \"fbx\"
 
 [core]
 data_directory = \".\"
@@ -148,18 +160,101 @@ retention = 31";
         assert_eq!("bridge", conf.api.mode.unwrap());
         assert_eq!(5, conf.api.refresh.unwrap());
 
-        assert_eq!(true, conf.publish.connection.unwrap());
-        assert_eq!(false, conf.publish.settings.unwrap());
-        assert_eq!(true, conf.publish.contacts.unwrap());
-        assert_eq!(true, conf.publish.calls.unwrap());
-        assert_eq!(true, conf.publish.explorer.unwrap());
-        assert_eq!(true, conf.publish.downloader.unwrap());
-        assert_eq!(true, conf.publish.parental.unwrap());
-        assert_eq!(true, conf.publish.pvr.unwrap());
+        assert_eq!(true, conf.metrics.connection.unwrap());
+        assert_eq!(false, conf.metrics.settings.unwrap());
+        assert_eq!(true, conf.metrics.contacts.unwrap());
+        assert_eq!(true, conf.metrics.calls.unwrap());
+        assert_eq!(true, conf.metrics.explorer.unwrap());
+        assert_eq!(true, conf.metrics.downloader.unwrap());
+        assert_eq!(true, conf.metrics.parental.unwrap());
+        assert_eq!(true, conf.metrics.pvr.unwrap());
+        assert_eq!("fbx", conf.metrics.prefix.unwrap());
 
         assert_eq!(".".to_string(), conf.core.data_directory.unwrap());
         assert_eq!(9102, conf.core.port.unwrap());
         assert_eq!("Info", conf.log.level.unwrap());
         assert_eq!(31, conf.log.retention.unwrap());
+    }
+
+    #[test]
+    fn assert_data_dir_permissions_tests() {
+        let conf = Configuration {
+            api: ApiConfiguration { mode: None, refresh: None},
+            core: CoreConfiguration { data_directory: Some("nowhere".to_string()), port: None },
+            log: LogConfiguration { level: None, retention: None },
+            metrics: MetricsConfiguration {
+                calls: None, connection: None, contacts: None,
+                downloader: None, explorer: None, parental: None,
+                pvr: None, settings: None, prefix: None
+            }
+        };
+
+        let conf2 = Configuration {
+            api: ApiConfiguration { mode: None, refresh: None},
+            core: CoreConfiguration { data_directory: Some("".to_string()), port: None },
+            log: LogConfiguration { level: None, retention: None },
+            metrics: MetricsConfiguration {
+                calls: None, connection: None, contacts: None,
+                downloader: None, explorer: None, parental: None,
+                pvr: None, settings: None, prefix: None
+            }
+        };
+
+        let conf3 = Configuration {
+            api: ApiConfiguration { mode: None, refresh: None},
+            core: CoreConfiguration { data_directory: Some(".".to_string()), port: None },
+            log: LogConfiguration { level: None, retention: None },
+            metrics: MetricsConfiguration {
+                calls: None, connection: None, contacts: None,
+                downloader: None, explorer: None, parental: None,
+                pvr: None, settings: None, prefix: None
+            }
+        };
+
+        assert_eq!(true, conf.assert_data_dir_permissions().is_err());
+        assert_eq!(true, conf2.assert_data_dir_permissions().is_err());
+        assert_eq!(true, conf3.assert_data_dir_permissions().is_ok());
+    }
+
+    #[test]
+    fn assert_metrics_prefix_is_not_empty_tests() {
+
+        let conf = Configuration {
+            api: ApiConfiguration { mode: None, refresh: None},
+            core: CoreConfiguration { data_directory: None, port: None },
+            log: LogConfiguration { level: None, retention: None },
+            metrics: MetricsConfiguration {
+                calls: None, connection: None, contacts: None,
+                downloader: None, explorer: None, parental: None,
+                pvr: None, settings: None, prefix: None
+            }
+        };
+
+        let conf2 = Configuration {
+            api: ApiConfiguration { mode: None, refresh: None},
+            core: CoreConfiguration { data_directory: None, port: None },
+            log: LogConfiguration { level: None, retention: None },
+            metrics: MetricsConfiguration {
+                calls: None, connection: None, contacts: None,
+                downloader: None, explorer: None, parental: None,
+                pvr: None, settings: None, prefix: Some(" ".to_string())
+            }
+        };
+
+        let conf3 = Configuration {
+            api: ApiConfiguration { mode: None, refresh: None},
+            core: CoreConfiguration { data_directory: None, port: None },
+            log: LogConfiguration { level: None, retention: None },
+            metrics: MetricsConfiguration {
+                calls: None, connection: None, contacts: None,
+                downloader: None, explorer: None, parental: None,
+                pvr: None, settings: None, prefix: Some("fbx_exporter".to_string())
+            }
+        };
+
+        assert_eq!(Err(()), conf.assert_metrics_prefix_is_not_empty());
+        assert_eq!(Err(()), conf2.assert_metrics_prefix_is_not_empty());
+        assert_eq!(Ok(()), conf3.assert_metrics_prefix_is_not_empty());
+
     }
 }

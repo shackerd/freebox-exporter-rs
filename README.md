@@ -9,11 +9,14 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 
 ## Features
 
-* Freebox API exposition (WIP)
-* Caching & background update
+* Freebox metrics exposition (WIP)
+* Metrics caching & background update
 * Customizable data directory
-* Can specify configuration file
-* File/console logging
+* Customizable metrics prefix
+* Customizable log files retention
+* Compressed log files
+* Customizable/CLI overridable log verbosity
+* CLI overridable configuration file path
 
 ## Current API progress
 
@@ -75,6 +78,7 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 ## Roadmap
 
 * Expose all Freebox API
+* Speedtest metrics
 * Provide systemd registration
 * Provide container support
 * Publish to crates.io (cargo install)
@@ -126,27 +130,29 @@ mode = "bridge"
 # Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
 # This does not affect prometheus scrap agents, application will use cached values between calls
 # Remark:
-#   more you set API exposition (c.f: [publish] section) more requests will be sent,
+#   more you set API exposition (c.f: [metrics] section) more requests will be sent,
 #   setting a too low interval between refreshs could lead to request rate limiting from freebox host
 refresh = 5
 
-[publish]
-# Exposes connection API
+[metrics]
+# Exposes connection
 connection = true
-# Exposes settings API
-settings = false
-# Exposes contacts API
+# Exposes settings
+settings = true
+# Exposes contacts
 contacts = true
-# Exposes calls API
+# Exposes calls
 calls = true
-# Exposes explorer API
+# Exposes explorer
 explorer = true
-# Exposes downloader API
+# Exposes downloader
 downloader = true
-# Exposes parental API
+# Exposes parental
 parental = true
-# Exposes pvr API
+# Exposes pvr
 pvr = true
+# Sets metrics prefix, it cannot be empty
+prefix = "fbx_exporter"
 
 [core]
 # Specify where to store data for exporter such as APP_TOKEN, logs, etc.
@@ -208,4 +214,4 @@ curl http://localhost:9102/metrics
 
 ## Support this project
 
-If you want to help, you can contribute or you can still [buy me a coffee](https://buymeacoffee.com/shackerd)!
+If you want to help, you can contribute or you can still [buy me a coffee](https://buymeacoffee.com/shackerd) or leave a star!

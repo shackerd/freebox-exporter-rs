@@ -20,6 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conf = get_configuration(conf_path.to_string()).await?;
 
     conf.assert_data_dir_permissions()?;
+    conf.assert_metrics_prefix_is_not_empty().expect("metrics prefix cannot be empty");
 
     let specs =
         FileSpec::default()
@@ -112,7 +113,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     }
 
     let factory = login_result.unwrap();
-    let translator = Translator::new(factory, conf.publish);
+    let translator = Translator::new(factory, conf.metrics);
     let server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), translator);
 
     server.run().await?;
