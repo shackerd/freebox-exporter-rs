@@ -17,6 +17,7 @@ env:
 jobs:
   test:
     name: ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }}
+    permissions: write-all
     runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
@@ -170,7 +171,7 @@ jobs:
           matrix.toolchain == 'stable' &&
           ( startsWith( github.ref, 'refs/tags/v' ) ||
             github.ref == 'refs/tags/test-release' )
-      - name: Publish release artifacts
+      - name: Publish release artifacts        
         uses: actions/upload-artifact@v4
         with:
           name: freebox-exporter-rs-${{ matrix.platform.os_name }}
