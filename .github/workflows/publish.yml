@@ -43,11 +43,13 @@ jobs:
             target: aarch64-unknown-linux-musl
             bin: freebox-exporter-rs
             name: freebox-exporter-rs-Linux-aarch64-musl.tar.gz
+            skip_tests: true
           - os_name: Linux-arm
             os: ubuntu-20.04
             target: arm-unknown-linux-musleabi
             bin: freebox-exporter-rs
             name: freebox-exporter-rs-Linux-arm-musl.tar.gz
+            skip_tests: true
           - os_name: Linux-i686
             os: ubuntu-20.04
             target: i686-unknown-linux-musl
