@@ -27,12 +27,12 @@ jobs:
           # - sparc64-unknown-linux-gnu - cannot compile openssl-sys
           # - x86_64-unknown-illumos - weird error compiling openssl - "bin/sh: 1: granlib: not found"
 
-          - os_name: FreeBSD-x86_64
-            os: ubuntu-20.04
-            target: x86_64-unknown-freebsd
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-FreeBSD-x86_64.tar.gz
-            skip_tests: true
+          # - os_name: FreeBSD-x86_64
+          #   os: ubuntu-20.04
+          #   target: x86_64-unknown-freebsd
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-FreeBSD-x86_64.tar.gz
+          #   skip_tests: true
           - os_name: Linux-x86_64
             os: ubuntu-20.04
             target: x86_64-unknown-linux-musl
@@ -54,41 +54,41 @@ jobs:
             bin: freebox-exporter-rs
             name: freebox-exporter-rs-Linux-i686-musl.tar.gz
             skip_tests: true
-          - os_name: Linux-powerpc
-            os: ubuntu-20.04
-            target: powerpc-unknown-linux-gnu
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-Linux-powerpc-gnu.tar.gz
-            skip_tests: true
-          - os_name: Linux-powerpc64
-            os: ubuntu-20.04
-            target: powerpc64-unknown-linux-gnu
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-Linux-powerpc64-gnu.tar.gz
-            skip_tests: true
-          - os_name: Linux-powerpc64le
-            os: ubuntu-20.04
-            target: powerpc64le-unknown-linux-gnu
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-Linux-powerpc64le.tar.gz
-            skip_tests: true
+          # - os_name: Linux-powerpc
+          #   os: ubuntu-20.04
+          #   target: powerpc-unknown-linux-gnu
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-Linux-powerpc-gnu.tar.gz
+          #   skip_tests: true
+          # - os_name: Linux-powerpc64
+          #   os: ubuntu-20.04
+          #   target: powerpc64-unknown-linux-gnu
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-Linux-powerpc64-gnu.tar.gz
+          #   skip_tests: true
+          # - os_name: Linux-powerpc64le
+          #   os: ubuntu-20.04
+          #   target: powerpc64le-unknown-linux-gnu
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-Linux-powerpc64le.tar.gz
+          #   skip_tests: true
           - os_name: Linux-riscv64
             os: ubuntu-20.04
             target: riscv64gc-unknown-linux-gnu
             bin: freebox-exporter-rs
             name: freebox-exporter-rs-Linux-riscv64gc-gnu.tar.gz
-          - os_name: Linux-s390x
-            os: ubuntu-20.04
-            target: s390x-unknown-linux-gnu
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-Linux-s390x-gnu.tar.gz
-            skip_tests: true
-          - os_name: NetBSD-x86_64
-            os: ubuntu-20.04
-            target: x86_64-unknown-netbsd
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-NetBSD-x86_64.tar.gz
-            skip_tests: true
+          # - os_name: Linux-s390x
+          #   os: ubuntu-20.04
+          #   target: s390x-unknown-linux-gnu
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-Linux-s390x-gnu.tar.gz
+          #   skip_tests: true
+          # - os_name: NetBSD-x86_64
+          #   os: ubuntu-20.04
+          #   target: x86_64-unknown-netbsd
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-NetBSD-x86_64.tar.gz
+          #   skip_tests: true
           - os_name: Windows-aarch64
             os: windows-latest
             target: aarch64-pc-windows-msvc
@@ -119,8 +119,8 @@ jobs:
             skip_tests: true
         toolchain:
           - stable
-          - beta
-          - nightly
+          # - beta
+          # - nightly
     steps:
       - uses: actions/checkout@v4
       - name: Cache cargo & target directories
