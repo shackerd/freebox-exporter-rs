@@ -72,11 +72,11 @@ jobs:
           #   bin: freebox-exporter-rs
           #   name: freebox-exporter-rs-Linux-powerpc64le.tar.gz
           #   skip_tests: true
-          - os_name: Linux-riscv64
-            os: ubuntu-20.04
-            target: riscv64gc-unknown-linux-gnu
-            bin: freebox-exporter-rs
-            name: freebox-exporter-rs-Linux-riscv64gc-gnu.tar.gz
+          # - os_name: Linux-riscv64
+          #   os: ubuntu-20.04
+          #   target: riscv64gc-unknown-linux-gnu
+          #   bin: freebox-exporter-rs
+          #   name: freebox-exporter-rs-Linux-riscv64gc-gnu.tar.gz
           # - os_name: Linux-s390x
           #   os: ubuntu-20.04
           #   target: s390x-unknown-linux-gnu
@@ -95,12 +95,12 @@ jobs:
             bin: freebox-exporter-rs.exe
             name: freebox-exporter-rs-Windows-aarch64.zip
             skip_tests: true
-          - os_name: Windows-i686
-            os: windows-latest
-            target: i686-pc-windows-msvc
-            bin: freebox-exporter-rs.exe
-            name: freebox-exporter-rs-Windows-i686.zip
-            skip_tests: true
+          # - os_name: Windows-i686
+          #   os: windows-latest
+          #   target: i686-pc-windows-msvc
+          #   bin: freebox-exporter-rs.exe
+          #   name: freebox-exporter-rs-Windows-i686.zip
+          #   skip_tests: true
           - os_name: Windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
