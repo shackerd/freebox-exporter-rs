@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use connection::ConnectionTap;
+use log::{error, log};
 use system::SystemTap;
 
 use crate::core::{common::AuthenticatedHttpClientFactory, configuration::MetricsConfiguration};
@@ -33,7 +34,12 @@ impl Translator {
     pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>>
     {
         for tap in self.taps.iter() {
-            tap.set().await.expect("Cannot set translator metric tap");
+            let res = tap.set().await;
+
+            match res {                
+                Err(e) => { error!("{}", e); },
+                _ => { }
+            }
         }
 
         Ok(())
