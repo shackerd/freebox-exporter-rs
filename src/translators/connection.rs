@@ -152,6 +152,10 @@ impl ConnectionTap {
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body);
 
+        if res.is_err() || !res.as_ref().unwrap().success {
+            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        }
+
         let ftth = res.expect("Cannot read response").result;
 
         self.sfp_has_power_report_metric.set(ftth.sfp_has_power_report.unwrap_or_default().into());
@@ -235,6 +239,10 @@ impl ConnectionTap {
             .text().await?;
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body);
+
+        if res.is_err() || !res.as_ref().unwrap().success {
+            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        }
 
         let conf = res.expect("Cannot read response").result;
 
