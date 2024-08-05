@@ -7,6 +7,10 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 > [!IMPORTANT]
 > **Disclaimer:** This project is unofficial and is **not affiliated with Illiad Group**
 
+## Grafana board
+
+You will find [here](https://grafana.com/grafana/dashboards/21637) a Grafana board for the exporter, thanks go to [@ottobaer](https://github.com/ottobaer)!
+
 ## Features
 
 * Freebox metrics exposition (WIP)
@@ -152,6 +156,7 @@ parental = true
 # Exposes pvr
 pvr = true
 # Sets metrics prefix, it cannot be empty
+# Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"
 
 [core]
