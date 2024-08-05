@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use reqwest::{header::{HeaderMap, HeaderValue}, Client };
 use serde::{Deserialize, Serialize};
 
@@ -103,3 +105,24 @@ pub fn http_client_factory() -> Result<Client, ()> {
             .expect("cannot create HTTP Client");
     Ok(client)
 }
+
+#[derive(Debug)]
+pub struct FreeboxResponseError {
+    pub reason: String
+}
+
+impl FreeboxResponseError {
+    pub fn new(reason: String) -> Self {
+        Self {
+            reason
+        }
+    }
+}
+
+impl Display for FreeboxResponseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.reason)
+    }
+}
+
+impl std::error::Error for FreeboxResponseError { }

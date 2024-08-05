@@ -3,7 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse};
+use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
 
 use super::TranslatorMetricTap;
 
@@ -73,6 +73,10 @@ impl SystemTap {
 
         let res = serde_json::from_str::<FreeboxResponse<SystemConfig>>(&body);
 
+        if res.is_err() || !res.as_ref().unwrap().success {
+            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        }
+
         let sys_cnf: SystemConfig = res.expect("Cannot read response").result;
 
         self.mac_metric.with_label_values(&[&sys_cnf.mac.clone().unwrap_or_default()]).set(1);
@@ -98,7 +102,7 @@ impl SystemTap {
 impl TranslatorMetricTap for SystemTap {
 
     async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.set_system_config().await?;
+        match self.set_system_config().await { Err(e) => return Err(e), _ => {} };
         Ok(())
     }
 }

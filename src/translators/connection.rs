@@ -3,7 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse};
+use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
 
 use super::TranslatorMetricTap;
 
@@ -152,6 +152,10 @@ impl ConnectionTap {
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body);
 
+        if res.is_err() || !res.as_ref().unwrap().success {
+            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        }
+
         let ftth = res.expect("Cannot read response").result;
 
         self.sfp_has_power_report_metric.set(ftth.sfp_has_power_report.unwrap_or_default().into());
@@ -177,19 +181,23 @@ impl ConnectionTap {
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionStatus>>(&body);
 
+        if res.is_err() || !res.as_ref().unwrap().success {
+            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        }
+
         let status = res.expect("Cannot read response").result;
 
-        self.type_metric.with_label_values(&[&status._type.unwrap()]).set(1);
-        self.state_metric.with_label_values(&["up"]).set(if status.state.unwrap() == "up" { 1 } else { 0 } );
-        self.media_metric.with_label_values(&[&status.media.unwrap()]).set(1);
-        self.ipv4_metric.with_label_values(&[&status.ipv4.unwrap()]).set(1);
-        self.ipv6_metric.with_label_values(&[&status.ipv6.unwrap()]).set(1);
-        self.bytes_down_metric.set(status.bytes_down.unwrap());
-        self.bytes_up_metric.set(status.bytes_up.unwrap());
-        self.rate_down_metric.set(status.rate_down.unwrap());
-        self.rate_up_metric.set(status.rate_up.unwrap());
-        self.bandwidth_down_metric.set(status.bandwidth_down.unwrap());
-        self.bandwidth_up_metric.set(status.bandwidth_up.unwrap());
+        self.type_metric.with_label_values(&[&status._type.unwrap_or_default()]).set(1);
+        self.state_metric.with_label_values(&["up"]).set(if status.state.unwrap_or_default() == "up" { 1 } else { 0 } );
+        self.media_metric.with_label_values(&[&status.media.unwrap_or_default()]).set(1);
+        self.ipv4_metric.with_label_values(&[&status.ipv4.unwrap_or_default()]).set(1);
+        self.ipv6_metric.with_label_values(&[&status.ipv6.unwrap_or_default()]).set(1);
+        self.bytes_down_metric.set(status.bytes_down.unwrap_or_default());
+        self.bytes_up_metric.set(status.bytes_up.unwrap_or_default());
+        self.rate_down_metric.set(status.rate_down.unwrap_or_default());
+        self.rate_up_metric.set(status.rate_up.unwrap_or_default());
+        self.bandwidth_down_metric.set(status.bandwidth_down.unwrap_or_default());
+        self.bandwidth_up_metric.set(status.bandwidth_up.unwrap_or_default());
 
         Ok(())
     }
@@ -232,6 +240,10 @@ impl ConnectionTap {
 
         let res = serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body);
 
+        if res.is_err() || !res.as_ref().unwrap().success {
+            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        }
+
         let conf = res.expect("Cannot read response").result;
 
         self.ipv6_enabled_metric.set(conf.ipv6_enabled.unwrap_or_default().into());
@@ -252,10 +264,10 @@ impl TranslatorMetricTap for ConnectionTap {
 
     async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
 
-        self.set_connection_status().await.expect("cannot set connection status gauges");
-        self.set_connection_conf().await.expect("cannot set connection configuration gauges");
-        self.set_connection_ipv6_conf().await.expect("cannot set connection ipv6 configuration gauges");
-        self.set_connection_ftth().await.expect("cannot set connection ftth gauges");
+        match self.set_connection_status().await { Err(e) => return Err(e), _ => { } }
+        match self.set_connection_conf().await { Err(e) => return Err(e), _ => {} }
+        match self.set_connection_ipv6_conf().await { Err(e) => return Err(e), _ => {} }
+        match self.set_connection_ftth().await { Err(e) => return Err(e), _ => {} }
         Ok(())
     }
 }
