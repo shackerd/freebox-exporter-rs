@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use connection::ConnectionTap;
-use log::{error, log};
+use log::error;
 use system::SystemTap;
 
 use crate::core::{common::AuthenticatedHttpClientFactory, configuration::MetricsConfiguration};
