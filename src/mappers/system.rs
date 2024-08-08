@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
 
-use super::TranslatorMetricTap;
+use super::MetricMap;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct SystemConfig {
@@ -17,7 +17,7 @@ pub struct SystemConfig {
     pub board_name: Option<String>,
     pub fan_rpm: Option<i64>,
     pub temp_sw: Option<i64>,
-    pub uptime: Option<String>,
+    // pub uptime: Option<String>,
     pub uptime_val: Option<i64>,
     pub user_main_storage: Option<String>,
     pub temp_cpum: Option<i64>,
@@ -25,7 +25,7 @@ pub struct SystemConfig {
     pub firmware_version: Option<String>
 }
 
-pub struct SystemTap {
+pub struct SystemMetricMap {
     factory: AuthenticatedHttpClientFactory,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
@@ -43,7 +43,7 @@ pub struct SystemTap {
     firmware_version_metric: IntGaugeVec
 }
 
-impl SystemTap {
+impl SystemMetricMap {
     pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
         Self {
             factory,
@@ -99,7 +99,7 @@ impl SystemTap {
 
 
 #[async_trait]
-impl TranslatorMetricTap for SystemTap {
+impl MetricMap for SystemMetricMap {
 
     async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
         match self.set_system_config().await { Err(e) => return Err(e), _ => {} };

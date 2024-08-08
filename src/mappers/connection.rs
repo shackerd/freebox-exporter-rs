@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
 
-use super::TranslatorMetricTap;
+use super::MetricMap;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct ConnectionStatus {
@@ -63,7 +63,7 @@ pub struct ConnectionFtth {
     sfp_present: Option<bool>
 }
 
-pub struct ConnectionTap {
+pub struct ConnectionMetricMap {
     factory: AuthenticatedHttpClientFactory,
     bytes_down_metric:  IntGauge,
     bytes_up_metric:  IntGauge,
@@ -100,7 +100,7 @@ pub struct ConnectionTap {
     sfp_present_metric: IntGauge
 }
 
-impl ConnectionTap {
+impl ConnectionMetricMap {
     pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
 
         Self {
@@ -260,7 +260,7 @@ impl ConnectionTap {
 }
 
 #[async_trait]
-impl TranslatorMetricTap for ConnectionTap {
+impl MetricMap for ConnectionMetricMap {
 
     async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
 
