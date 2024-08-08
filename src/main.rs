@@ -1,11 +1,11 @@
 use clap::{command, Parser, Subcommand};
 use flexi_logger::FileSpec;
 use log::{error, info};
-use translators::Translator;
+use mappers::Mapper;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
 use std::str::FromStr;
 mod core;
-mod translators;
+mod mappers;
 
 const DEFAULT_CONF_FILE : &str = "config.toml";
 const DEFAULT_LOG_LEVEL : &str = "Info";
@@ -113,8 +113,8 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     }
 
     let factory = login_result.unwrap();
-    let translator = Translator::new(factory, conf.metrics);
-    let server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), translator);
+    let mapper = Mapper::new(factory, conf.metrics);
+    let server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await?;
 

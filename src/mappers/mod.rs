@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use connection::ConnectionTap;
+use connection::ConnectionMetricMap;
 use log::error;
-use system::SystemTap;
+use system::SystemMetricMap;
 
 use crate::core::{common::AuthenticatedHttpClientFactory, configuration::MetricsConfiguration};
 
@@ -9,34 +9,34 @@ pub mod connection;
 pub mod system;
 
 #[async_trait]
-pub trait TranslatorMetricTap {
+pub trait MetricMap {
     async fn set(&self) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-pub struct Translator {
-    taps: Vec<Box<dyn TranslatorMetricTap>>
+pub struct Mapper {
+    maps: Vec<Box<dyn MetricMap>>
 }
 
-impl Translator {
+impl Mapper {
     pub fn new(factory: AuthenticatedHttpClientFactory, conf: MetricsConfiguration) -> Self {
 
-        let mut taps: Vec<Box<dyn TranslatorMetricTap>> = vec![];
+        let mut maps: Vec<Box<dyn MetricMap>> = vec![];
 
         if conf.connection.unwrap() {
-            taps.push(Box::new(ConnectionTap::new(factory.clone(), conf.prefix.clone().unwrap())));
+            maps.push(Box::new(ConnectionMetricMap::new(factory.clone(), conf.prefix.clone().unwrap())));
         }
         if conf.settings.unwrap() {
-            taps.push(Box::new(SystemTap::new(factory.clone(), conf.prefix.clone().unwrap())));
+            maps.push(Box::new(SystemMetricMap::new(factory.clone(), conf.prefix.clone().unwrap())));
         }
-        Self { taps }
+        Self { maps }
     }
 
     pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>>
     {
-        for tap in self.taps.iter() {
-            let res = tap.set().await;
+        for map in self.maps.iter() {
+            let res = map.set().await;
 
-            match res {                
+            match res {
                 Err(e) => { error!("{}", e); },
                 _ => { }
             }

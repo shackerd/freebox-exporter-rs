@@ -2,20 +2,20 @@ use std::net::SocketAddr;
 
 use log::debug;
 
-use crate::translators::Translator;
+use crate::mappers::Mapper;
 
 pub struct Server {
     port: u16,
     refresh_interval: u64,
-    translator: Translator
+    mapper: Mapper
 }
 
 impl Server {
-    pub fn new(port: u16, refresh_interval: u64, translator: Translator) -> Self {
+    pub fn new(port: u16, refresh_interval: u64, mapper: Mapper) -> Self {
         Self {
             port,
             refresh_interval,
-            translator
+            mapper
         }
     }
 
@@ -32,9 +32,9 @@ impl Server {
 
         loop {
 
-            debug!("fetching result from translator's taps");
+            debug!("fetching result from mapper maps");
 
-            self.translator.set_all().await?;
+            self.mapper.set_all().await?;
 
             i = i + 1;
 

@@ -67,7 +67,7 @@ impl AuthenticatedHttpClientFactory {
     pub fn new(api_url: String, token_provider: SessionTokenProvider) -> Self {
         Self {
             api_url,
-            token_provider: token_provider
+            token_provider
         }
     }
 
@@ -123,7 +123,6 @@ pub fn http_client_factory() -> Result<Client, ()> {
 pub struct FreeboxResponseError {
     pub reason: String
 }
-unsafe impl Send for FreeboxResponseError { }
 
 impl FreeboxResponseError {
     pub fn new(reason: String) -> Self {
