@@ -1,11 +1,12 @@
 use core::str;
-use std::{path::Path, thread::{self}, time::Duration};
+use std::{path::Path, sync::Arc, thread, time::Duration};
+use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use hmac::{Hmac, Mac};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
-use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}};
-use crate::core::common::{http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, Permissions};
+use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt}, sync::Mutex};
+use crate::core::common::{http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError, Permissions};
 
 type HmacSha1 = Hmac<Sha1>;
 
@@ -28,10 +29,163 @@ impl PromptPayload {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct PromptResult {
     app_token: String,
     track_id: i32
+}
+
+#[derive(Clone)]
+pub struct SessionTokenProvider {
+    issued_on: Arc<Mutex<DateTime<Utc>>>,
+    value: Arc<Mutex<String>>,
+    app_token: String,
+    api_url: String
+}
+
+impl SessionTokenProvider {
+
+    pub fn new(app_token: String, api_url: String) -> Self {
+
+        Self {
+            issued_on: Arc::new(Mutex::new(Utc.with_ymd_and_hms(01, 01, 01, 00, 00, 01).unwrap())),
+            value: Arc::new(Mutex::new(String::new())),
+            app_token,
+            api_url
+        }
+    }
+
+    pub async fn get(&self) -> Result<String, Box<dyn std::error::Error>> {
+
+        let duration = Utc::now() - *self.issued_on.lock().await;
+
+        if duration > TimeDelta::minutes(30) {
+
+            let mut issued_on_wl = self.issued_on.lock().await;
+
+            let mut token_wl = self.value.lock().await;
+
+            let login_res = self.login().await;
+
+            if login_res.is_err() {
+                return Err(login_res.err().unwrap());
+            }
+
+            let result = login_res.unwrap();
+            *issued_on_wl = Utc::now();
+
+            (*token_wl).clear();
+            (*token_wl).push_str(result.as_str());
+            return Ok(result);
+        }
+
+        Ok((*self.value.lock().await).clone())
+    }
+
+    async fn login(&self) -> Result<String, Box<dyn std::error::Error>>{
+
+        debug!("login in");
+
+        let token = self.app_token.clone();
+        let challenge_result = self.get_challenge().await;
+        let challenge = challenge_result.unwrap().result;
+
+        let password = self.compute_password(token.to_owned(), challenge).unwrap();
+
+        let session_token_result = self.get_session_token(password).await;
+
+        match session_token_result {
+            Err(e) => {
+                return Err(e);
+            },
+            _ => { }
+        }
+
+        let result = session_token_result.unwrap().result;
+        let permissions = result.permissions.unwrap();
+        debug!("app permissions: {permissions:#?}");
+
+        match result.session_token {
+            Some(t) => Ok(t),
+            None => Err(Box::new(AuthenticatorError::new("cannot get session token".to_string())))
+        }
+    }
+
+    async fn get_challenge(&self) -> Result<FreeboxResponse<ChallengeResult>, Box<dyn std::error::Error>> {
+
+        debug!("fetching challenge");
+
+        let client = http_client_factory().unwrap();
+
+        let response =
+            client.get(format!("{}v4/login/", self.api_url))
+                .send().await;
+
+        if response.is_err() {
+            return Err(Box::new(FreeboxResponseError::new("cannot get response".to_string())));
+        }
+
+        let body_result = response.unwrap().text().await;
+
+        if body_result.is_err() {
+            return Err(Box::new(FreeboxResponseError::new("cannot read body".to_string())));
+        }
+
+        let body = body_result.unwrap();
+
+        let res =
+            serde_json::from_str::<FreeboxResponse<ChallengeResult>>(body.as_str());
+
+        if res.is_err() {
+            return Err(Box::new(FreeboxResponseError::new("cannot read response".to_string())));
+        }
+
+        let challenge = res.unwrap();
+
+        Ok(challenge.clone())
+    }
+
+    async fn get_session_token(&self, password: String) -> Result<FreeboxResponse<SessionResult>, Box<dyn std::error::Error>> {
+
+        debug!("negociating session token");
+
+        let client = http_client_factory().unwrap();
+
+        let payload = SessionPayload {
+            app_id : String::from("fr.freebox.prometheus.exporter"),
+            password
+        };
+
+        let resp =
+            client.post(format!("{}v4/login/session", self.api_url))
+                .json(&payload)
+                .send().await?;
+
+        let body = resp.text().await?;
+
+        let res =
+            serde_json::from_str::<FreeboxResponse<SessionResult>>(&body)?;
+
+        if !res.success {
+            error!("{}", res.msg);
+            return Err(Box::new(AuthenticatorError::new("Failed to get session token".to_string())));
+        }
+
+        Ok(res)
+    }
+
+
+    fn compute_password(&self, app_token: String, result: ChallengeResult) -> Result<String, ()>{
+
+        debug!("computing session password");
+
+        let mut mac = HmacSha1::new_from_slice(app_token.as_bytes()).unwrap();
+        mac.update(result.challenge.as_bytes());
+        let code = mac.finalize().into_bytes();
+        let res = code.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join("");
+
+        Ok(res)
+    }
 }
 
 pub struct Authenticator {
@@ -117,25 +271,20 @@ impl Authenticator {
 
         debug!("login in");
 
-        let token = self.load_app_token().await.expect("Cannot load app_token!");
-        let challenge = self.get_challenge().await?.result;
+        let app_token_result = self.load_app_token().await;
 
-        let password = self.compute_password(token, challenge).unwrap();
-
-        let session_token_result = self.get_session_token(password).await;
-
-        match session_token_result {
-            Err(e) => {
-                return Err(e);
-            },
-            _ => { }
+        if app_token_result.is_err() {
+            return Err(app_token_result.err().unwrap());
         }
 
-        let result = session_token_result.unwrap().result;
-        let permissions = result.permissions.unwrap();
-        debug!("app permissions: {permissions:#?}");
+        let app_token = app_token_result.unwrap();
 
-        return Ok(AuthenticatedHttpClientFactory::new(self.api_url.to_owned(), result.session_token.unwrap().to_owned()));
+        let provider = SessionTokenProvider::new(app_token, self.api_url.clone());
+
+        match provider.login().await {
+            Ok(_) => Ok(AuthenticatedHttpClientFactory::new(self.api_url.clone(), provider)) ,
+            Err(e) => Err(e)
+        }
     }
 
     async fn prompt(&self) -> Result<FreeboxResponse<PromptResult>, Box<dyn std::error::Error>> {
@@ -247,68 +396,9 @@ impl Authenticator {
 
         Ok(res)
     }
-
-    async fn get_challenge(&self) -> Result<FreeboxResponse<ChallengeResult>, Box<dyn std::error::Error>> {
-
-        debug!("fetching challenge");
-
-        let client = http_client_factory().unwrap();
-
-        let body =
-            client.get(format!("{}v4/login/", self.api_url))
-                .send().await?
-                .text().await?;
-
-        let res =
-            serde_json::from_str::<FreeboxResponse<ChallengeResult>>(&body)?;
-
-        Ok(res)
-    }
-
-    async fn get_session_token(&self, password: String) -> Result<FreeboxResponse<SessionResult>, Box<dyn std::error::Error>> {
-
-        debug!("negociating session token");
-
-        let client = http_client_factory().unwrap();
-
-        let payload = SessionPayload {
-            app_id : String::from("fr.freebox.prometheus.exporter"),
-            password
-        };
-
-        let resp =
-            client.post(format!("{}v4/login/session", self.api_url))
-                .json(&payload)
-                .send().await?;
-
-        let body = resp.text().await?;
-
-        let res =
-            serde_json::from_str::<FreeboxResponse<SessionResult>>(&body)?;
-
-        if !res.success {
-            error!("{}", res.msg);
-            return Err(Box::new(AuthenticatorError::new("Failed to get session token".to_string())));
-        }
-
-        Ok(res)
-    }
-
-
-    fn compute_password(&self, app_token: String, result: ChallengeResult) -> Result<String, ()>{
-
-        debug!("computing session password");
-
-        let mut mac = HmacSha1::new_from_slice(app_token.as_bytes()).unwrap();
-        mac.update(result.challenge.as_bytes());
-        let code = mac.finalize().into_bytes();
-        let res = code.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join("");
-
-        Ok(res)
-    }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct AuthorizationResult {
     status: String,
 }
@@ -334,7 +424,7 @@ impl std::fmt::Display for AuthenticatorError {
 
 impl std::error::Error for AuthenticatorError { }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ChallengeResult {
     challenge: String,
 }
@@ -345,7 +435,7 @@ pub struct SessionPayload {
     password: String
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SessionResult {
     session_token: Option<String>,
     permissions: Option<Permissions>

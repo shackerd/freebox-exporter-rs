@@ -1,10 +1,13 @@
 use std::fmt::Display;
 
+use log::debug;
 use reqwest::{header::{HeaderMap, HeaderValue}, Client };
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct FreeboxResponse<T> {
+use super::authenticator::SessionTokenProvider;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FreeboxResponse<T : Clone> {
     #[serde(default, with= "String")]
     pub msg: String,
     pub success: bool,
@@ -15,7 +18,7 @@ pub struct FreeboxResponse<T> {
     pub result: T
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 pub struct Permissions {
     #[serde(default, with= "bool")]
@@ -54,25 +57,35 @@ impl Default for Permissions {
 #[derive(Clone)]
 pub struct AuthenticatedHttpClientFactory {
     pub api_url: String,
-    session_token: String
+    token_provider: SessionTokenProvider
 }
 
 
 
 impl AuthenticatedHttpClientFactory {
 
-    pub fn new(api_url: String, session_token: String) -> Self {
+    pub fn new(api_url: String, token_provider: SessionTokenProvider) -> Self {
         Self {
             api_url,
-            session_token
+            token_provider: token_provider
         }
     }
 
-    pub fn create_client(&self) -> Result<Client, ()> {
+    pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error>> {
 
         let mut headers = HeaderMap::new();
 
-        headers.append("X-Fbx-App-Auth", HeaderValue::from_str(self.session_token.as_str()).unwrap());
+        let token_result = self.token_provider.get().await;
+
+        if token_result.is_err() {
+            return Err(token_result.err().unwrap());
+        }
+
+        let session_token = token_result.unwrap();
+
+        debug!("creating a client with session_token: {}", session_token);
+
+        headers.append("X-Fbx-App-Auth", HeaderValue::from_str(session_token.as_str()).unwrap());
 
         let client =
             reqwest::ClientBuilder::new()
@@ -110,6 +123,7 @@ pub fn http_client_factory() -> Result<Client, ()> {
 pub struct FreeboxResponseError {
     pub reason: String
 }
+unsafe impl Send for FreeboxResponseError { }
 
 impl FreeboxResponseError {
     pub fn new(reason: String) -> Self {
