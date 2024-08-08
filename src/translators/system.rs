@@ -7,7 +7,7 @@ use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, Freeb
 
 use super::TranslatorMetricTap;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SystemConfig {
     pub mac: Option<String>,
     pub box_flavor: Option<String>,
@@ -67,7 +67,7 @@ impl SystemTap {
         debug!("fetching system config");
 
         let body =
-            self.factory.create_client().unwrap().get(format!("{}v4/system", self.factory.api_url))
+            self.factory.create_client().await.unwrap().get(format!("{}v4/system", self.factory.api_url))
             .send().await?
             .text().await?;
 

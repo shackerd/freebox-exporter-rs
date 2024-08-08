@@ -7,7 +7,7 @@ use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, Freeb
 
 use super::TranslatorMetricTap;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ConnectionStatus {
     #[serde(alias="type")]
     _type: Option<String>,
@@ -23,7 +23,7 @@ pub struct ConnectionStatus {
     media: Option<String>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ConnectionConfiguration {
     ping: Option<bool>,
     is_secure_pass: Option<bool>,
@@ -37,19 +37,19 @@ pub struct ConnectionConfiguration {
     remote_access_ip: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ConnectionIpv6Delegation {
     prefix: Option<String>,
     next_hop: Option<String>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ConnectionIpv6Configuration {
     ipv6_enabled: Option<bool>,
     delegations: Option<Vec<ConnectionIpv6Delegation>>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ConnectionFtth {
     sfp_has_power_report: Option<bool>,
     sfp_has_signal: Option<bool>,
@@ -146,7 +146,7 @@ impl ConnectionTap {
         debug!("fetching connection ftth");
 
         let body =
-            self.factory.create_client().unwrap().get(format!("{}v4/connection/ftth", self.factory.api_url))
+            self.factory.create_client().await.unwrap().get(format!("{}v4/connection/ftth", self.factory.api_url))
             .send().await?
             .text().await?;
 
@@ -175,7 +175,7 @@ impl ConnectionTap {
 
         debug!("fetching connection status");
         let body =
-            self.factory.create_client().unwrap().get(format!("{}v4/connection", self.factory.api_url))
+            self.factory.create_client().await.unwrap().get(format!("{}v4/connection", self.factory.api_url))
             .send().await?
             .text().await?;
 
@@ -207,7 +207,7 @@ impl ConnectionTap {
         debug!("fetching connection configuration");
 
         let body =
-            self.factory.create_client().unwrap().get(format!("{}v4/connection/config", self.factory.api_url))
+            self.factory.create_client().await.unwrap().get(format!("{}v4/connection/config", self.factory.api_url))
             .send().await?
             .text().await?;
 
@@ -234,7 +234,7 @@ impl ConnectionTap {
         debug!("fetching connection ipv6 configuration");
 
         let body =
-            self.factory.create_client().unwrap().get(format!("{}v4/connection/ipv6/config", self.factory.api_url))
+            self.factory.create_client().await.unwrap().get(format!("{}v4/connection/ipv6/config", self.factory.api_url))
             .send().await?
             .text().await?;
 
