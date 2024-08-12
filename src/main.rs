@@ -114,7 +114,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
 
     let factory = login_result.unwrap();
     let mapper = Mapper::new(factory, conf.metrics);
-    let server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
+    let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await?;
 

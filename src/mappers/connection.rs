@@ -262,7 +262,9 @@ impl ConnectionMetricMap {
 #[async_trait]
 impl MetricMap for ConnectionMetricMap {
 
-    async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> { Ok(()) }
+
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 
         match self.set_connection_status().await { Err(e) => return Err(e), _ => { } }
         match self.set_connection_conf().await { Err(e) => return Err(e), _ => {} }

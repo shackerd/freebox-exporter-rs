@@ -35,8 +35,8 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) a Grafana boa
     * &#10060; xDSL: 0%
     * &#9989; FFTH: **100%**
     * &#10060; DynDNS: 0%
-  * &#10060; Lan: 0%
-  * &#10060; Lan Browser: 0%
+  * &#9989; Lan: **100%**
+  * &#9989; Lan Browser: **100%**
   * &#10060; Freeplug: 0%
   * &#10060; DHCP: 0%
   * &#10060; Ftp: 0%
@@ -141,6 +141,10 @@ refresh = 5
 [metrics]
 # Exposes connection
 connection = true
+# Exposes lan
+lan = true
+# Exposes lan browser
+lan_browser = true
 # Exposes settings
 settings = true
 # Exposes contacts
