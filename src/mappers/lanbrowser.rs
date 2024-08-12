@@ -47,8 +47,8 @@ pub struct LanHostL3Connectivity {
     pub af: Option<String>,
     pub active: Option<bool>,
     pub reachable: Option<bool>,
-    pub last_activity: Option<i64>, // timestamp
-    pub last_time_reachable: Option<i64> // timestamp
+    pub last_activity: Option<i64>,
+    pub last_time_reachable: Option<i64>
 }
 
 pub struct InterfaceMetrics {
@@ -98,18 +98,6 @@ impl InterfaceMetrics {
 
         Ok(())
     }
-
-    // pub fn deallocate(&self) -> Result<(), ()> {
-
-    //     // match unregister(Box::new(self.name_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.host_count_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-
-    //     for host_metric in &self.devices_metric {
-    //         match host_metric.deallocate() { Err(_) => { return Err(())}, _ => { } };
-    //     }
-
-    //     Ok(())
-    // }
 }
 
 pub struct LanHostMetrics {
@@ -238,31 +226,6 @@ impl LanHostMetrics {
 
         Ok(())
     }
-
-    // pub fn deallocate(&self) -> Result<(), ()> {
-
-    //     match unregister(Box::new(self.primary_name_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.host_type_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.primary_name_manual_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l2ident_id_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l2ident_type_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.vendor_name_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.persistent_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.reachable_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.last_time_reachable_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.active_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.last_activity_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-
-    //     for l3 in &self.l3connectivities_metrics {
-    //         match l3.deallocate() { Err(_) => { return Err(())}, _ => { } };
-    //     }
-
-    //     for name in &self.names_metrics {
-    //         match name.deallocate() { Err(_) => { return Err(())}, _ => { }};
-    //     }
-
-    //     Ok(())
-    // }
 }
 
 pub struct LanHostL3ConnectivityMetric {
@@ -301,18 +264,6 @@ impl LanHostL3ConnectivityMetric {
         self.l3connectivities_last_time_reachable_metric.set(l3_connectivity.to_owned().last_time_reachable.unwrap_or(0).into());
         Ok(())
     }
-
-    // pub fn deallocate(&self) -> Result<(), ()> {
-
-    //     match unregister(Box::new(self.l3connectivities_addr_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l3connectivities_af_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l3connectivities_active_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l3connectivities_reachable_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l3connectivities_last_activity_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.l3connectivities_last_time_reachable_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-
-    //     Ok(())
-    // }
 }
 
 pub struct LanHostNameMetric {
@@ -337,20 +288,7 @@ impl LanHostNameMetric {
         self.names_source_metric.with_label_values(&[&host_name.to_owned().source.unwrap_or_default()]).set(host_name.to_owned().source.is_some().into());
         Ok(())
     }
-
-    // pub fn deallocate(&self) -> Result<(), ()> {
-
-    //     match unregister(Box::new(self.names_name_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-    //     match unregister(Box::new(self.names_source_metric.to_owned())) { Err(_) => { return Err(()) }, _ => {} };
-
-    //     Ok(())
-    // }
 }
-
-// #[async_trait]
-// pub trait DeallocatableMetric {
-//     async fn deallocate(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-// }
 
 pub struct LanBrowserMetricMap {
     factory: AuthenticatedHttpClientFactory,
@@ -366,14 +304,6 @@ impl LanBrowserMetricMap {
             ifaces_metrics: None
         }
     }
-
-    // async fn allocate_new_gauges() -> Result<(), Box<dyn std::error::Error>> {
-    //     todo!()
-    // }
-
-    // async fn deallocate_orphan_gauges() -> Result<(), Box<dyn std::error::Error>> {
-    //     todo!()
-    // }
 
     async fn get_devices(&self, interface: &LanBrowserInterface) -> Result<Vec<LanHost>, Box<dyn std::error::Error>> {
 
@@ -398,8 +328,6 @@ impl LanBrowserMetricMap {
     }
 
     async fn init_metrics(&self) -> Result<Vec<InterfaceMetrics>, Box<dyn std::error::Error>> {
-
-        // let miface_metric.register_hosts()ut dev_by_iface = HashMap::new();
 
         let mut iface_metrics = vec![];
 
@@ -462,13 +390,6 @@ impl LanBrowserMetricMap {
                 match iface_metric.unwrap().set(iface, hosts.unwrap()).await { Err(_) => { warn!("cannot set gauges for iface {}", iface_id)}, _ => {}};
             }
         }
-
-        // match ifaces.len() - self.ifaces_metrics.as_ref().unwrap().len() {
-        //     0 => { },
-        //     1.. => { },
-        //     |i| 0.gt(i) => {}
-        // }
-
 
         Ok(())
     }
