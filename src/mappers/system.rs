@@ -101,7 +101,9 @@ impl SystemMetricMap {
 #[async_trait]
 impl MetricMap for SystemMetricMap {
 
-    async fn set(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> { Ok(()) }
+
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         match self.set_system_config().await { Err(e) => return Err(e), _ => {} };
         Ok(())
     }

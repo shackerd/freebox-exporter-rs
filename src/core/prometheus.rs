@@ -19,7 +19,7 @@ impl Server {
         }
     }
 
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 
         debug!("initiating prometheus server");
 
@@ -29,6 +29,8 @@ impl Server {
         let duration = std::time::Duration::from_secs(self.refresh_interval);
 
         let mut i = 0;
+
+        self.mapper.init_all().await?;
 
         loop {
 

@@ -21,8 +21,12 @@ refresh = 5
 [metrics]
 # Exposes connection
 connection = true
+# Exposes lan
+lan = true
+# Exposes lan browser
+lan_browser = true
 # Exposes settings
-settings = true
+system = true
 # Exposes contacts
 contacts = true
 # Exposes calls

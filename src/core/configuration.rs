@@ -25,7 +25,9 @@ pub struct ApiConfiguration {
 #[derive(Deserialize, Debug)]
 pub struct MetricsConfiguration {
     pub connection: Option<bool>,
-    pub settings: Option<bool>,
+    pub system: Option<bool>,
+    pub lan: Option<bool>,
+    pub lan_browser: Option<bool>,
     pub contacts: Option<bool>,
     pub calls: Option<bool>,
     pub explorer: Option<bool>,
@@ -124,7 +126,9 @@ refresh = 5
 
 [metrics]
 connection = true
-settings = false
+lan = true
+lan_browser = true
+system = false
 contacts = true
 calls = true
 explorer = true
@@ -161,7 +165,9 @@ retention = 31";
         assert_eq!(5, conf.api.refresh.unwrap());
 
         assert_eq!(true, conf.metrics.connection.unwrap());
-        assert_eq!(false, conf.metrics.settings.unwrap());
+        assert_eq!(true, conf.metrics.lan.unwrap());
+        assert_eq!(true, conf.metrics.lan_browser.unwrap());
+        assert_eq!(false, conf.metrics.system.unwrap());
         assert_eq!(true, conf.metrics.contacts.unwrap());
         assert_eq!(true, conf.metrics.calls.unwrap());
         assert_eq!(true, conf.metrics.explorer.unwrap());
@@ -185,7 +191,8 @@ retention = 31";
             metrics: MetricsConfiguration {
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
-                pvr: None, settings: None, prefix: None
+                pvr: None, system: None, prefix: None, lan_browser: None,
+                lan: None
             }
         };
 
@@ -196,7 +203,8 @@ retention = 31";
             metrics: MetricsConfiguration {
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
-                pvr: None, settings: None, prefix: None
+                pvr: None, system: None, prefix: None,lan_browser: None,
+                lan: None
             }
         };
 
@@ -207,7 +215,8 @@ retention = 31";
             metrics: MetricsConfiguration {
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
-                pvr: None, settings: None, prefix: None
+                pvr: None, system: None, prefix: None, lan_browser: None,
+                lan: None
             }
         };
 
@@ -226,7 +235,8 @@ retention = 31";
             metrics: MetricsConfiguration {
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
-                pvr: None, settings: None, prefix: None
+                pvr: None, system: None, prefix: None, lan_browser: None,
+                lan: None
             }
         };
 
@@ -237,7 +247,8 @@ retention = 31";
             metrics: MetricsConfiguration {
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
-                pvr: None, settings: None, prefix: Some(" ".to_string())
+                pvr: None, system: None, prefix: Some(" ".to_string()),
+                lan_browser: None, lan: None
             }
         };
 
@@ -248,7 +259,8 @@ retention = 31";
             metrics: MetricsConfiguration {
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
-                pvr: None, settings: None, prefix: Some("fbx_exporter".to_string())
+                pvr: None, system: None, prefix: Some("fbx_exporter".to_string()),
+                lan_browser: None, lan: None
             }
         };
 
