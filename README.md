@@ -141,9 +141,9 @@ refresh = 5
 [metrics]
 # Exposes connection
 connection = true
-# Exposes lan
+# Exposes lan, this option may not work in bridge_mode
 lan = true
-# Exposes lan browser
+# Exposes lan browser, this option does not work in bridge_mode
 lan_browser = true
 # Exposes settings
 settings = true
