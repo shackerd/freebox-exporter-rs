@@ -8,8 +8,10 @@
 # * discovery off:
 #   * Traffic will be using host mafreebox.freebox.fr
 #   * FQDN resolves to a public IP address (not yours), which allows you to reach your freebox API even if it's set to bridge mode.
-# Remark: setting bridge as value works for both freebox mode router & bridge
-mode = "bridge"
+# Remark:
+#   * If the application is set in "bridge" mode, it works even when Freebox is set to "router" mode but some functionalities will be disabled
+#   * If the application is set in "router" mode, it does not work when Freebox is set to "bridge" mode
+mode = "router"
 
 # Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
 # This does not affect prometheus scrap agents, application will use cached values between calls
