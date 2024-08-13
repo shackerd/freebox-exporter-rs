@@ -65,8 +65,6 @@ impl AuthenticatedHttpClientFactory {
         let session_token = match self.token_provider.get().await
             { Err(e) => return Err(e), Ok(t) => t};
 
-        debug!("creating a client with session_token: {}", session_token);
-
         headers.append("X-Fbx-App-Auth", HeaderValue::from_str(session_token.as_str()).unwrap());
 
         let client =
