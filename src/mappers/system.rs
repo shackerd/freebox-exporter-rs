@@ -71,13 +71,15 @@ impl SystemMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<SystemConfig>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<SystemConfig>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        let sys_cnf: SystemConfig = res.expect("Cannot read response").result;
+        let sys_cnf: SystemConfig = match res.result
+            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
 
         self.mac_metric.with_label_values(&[&sys_cnf.mac.clone().unwrap_or_default()]).set(1);
         self.box_flavor_metric.with_label_values(&[&sys_cnf.box_flavor.clone().unwrap_or_default()]).set(1);

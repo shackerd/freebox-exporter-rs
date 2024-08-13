@@ -316,15 +316,17 @@ impl LanBrowserMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<Vec<LanHost>>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<Vec<LanHost>>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        let devices= res.unwrap().result;
-
-        Ok(devices)
+        match res.result {
+            Some(r) => Ok(r),
+            None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string())))
+        }
     }
 
     async fn init_metrics(&self) -> Result<Vec<InterfaceMetrics>, Box<dyn std::error::Error>> {
@@ -342,9 +344,7 @@ impl LanBrowserMetricMap {
                 continue;
             }
 
-            let devices = self.get_devices(&iface).await;
-
-            match devices {
+            match self.get_devices(&iface).await {
                 Err(e) => error!("{e:#?}"),
                 Ok(r) => {
                     iface_metric.register_hosts(r);
@@ -365,13 +365,17 @@ impl LanBrowserMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<Vec<LanBrowserInterface>>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<Vec<LanBrowserInterface>>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        Ok(res.unwrap().result)
+        match res.result {
+            Some(r) => Ok(r),
+            None => { Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))) }
+        }
     }
 
     async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {

@@ -150,13 +150,15 @@ impl ConnectionMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        let ftth = res.expect("Cannot read response").result;
+        let ftth = match res.result
+            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
 
         self.sfp_has_power_report_metric.set(ftth.sfp_has_power_report.unwrap_or_default().into());
         self.sfp_has_signal_metric.set(ftth.sfp_has_signal.unwrap_or_default().into());
@@ -179,13 +181,15 @@ impl ConnectionMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<ConnectionStatus>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<ConnectionStatus>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        let status = res.expect("Cannot read response").result;
+        let status = match res.result
+            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
 
         self.type_metric.with_label_values(&[&status._type.unwrap_or_default()]).set(1);
         self.state_metric.with_label_values(&["up"]).set(if status.state.unwrap_or_default() == "up" { 1 } else { 0 } );
@@ -211,9 +215,15 @@ impl ConnectionMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<ConnectionConfiguration>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<ConnectionConfiguration>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        let conf = res.expect("Cannot read response").result;
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
+        }
+
+        let conf = match res.result
+            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r };
 
         self.ping_metric.set(conf.ping.unwrap_or_default().into());
         self.is_secure_pass_metric.set(conf.is_secure_pass.unwrap_or_default().into());
@@ -238,13 +248,18 @@ impl ConnectionMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        let conf = res.expect("Cannot read response").result;
+        let conf =
+            match res.result {
+                None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))),
+                Some(r) => r
+            };
 
         self.ipv6_enabled_metric.set(conf.ipv6_enabled.unwrap_or_default().into());
 
