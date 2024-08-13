@@ -94,7 +94,7 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
 async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
     let api_url =
-        match conf.api.mode.expect("Please specify freebox mode").as_str() {
+        match conf.to_owned().api.mode.expect("Please specify freebox mode").as_str() {
             "router" => discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await?,
             "bridge" => discovery::get_static_api_url().unwrap(),
             _ => panic!("Unrecognized freebox mode")
@@ -103,7 +103,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     info!("using api url: {api_url}");
 
     let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
+        authenticator::Authenticator::new(api_url.to_owned(), conf.to_owned().core.data_directory.unwrap());
 
     let login_result = authenticator.login().await;
 
@@ -113,7 +113,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     }
 
     let factory = login_result.unwrap();
-    let mapper = Mapper::new(factory, conf.metrics);
+    let mapper = Mapper::new(factory, conf.to_owned().metrics, conf.to_owned().api);
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await?;
