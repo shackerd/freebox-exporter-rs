@@ -17,7 +17,6 @@ pub struct SystemConfig {
     pub board_name: Option<String>,
     pub fan_rpm: Option<i64>,
     pub temp_sw: Option<i64>,
-    // pub uptime: Option<String>,
     pub uptime_val: Option<i64>,
     pub user_main_storage: Option<String>,
     pub temp_cpum: Option<i64>,
@@ -35,7 +34,6 @@ pub struct SystemMetricMap {
     board_name_metric: IntGaugeVec,
     fan_rpm_metric: IntGauge,
     temp_sw_metric: IntGauge,
-    // uptime_metric: IntGaugeVec,
     uptime_val_metric: IntGauge,
     user_main_storage_metric: IntGaugeVec,
     temp_cpum_metric: IntGauge,
@@ -79,7 +77,7 @@ impl SystemMetricMap {
         }
 
         let sys_cnf: SystemConfig = match res.result
-            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
+            { None => return Err(Box::new(FreeboxResponseError::new("v4/system response was empty".to_string()))), Some(r) => r};
 
         self.mac_metric.with_label_values(&[&sys_cnf.mac.clone().unwrap_or_default()]).set(1);
         self.box_flavor_metric.with_label_values(&[&sys_cnf.box_flavor.clone().unwrap_or_default()]).set(1);
@@ -89,7 +87,6 @@ impl SystemMetricMap {
         self.board_name_metric.with_label_values(&[&sys_cnf.board_name.clone().unwrap_or_default()]).set(1);
         self.fan_rpm_metric.set(sys_cnf.fan_rpm.unwrap_or_default());
         self.temp_sw_metric.set(sys_cnf.temp_sw.unwrap_or_default());
-        // self.uptime_metric.with_label_values(&[&sys_cnf.uptime.clone().unwrap_or_default()]).set(1); // ISSUE : duplicated values
         self.uptime_val_metric.set(sys_cnf.uptime_val.unwrap_or_default());
         self.user_main_storage_metric.with_label_values(&[&sys_cnf.user_main_storage.clone().unwrap_or_default()]).set(sys_cnf.user_main_storage.is_some().into());
         self.temp_cpum_metric.set(sys_cnf.temp_cpum.unwrap_or_default());

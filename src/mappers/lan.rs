@@ -57,7 +57,7 @@ impl LanMetricMap {
         }
 
         let cfg: LanConfig = match res.result
-            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
+            { None => return Err(Box::new(FreeboxResponseError::new("v4/lan/config response was empty".to_string()))), Some(r) => r};
 
         self.name_dns_metric.with_label_values(&[&cfg.name_dns.clone().unwrap_or_default()]).set(cfg.name_dns.is_some().into());
         self.name_mdns_metric.with_label_values(&[&cfg.name_mdns.clone().unwrap_or_default()]).set(cfg.name_mdns.is_some().into());

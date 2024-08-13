@@ -61,17 +61,17 @@ impl SessionTokenProvider {
 
         if duration > TimeDelta::minutes(30) {
 
-            let mut issued_on_wl = self.issued_on.lock().await;
+            let mut issued_on_guard = self.issued_on.lock().await;
 
-            let mut token_wl = self.value.lock().await;
+            let mut token_guard = self.value.lock().await;
 
             let result = match self.login().await
                 { Err(e) => return Err(e), Ok(r) => r };
 
-            *issued_on_wl = Utc::now();
+            *issued_on_guard = Utc::now();
 
-            (*token_wl).clear();
-            (*token_wl).push_str(result.as_str());
+            (*token_guard).clear();
+            (*token_guard).push_str(result.as_str());
             return Ok(result);
         }
 
@@ -105,16 +105,11 @@ impl SessionTokenProvider {
 
         let client = http_client_factory().unwrap();
 
-        let response =
-            client.get(format!("{}v4/login/", self.api_url))
-                .send().await;
-
-        if response.is_err() {
-            return Err(Box::new(FreeboxResponseError::new("cannot get response".to_string())));
-        }
-
-        let body = match response.unwrap().text().await
-            { Err(e) => return Err(Box::new(e)), Ok(r) => r};
+        let body =
+            match (
+                match client.get(format!("{}v4/login/", self.api_url)).send().await
+                { Err(e) => return Err(Box::new(e)), Ok(r) => r }
+            ).text().await { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
         let challenge =
             match serde_json::from_str::<FreeboxResponse<ChallengeResult>>(body.as_str())
@@ -125,7 +120,7 @@ impl SessionTokenProvider {
         }
 
         if challenge.result.is_none() {
-            return Err(Box::new(FreeboxResponseError::new("response was empty".to_string())));
+            return Err(Box::new(FreeboxResponseError::new("v4/login response was empty".to_string())));
         }
 
         Ok(challenge.result.unwrap())
@@ -157,7 +152,7 @@ impl SessionTokenProvider {
         }
 
         if res.result.is_none() {
-            return Err(Box::new(FreeboxResponseError::new("freebox response was empty".to_string())));
+            return Err(Box::new(FreeboxResponseError::new("v4/login/session response was empty".to_string())));
         }
 
         Ok(res.result.unwrap())
@@ -269,6 +264,7 @@ impl Authenticator {
             _ => { }
         }
 
+        info!("Successfully registered application");
         Ok(())
     }
 
@@ -316,7 +312,7 @@ impl Authenticator {
         }
 
         if res.result.is_none() {
-            return Err(Box::new(FreeboxResponseError::new("response was empty".to_string())));
+            return Err(Box::new(FreeboxResponseError::new("v4/login/authorize response was empty".to_string())));
         }
 
         Ok(res.result.unwrap())
@@ -387,7 +383,7 @@ impl Authenticator {
         }
 
         if res.result.is_none() {
-            return Err(Box::new(FreeboxResponseError::new("response was empty".to_string())));
+            return Err(Box::new(FreeboxResponseError::new(format!("v4/login/authorize/{} response was empty", track_id))));
         }
 
         Ok(res.result.unwrap())

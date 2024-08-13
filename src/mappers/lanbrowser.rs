@@ -325,7 +325,7 @@ impl LanBrowserMetricMap {
 
         match res.result {
             Some(r) => Ok(r),
-            None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string())))
+            None => return Err(Box::new(FreeboxResponseError::new(format!("v4/lan/browser/{} response was empty", iface))))
         }
     }
 
@@ -333,7 +333,8 @@ impl LanBrowserMetricMap {
 
         let mut iface_metrics = vec![];
 
-        let ifaces = self.get_ifaces().await?;
+        let ifaces = match self.get_ifaces().await
+            { Err(e) => return Err(e), Ok(r) => r};
 
         for iface in ifaces {
 
@@ -374,13 +375,14 @@ impl LanBrowserMetricMap {
 
         match res.result {
             Some(r) => Ok(r),
-            None => { Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))) }
+            None => { Err(Box::new(FreeboxResponseError::new("v4/lan/browser/interfaces response was empty".to_string()))) }
         }
     }
 
     async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
 
-        let ifaces = self.get_ifaces().await?;
+        let ifaces = match self.get_ifaces().await
+            { Err(e) => return Err(e), Ok(r) => r };
 
 
         for iface in ifaces.iter().filter(|i| i.host_count.unwrap_or(0) > 0).map(|i| i.to_owned()) {

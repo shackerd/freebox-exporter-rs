@@ -158,7 +158,7 @@ impl ConnectionMetricMap {
         }
 
         let ftth = match res.result
-            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
+            { None => return Err(Box::new(FreeboxResponseError::new("v4/connection/ftth response was empty".to_string()))), Some(r) => r};
 
         self.sfp_has_power_report_metric.set(ftth.sfp_has_power_report.unwrap_or_default().into());
         self.sfp_has_signal_metric.set(ftth.sfp_has_signal.unwrap_or_default().into());
@@ -189,7 +189,7 @@ impl ConnectionMetricMap {
         }
 
         let status = match res.result
-            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r};
+            { None => return Err(Box::new(FreeboxResponseError::new("v4/connection response was empty".to_string()))), Some(r) => r};
 
         self.type_metric.with_label_values(&[&status._type.unwrap_or_default()]).set(1);
         self.state_metric.with_label_values(&["up"]).set(if status.state.unwrap_or_default() == "up" { 1 } else { 0 } );
@@ -223,7 +223,7 @@ impl ConnectionMetricMap {
         }
 
         let conf = match res.result
-            { None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))), Some(r) => r };
+            { None => return Err(Box::new(FreeboxResponseError::new("v4/connection/config response was empty".to_string()))), Some(r) => r };
 
         self.ping_metric.set(conf.ping.unwrap_or_default().into());
         self.is_secure_pass_metric.set(conf.is_secure_pass.unwrap_or_default().into());
@@ -257,7 +257,7 @@ impl ConnectionMetricMap {
 
         let conf =
             match res.result {
-                None => return Err(Box::new(FreeboxResponseError::new("response was empty".to_string()))),
+                None => return Err(Box::new(FreeboxResponseError::new("v4/connection/ipv6/config response was empty".to_string()))),
                 Some(r) => r
             };
 
