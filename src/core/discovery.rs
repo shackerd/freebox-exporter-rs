@@ -22,9 +22,10 @@ pub async fn get_api_url(host: &str) -> Result<String, Box<dyn std::error::Error
     let client = http_client_factory().unwrap();
 
     let resp =
-        client.get(format!("https://{host}/api_version"))
-            .send().await?
-            .json::<ApiVersion>().await?;
+        (
+            match client.get(format!("https://{host}/api_version")).send().await
+                { Err(e) => return Err(Box::new(e)), Ok(r) => r }
+        ).json::<ApiVersion>().await?;
 
     let url =
         format!("https://{}:{}{}", resp.api_domain, resp.https_port, resp.api_base_url);

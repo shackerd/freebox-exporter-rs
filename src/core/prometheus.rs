@@ -24,19 +24,24 @@ impl Server {
         debug!("initiating prometheus server");
 
         let addr_raw = format!("0.0.0.0:{}", self.port);
-        let addr: SocketAddr = addr_raw.parse().expect("Cannot parse addr");
-        let exporter = prometheus_exporter::start(addr).expect("Cannot start exporter");
+
+        let addr: SocketAddr = match addr_raw.parse()
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
+
+        let exporter = match prometheus_exporter::start(addr)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
+
         let duration = std::time::Duration::from_secs(self.refresh_interval);
 
         let mut i = 0;
 
-        self.mapper.init_all().await?;
+        match self.mapper.init_all().await { Err(e) => return Err(e), _ => {}};
 
         loop {
 
             debug!("fetching result from mapper maps");
 
-            self.mapper.set_all().await?;
+            match self.mapper.set_all().await { Err(e) => return Err(e), _ => {}};
 
             i = i + 1;
 

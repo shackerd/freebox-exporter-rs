@@ -3,9 +3,9 @@ use connection::ConnectionMetricMap;
 use system::SystemMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use lan::LanMetricMap;
-use log::error;
+use log::{error, warn};
 
-use crate::core::{common::AuthenticatedHttpClientFactory, configuration::MetricsConfiguration};
+use crate::core::{common::AuthenticatedHttpClientFactory, configuration::{ApiConfiguration, MetricsConfiguration}};
 
 pub mod connection;
 pub mod system;
@@ -23,7 +23,7 @@ pub struct Mapper {
 }
 
 impl Mapper {
-    pub fn new(factory: AuthenticatedHttpClientFactory, conf: MetricsConfiguration) -> Self {
+    pub fn new(factory: AuthenticatedHttpClientFactory, conf: MetricsConfiguration, api_conf: ApiConfiguration) -> Self {
 
         let mut maps: Vec<Box<dyn MetricMap>> = vec![];
 
@@ -39,8 +39,15 @@ impl Mapper {
         }
 
         if conf.lan_browser.unwrap() {
-            let lan_browser_map = LanBrowserMetricMap::new(factory.clone(), conf.prefix.clone().unwrap());
-            maps.push(Box::new(lan_browser_map));
+
+            let mode = api_conf.mode.unwrap_or_default();
+            if mode == "router" {
+                let lan_browser_map = LanBrowserMetricMap::new(factory.clone(), conf.prefix.clone().unwrap());
+                maps.push(Box::new(lan_browser_map));
+            }
+            else {
+                warn!("lan_browser is incompatible with this freebox mode ({}), the option has been disabled", mode);
+            }
         }
 
 

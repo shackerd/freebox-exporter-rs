@@ -2,7 +2,7 @@ use serde::Deserialize;
 use tokio::{fs::File, io::AsyncReadExt};
 use std::{fs::{self}, path::Path};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Configuration {
     pub api: ApiConfiguration,
     pub metrics: MetricsConfiguration,
@@ -10,19 +10,19 @@ pub struct Configuration {
     pub log: LogConfiguration
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct CoreConfiguration {
     pub data_directory: Option<String>,
     pub port: Option<u16>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ApiConfiguration {
     pub mode : Option<String>,
     pub refresh: Option<u64>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct MetricsConfiguration {
     pub connection: Option<bool>,
     pub system: Option<bool>,
@@ -37,7 +37,7 @@ pub struct MetricsConfiguration {
     pub prefix: Option<String>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct LogConfiguration {
     pub level: Option<String>,
     pub retention: Option<usize>

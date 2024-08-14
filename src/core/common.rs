@@ -8,35 +8,24 @@ use super::authenticator::SessionTokenProvider;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FreeboxResponse<T : Clone> {
-    #[serde(default, with= "String")]
-    pub msg: String,
-    pub success: bool,
-    #[serde(default, with= "String")]
-    pub uid: String,
-    #[serde(default, with= "String")]
-    pub error_code: String,
-    pub result: T
+    pub msg: Option<String>,
+    pub success: Option<bool>,
+    pub uid: Option<String>,
+    pub error_code: Option<String>,
+    pub result: Option<T>
 }
 
 #[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 pub struct Permissions {
-    #[serde(default, with= "bool")]
-    pub connection: bool,
-    #[serde(default, with= "bool")]
-    pub settings: bool,
-    #[serde(default, with= "bool")]
-    pub contacts: bool,
-    #[serde(default, with= "bool")]
-    pub calls: bool,
-    #[serde(default, with= "bool")]
-    pub explorer: bool,
-    #[serde(default, with= "bool")]
-    pub downloader: bool,
-    #[serde(default, with= "bool")]
-    pub parental: bool,
-    #[serde(default, with= "bool")]
-    pub pvr: bool
+    pub connection: Option<bool>,
+    pub settings: Option<bool>,
+    pub contacts: Option<bool>,
+    pub calls: Option<bool>,
+    pub explorer: Option<bool>,
+    pub downloader: Option<bool>,
+    pub parental: Option<bool>,
+    pub pvr: Option<bool>
 }
 
 impl Default for Permissions {
@@ -60,8 +49,6 @@ pub struct AuthenticatedHttpClientFactory {
     token_provider: SessionTokenProvider
 }
 
-
-
 impl AuthenticatedHttpClientFactory {
 
     pub fn new(api_url: String, token_provider: SessionTokenProvider) -> Self {
@@ -75,15 +62,8 @@ impl AuthenticatedHttpClientFactory {
 
         let mut headers = HeaderMap::new();
 
-        let token_result = self.token_provider.get().await;
-
-        if token_result.is_err() {
-            return Err(token_result.err().unwrap());
-        }
-
-        let session_token = token_result.unwrap();
-
-        debug!("creating a client with session_token: {}", session_token);
+        let session_token = match self.token_provider.get().await
+            { Err(e) => return Err(e), Ok(t) => t};
 
         headers.append("X-Fbx-App-Auth", HeaderValue::from_str(session_token.as_str()).unwrap());
 
@@ -126,9 +106,7 @@ pub struct FreeboxResponseError {
 
 impl FreeboxResponseError {
     pub fn new(reason: String) -> Self {
-        Self {
-            reason
-        }
+        Self { reason }
     }
 }
 

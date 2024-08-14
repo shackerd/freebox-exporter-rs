@@ -1,5 +1,5 @@
 use clap::{command, Parser, Subcommand};
-use flexi_logger::FileSpec;
+use flexi_logger::{FileSpec, ModuleFilter};
 use log::{error, info};
 use mappers::Mapper;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    let conf_path: &str = &cli.configuration_file.unwrap_or_else(|| DEFAULT_CONF_FILE.to_string());
+    let conf_path: &str = &cli.configuration_file.unwrap_or(DEFAULT_CONF_FILE.to_string());
 
     let conf = get_configuration(conf_path.to_string()).await?;
 
@@ -27,13 +27,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .directory(conf.core.data_directory.clone().expect("Please configure data_directory in config.toml"));
 
     let logger = flexi_logger::Logger::try_with_env_or_str(
-        cli.verbosity.unwrap_or_else(
-            || log::LevelFilter::from_str(
-                &conf.log.level.clone().unwrap_or_else(|| DEFAULT_LOG_LEVEL.to_string())
+        cli.verbosity.unwrap_or(
+            log::LevelFilter::from_str(
+                &conf.log.level.clone().unwrap_or(DEFAULT_LOG_LEVEL.to_string())
             ).unwrap()).as_str())?
         .log_to_file(specs)
         .write_mode(flexi_logger::WriteMode::BufferAndFlush)
         .duplicate_to_stdout(flexi_logger::Duplicate::Info)
+        .set_palette("b1;3;2;4;6".to_string())
         .cleanup_in_background_thread(true)
         .rotate(
             flexi_logger::Criterion::Age(flexi_logger::Age::Day),
@@ -73,8 +74,9 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
 
     let api_url =
         match conf.api.mode.expect("Please specify freebox mode").as_str() {
-            "router" => { discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await? },
-            "bridge" => { discovery::get_static_api_url().unwrap() }
+            "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await
+                { Err(e) => return Err(e), Ok(r) => r},
+            "bridge" => discovery::get_static_api_url().unwrap(),
             _ => { panic!("Unrecognized freebox mode") }
         };
 
@@ -83,19 +85,15 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
 
-    match authenticator.register(interval).await {
-        Ok(_) => info!("Successfully registered application"),
-        Err(e) => return Err(e)
-    }
-
-    Ok(())
+    authenticator.register(interval).await
 }
 
 async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
     let api_url =
-        match conf.api.mode.expect("Please specify freebox mode").as_str() {
-            "router" => discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await?,
+        match conf.to_owned().api.mode.expect("Please specify freebox mode").as_str() {
+            "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await
+                { Err(e) => return Err(e), Ok(r) => r},
             "bridge" => discovery::get_static_api_url().unwrap(),
             _ => panic!("Unrecognized freebox mode")
         };
@@ -103,22 +101,15 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     info!("using api url: {api_url}");
 
     let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
+        authenticator::Authenticator::new(api_url.to_owned(), conf.to_owned().core.data_directory.unwrap());
 
-    let login_result = authenticator.login().await;
+    let factory = match authenticator.login().await
+        { Err(e) => return Err(e), Ok(r) => r };
 
-    match login_result {
-        Err(e) => return Err(e),
-        _ => {}
-    }
-
-    let factory = login_result.unwrap();
-    let mapper = Mapper::new(factory, conf.metrics);
+    let mapper = Mapper::new(factory, conf.to_owned().metrics, conf.to_owned().api);
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
-    server.run().await?;
-
-    Ok(())
+    server.run().await
 }
 
 #[derive(Parser)]

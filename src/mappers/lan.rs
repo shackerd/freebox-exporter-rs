@@ -49,14 +49,15 @@ impl LanMetricMap {
             .send().await?
             .text().await?;
 
-        let res = serde_json::from_str::<FreeboxResponse<LanConfig>>(&body);
+        let res = match serde_json::from_str::<FreeboxResponse<LanConfig>>(&body)
+            { Err(e) => return Err(Box::new(e)), Ok(r) => r };
 
-        if res.is_err() || !res.as_ref().unwrap().success {
-            return Err(Box::new(FreeboxResponseError::new(res.as_ref().unwrap().msg.clone())));
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(res.msg.unwrap_or_default())));
         }
 
-        let cfg: LanConfig = res.expect("Cannot read response").result;
-
+        let cfg: LanConfig = match res.result
+            { None => return Err(Box::new(FreeboxResponseError::new("v4/lan/config response was empty".to_string()))), Some(r) => r};
 
         self.name_dns_metric.with_label_values(&[&cfg.name_dns.clone().unwrap_or_default()]).set(cfg.name_dns.is_some().into());
         self.name_mdns_metric.with_label_values(&[&cfg.name_mdns.clone().unwrap_or_default()]).set(cfg.name_mdns.is_some().into());
