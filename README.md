@@ -128,7 +128,9 @@ git clone https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-expo
 # * discovery off:
 #   * Traffic will be using host mafreebox.freebox.fr
 #   * FQDN resolves to a public IP address (not yours), which allows you to reach your freebox API even if it's set to bridge mode.
-# Remark: setting bridge as value works for both freebox mode router & bridge
+# Remark:
+#   * If the application is set in "bridge" mode, it works even when Freebox is set to "router" mode but some functionalities will be disabled
+#   * If the application is set in "router" mode, it does not work when Freebox is set to "bridge" mode
 mode = "bridge"
 
 # Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
