@@ -28,6 +28,7 @@ pub struct MetricsConfiguration {
     pub system: Option<bool>,
     pub lan: Option<bool>,
     pub lan_browser: Option<bool>,
+    pub switch: Option<bool>,
     pub contacts: Option<bool>,
     pub calls: Option<bool>,
     pub explorer: Option<bool>,
@@ -128,6 +129,7 @@ refresh = 5
 connection = true
 lan = true
 lan_browser = true
+switch = true
 system = false
 contacts = true
 calls = true
@@ -167,6 +169,7 @@ retention = 31";
         assert_eq!(true, conf.metrics.connection.unwrap());
         assert_eq!(true, conf.metrics.lan.unwrap());
         assert_eq!(true, conf.metrics.lan_browser.unwrap());
+        assert_eq!(true, conf.metrics.switch.unwrap());
         assert_eq!(false, conf.metrics.system.unwrap());
         assert_eq!(true, conf.metrics.contacts.unwrap());
         assert_eq!(true, conf.metrics.calls.unwrap());
@@ -192,7 +195,7 @@ retention = 31";
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
                 pvr: None, system: None, prefix: None, lan_browser: None,
-                lan: None
+                lan: None, switch: None
             }
         };
 
@@ -204,7 +207,7 @@ retention = 31";
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
                 pvr: None, system: None, prefix: None,lan_browser: None,
-                lan: None
+                lan: None, switch: None
             }
         };
 
@@ -216,7 +219,7 @@ retention = 31";
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
                 pvr: None, system: None, prefix: None, lan_browser: None,
-                lan: None
+                lan: None, switch: None
             }
         };
 
@@ -236,7 +239,7 @@ retention = 31";
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
                 pvr: None, system: None, prefix: None, lan_browser: None,
-                lan: None
+                lan: None, switch: None
             }
         };
 
@@ -248,7 +251,7 @@ retention = 31";
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
                 pvr: None, system: None, prefix: Some(" ".to_string()),
-                lan_browser: None, lan: None
+                lan_browser: None, lan: None, switch: None
             }
         };
 
@@ -260,7 +263,7 @@ retention = 31";
                 calls: None, connection: None, contacts: None,
                 downloader: None, explorer: None, parental: None,
                 pvr: None, system: None, prefix: Some("fbx_exporter".to_string()),
-                lan_browser: None, lan: None
+                lan_browser: None, lan: None, switch: None
             }
         };
 

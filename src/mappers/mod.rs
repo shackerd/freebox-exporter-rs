@@ -3,6 +3,7 @@ use connection::ConnectionMetricMap;
 use system::SystemMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use lan::LanMetricMap;
+use switch::SwitchMetricMap;
 use log::{error, warn};
 
 use crate::core::{common::AuthenticatedHttpClientFactory, configuration::{ApiConfiguration, MetricsConfiguration}};
@@ -11,6 +12,7 @@ pub mod connection;
 pub mod system;
 pub mod lan;
 pub mod lanbrowser;
+pub mod switch;
 
 #[async_trait]
 pub trait MetricMap {
@@ -28,26 +30,30 @@ impl Mapper {
         let mut maps: Vec<Box<dyn MetricMap>> = vec![];
 
         if conf.connection.unwrap() {
-            maps.push(Box::new(ConnectionMetricMap::new(factory.clone(), conf.prefix.clone().unwrap())));
+            maps.push(Box::new(ConnectionMetricMap::new(factory.to_owned(), conf.prefix.to_owned().unwrap())));
         }
         if conf.system.unwrap() {
-            maps.push(Box::new(SystemMetricMap::new(factory.clone(), conf.prefix.clone().unwrap())));
+            maps.push(Box::new(SystemMetricMap::new(factory.to_owned(), conf.prefix.to_owned().unwrap())));
         }
 
         if conf.lan.unwrap() {
-            maps.push(Box::new(LanMetricMap::new(factory.clone(), conf.prefix.clone().unwrap())));
+            maps.push(Box::new(LanMetricMap::new(factory.to_owned(), conf.prefix.to_owned().unwrap())));
         }
 
         if conf.lan_browser.unwrap() {
 
             let mode = api_conf.mode.unwrap_or_default();
             if mode == "router" {
-                let lan_browser_map = LanBrowserMetricMap::new(factory.clone(), conf.prefix.clone().unwrap());
+                let lan_browser_map = LanBrowserMetricMap::new(factory.to_owned(), conf.prefix.to_owned().unwrap());
                 maps.push(Box::new(lan_browser_map));
             }
             else {
                 warn!("lan_browser is incompatible with this freebox mode ({}), the option has been disabled", mode);
             }
+        }
+
+        if conf.switch.unwrap() {
+            maps.push(Box::new(SwitchMetricMap::new(factory.to_owned(), conf.prefix.to_owned().unwrap())));
         }
 
 
