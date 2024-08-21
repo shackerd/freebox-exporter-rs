@@ -47,7 +47,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) a Grafana boa
   * &#10060; LCD: 0%
   * &#10060; Network Share: 0%
   * &#10060; UPnP AV: 0%
-  * &#10060; Switch: 0%
+  * &#9989; Switch: **100%**
   * &#10060; Wi-Fi: 0%
   * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
