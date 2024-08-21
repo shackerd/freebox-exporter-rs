@@ -47,7 +47,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) a Grafana boa
   * &#10060; LCD: 0%
   * &#10060; Network Share: 0%
   * &#10060; UPnP AV: 0%
-  * &#10060; Switch: 0%
+  * &#9989; Switch: **100%**
   * &#10060; Wi-Fi: 0%
   * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
@@ -147,6 +147,8 @@ connection = true
 lan = true
 # Exposes lan browser, this option does not work in bridge_mode
 lan_browser = true
+# Exposes switch, this option may not work properly in bridge_mode
+switch = true
 # Exposes settings
 settings = true
 # Exposes contacts
@@ -226,3 +228,8 @@ curl http://localhost:9102/metrics
 ## Support this project
 
 If you want to help, you can contribute or you can still [buy me a coffee](https://buymeacoffee.com/shackerd) or leave a star!
+
+## Useful links
+
+* [https://dev.freebox.fr/blog](https://dev.freebox.fr/blog) : official Freebox blog
+* [https://dev.freebox.fr/bugs](https://dev.freebox.fr/bugs) : official Freebox bugs report board
