@@ -1,5 +1,5 @@
 use clap::{command, Parser, Subcommand};
-use flexi_logger::{FileSpec, ModuleFilter};
+use flexi_logger::FileSpec;
 use log::{error, info};
 use mappers::Mapper;
 use core::{authenticator, configuration::{get_configuration, Configuration}, discovery, prometheus::{self}};
