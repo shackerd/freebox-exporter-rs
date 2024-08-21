@@ -1,6 +1,4 @@
 use std::fmt::Display;
-
-use log::debug;
 use reqwest::{header::{HeaderMap, HeaderValue}, Client };
 use serde::{Deserialize, Serialize};
 
