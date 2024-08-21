@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use log::{debug, error, warn};
-use prometheus_exporter::prometheus::{register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec};
+use log::{debug, error};
+use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use serde::Deserialize;
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
 use super::MetricMap;
@@ -19,9 +19,6 @@ pub struct LanHost {
     primary_name_manual: Option<bool>,
     l2ident: Option<LanHostL2Ident>,
     vendor_name: Option<String>,
-    persistent: Option<bool>,
-    reachable: Option<bool>,
-    last_time_reachable: Option<i64>,
     active: Option<bool>,
     last_activity: Option<i64>,
     names: Option<Vec<LanHostName>>,
@@ -51,257 +48,35 @@ pub struct LanHostL3Connectivity {
     pub last_time_reachable: Option<i64>
 }
 
-pub struct InterfaceMetrics {
-    pub prefix: String,
-    pub host_count_metric: IntGauge,
-    pub devices_metric: Vec<LanHostMetrics>
-}
-
-impl InterfaceMetrics {
-    pub fn new(prefix: String, iface: LanBrowserInterface) -> Self {
-
-        let iface_name = iface.name.unwrap();
-        let prfx = format!("{prefix}_{iface_name}");
-
-        Self {
-            prefix: prfx.to_owned(),
-            host_count_metric: register_int_gauge!(format!("{prfx}_host_count"), format!("{prfx}_host_count")).expect(&format!("cannot create {prfx}_host_count gauge")),
-            devices_metric: vec![]
-        }
-    }
-
-    pub fn register_hosts(&mut self, hosts: Vec<LanHost>) { // lanhost
-
-        for host in hosts {
-            let metric = LanHostMetrics::new(host, self.prefix.to_owned());
-            self.devices_metric.push(metric);
-        }
-    }
-
-    pub async fn set(&self, iface: LanBrowserInterface, hosts: Vec<LanHost>) -> Result<(), Box<dyn std::error::Error>> {
-
-        self.host_count_metric.set(iface.to_owned().host_count.unwrap_or(0).into());
-
-        for host in hosts {
-
-            let id = host.to_owned().id.unwrap().replace(":", "_").replace("-", "_");
-            let metric_id = format!("{}_{id}", self.prefix);
-            let device_metric = self.devices_metric.iter().find(|d| d.managed_id == metric_id);
-
-            if device_metric.is_some() {
-                match device_metric.unwrap().set(host).await { Err(_) => warn!("cannot set gauges for {metric_id}"), _ => {} }
-            }
-            else {
-                warn!("unable to find metric gauges {metric_id}");
-            }
-        }
-
-        Ok(())
-    }
-}
-
-pub struct LanHostMetrics {
-
-    pub managed_id: String,
-    pub primary_name_metric: IntGaugeVec,
-    pub host_type_metric: IntGaugeVec,
-    pub primary_name_manual_metric: IntGauge,
-    pub l2ident_id_metric: IntGaugeVec,
-    pub l2ident_type_metric: IntGaugeVec,
-    pub vendor_name_metric: IntGaugeVec,
-    pub persistent_metric: IntGauge,
-    pub reachable_metric: IntGauge,
-    pub last_time_reachable_metric: IntGauge,
-    pub active_metric: IntGauge,
-    pub last_activity_metric: IntGauge,
-    pub names_metrics: Vec<LanHostNameMetric>,
-    pub l3connectivities_metrics: Vec<LanHostL3ConnectivityMetric>
-}
-
-impl LanHostMetrics {
-
-    pub fn new(host: LanHost, prefix: String) -> Self {
-
-        let id = host.id.unwrap().replace(":", "_").replace("-", "_");
-        let prfx = format!("{prefix}_{id}");
-
-        let l3connectivities = host.l3connectivities.unwrap();
-        let mut l3s = vec![];
-
-        for i in 0..l3connectivities.len() {
-            l3s.push(LanHostL3ConnectivityMetric::new(format!("{prfx}_l3connectivities_{i}")));
-        }
-
-        let host_names = host.names.unwrap();
-        let mut names = vec![];
-
-        for i in 0..host_names.len() {
-            names.push(LanHostNameMetric::new(format!("{prfx}_names_{i}")));
-        }
-
-        Self {
-            managed_id: prfx.clone(),
-            primary_name_metric: register_int_gauge_vec!(format!("{prfx}_primary_name"), "host primary name", &["primary_name"]).expect(&format!("cannot create {prfx}_primary_name gauge")),
-            host_type_metric: register_int_gauge_vec!(format!("{prfx}_host_type"), "host type (from Freebox guess)", &["host_type"]).expect(&format!("cannot create {prfx}_host_type gauge")),
-            primary_name_manual_metric: register_int_gauge!(format!("{prfx}_primary_name_manual"), "if 1 the primary name has been set manually").expect(&format!("cannot create {prfx}_primary_name_manual gauge")),
-            l2ident_id_metric: register_int_gauge_vec!(format!("{prfx}_l2ident_id"), "layer 2 id", &["id"]).expect(&format!("cannot create {prfx}_l2ident_id gauge")),
-            l2ident_type_metric: register_int_gauge_vec!(format!("{prfx}_l2ident_type"), "type of layer 2 address", &["type"]).expect(&format!("cannot create {prfx}_l2ident_type gauge")),
-            vendor_name_metric: register_int_gauge_vec!(format!("{prfx}_vendor_name"), "host vendor name (from the mac address)", &["vendor_name"]).expect(&format!("cannot create {prfx}_vendor_name gauge")),
-            persistent_metric: register_int_gauge!(format!("{prfx}_persistent"), "if 1 the host is always shown even if it has not been active since the Freebox startup").expect(&format!("cannot create {prfx}_persistent gauge")),
-            reachable_metric: register_int_gauge!(format!("{prfx}_reachable"), "if 1 the host can receive traffic from the Freebox").expect(&format!("cannot create {prfx}_reachable gauge")),
-            last_time_reachable_metric: register_int_gauge!(format!("{prfx}_last_time_reachable"), "last time the host was reached").expect(&format!("cannot create {prfx}_last_time_reachable gauge")),
-            active_metric: register_int_gauge!(format!("{prfx}_active"), "if 1 the host sends traffic to the Freebox").expect(&format!("cannot create {prfx}_active gauge")),
-            last_activity_metric: register_int_gauge!(format!("{prfx}_last_activity"), "last time the host sent traffic").expect(&format!("cannot create {prfx}_last_activity gauge")),
-            l3connectivities_metrics: l3s,
-            names_metrics: names
-        }
-    }
-
-    pub async fn set(&self, host: LanHost) -> Result<(), Box<dyn std::error::Error>> {
-
-        self.primary_name_metric.with_label_values(&[&host.to_owned().primary_name.unwrap_or_default()]).set(host.to_owned().primary_name.is_some().into());
-        self.host_type_metric.with_label_values(&[&host.to_owned().host_type.unwrap_or_default()]).set(host.to_owned().host_type.is_some().into());
-        self.primary_name_manual_metric.set(host.to_owned().primary_name_manual.unwrap_or(false).into());
-
-        let l2indent = host.to_owned().l2ident;
-        match l2indent {
-            None => {
-                self.l2ident_id_metric.with_label_values(&[&"id"]).set(0);
-                self.l2ident_type_metric.with_label_values(&[&"type"]).set(0);
-            },
-            Some(l2) => {
-                self.l2ident_id_metric.with_label_values(&[&l2.to_owned().id.unwrap_or_default()]).set(l2.to_owned().id.is_some().into());
-                self.l2ident_type_metric.with_label_values(&[&l2.to_owned()._type.unwrap_or_default()]).set(l2.to_owned()._type.is_some().into());
-            }
-        }
-
-        self.vendor_name_metric.with_label_values(&[&host.to_owned().vendor_name.unwrap_or_default()]).set(host.to_owned().vendor_name.is_some().into());
-        self.persistent_metric.set(host.to_owned().persistent.unwrap_or(false).into());
-        self.reachable_metric.set(host.to_owned().reachable.unwrap_or(false).into());
-        self.last_time_reachable_metric.set(host.to_owned().last_time_reachable.unwrap_or(0));
-        self.active_metric.set(host.to_owned().active.unwrap_or(false).into());
-        self.last_activity_metric.set(host.to_owned().last_activity.unwrap_or(0));
-
-        match host.l3connectivities {
-            None => { },
-            Some(l3s) => {
-
-                let mut i = 0;
-
-                for l3 in l3s {
-
-                    let metric_id = format!("{}_l3connectivities_{i}", self.managed_id);
-                    let metric = self.l3connectivities_metrics.iter().find(|l| l.managed_id == metric_id);
-                    if metric.is_some() {
-                        match metric.unwrap().set(l3) { Err(_) => warn!("cannot set gauges for {metric_id}"), _ => { } }
-                    }
-                    else {
-                        warn!("unable to find metric gauges {metric_id}")
-                    }
-                    i += 1;
-                }
-            }
-        }
-
-        match host.names {
-            None => { },
-            Some(names) => {
-
-                let mut i = 0;
-
-                for name in names {
-                    let metric_id = format!("{}_names_{i}", self.managed_id);
-                    let metric = self.names_metrics.iter().find(|n| n.managed_id == metric_id);
-
-                    if metric.is_some() {
-                        match metric.unwrap().set(name) { Err(_) => warn!("cannot set gauges for {metric_id}"), _ => {} }
-                    }
-                    else {
-                        warn!("unable to find metric gauges {metric_id}")
-                    }
-                    i += 1;
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
-pub struct LanHostL3ConnectivityMetric {
-
-    pub managed_id: String,
-    pub l3connectivities_addr_metric: IntGaugeVec,
-    pub l3connectivities_af_metric: IntGaugeVec,
-    pub l3connectivities_active_metric: IntGauge,
-    pub l3connectivities_reachable_metric: IntGauge,
-    pub l3connectivities_last_activity_metric: IntGauge,
-    pub l3connectivities_last_time_reachable_metric: IntGauge
-}
-
-impl LanHostL3ConnectivityMetric {
-
-    pub fn new(prefix: String) -> Self {
-
-        Self {
-            managed_id: prefix.to_owned(),
-            l3connectivities_addr_metric: register_int_gauge_vec!(format!("{prefix}_addr"), "layer 3 address", &["addr"]).expect(&format!("cannot create {prefix}_addr gauge")),
-            l3connectivities_af_metric: register_int_gauge_vec!(format!("{prefix}_af"), "ipv4 or ipv6", &["af"]).expect(&format!("cannot create {prefix}_af gauge")),
-            l3connectivities_active_metric: register_int_gauge!(format!("{prefix}_active"), "is the connection active").expect(&format!("cannot create {prefix}_active gauge")),
-            l3connectivities_reachable_metric: register_int_gauge!(format!("{prefix}_reachable"), "is the connection reachable").expect(&format!("cannot create {prefix}_reachable gauge")),
-            l3connectivities_last_activity_metric: register_int_gauge!(format!("{prefix}_last_activity"), "last activity timestamp").expect(&format!("cannot create {prefix}_last_activity gauge")),
-            l3connectivities_last_time_reachable_metric: register_int_gauge!(format!("{prefix}_last_time_reachable"), "last reachable timestamp").expect(&format!("cannot create {prefix}_last_time_reachable gauge")),
-        }
-    }
-
-    pub fn set(&self, l3_connectivity: LanHostL3Connectivity) -> Result<(), ()> {
-
-        self.l3connectivities_addr_metric.with_label_values(&[&l3_connectivity.to_owned().addr.unwrap_or_default()]).set(l3_connectivity.to_owned().addr.is_some().into());
-        self.l3connectivities_af_metric.with_label_values(&[&l3_connectivity.to_owned().af.unwrap_or_default()]).set(l3_connectivity.to_owned().af.is_some().into());
-        self.l3connectivities_active_metric.set(l3_connectivity.to_owned().active.unwrap_or(false).into());
-        self.l3connectivities_reachable_metric.set(l3_connectivity.to_owned().reachable.unwrap_or(false).into());
-        self.l3connectivities_last_activity_metric.set(l3_connectivity.to_owned().last_time_reachable.unwrap_or(0).into());
-        self.l3connectivities_last_time_reachable_metric.set(l3_connectivity.to_owned().last_time_reachable.unwrap_or(0).into());
-        Ok(())
-    }
-}
-
-pub struct LanHostNameMetric {
-    pub managed_id: String,
-    pub names_name_metric: IntGaugeVec,
-    pub names_source_metric: IntGaugeVec
-}
-
-impl LanHostNameMetric {
-    pub fn new(prefix: String) -> Self {
-
-        Self {
-            managed_id: prefix.to_owned(),
-            names_name_metric: register_int_gauge_vec!(format!("{prefix}_name"), "host name", &["name"]).expect(&format!("cannot create {prefix}_name gauge")),
-            names_source_metric: register_int_gauge_vec!(format!("{prefix}_source"), "source of the name", &["source"]).expect(&format!("cannot create {prefix}_source gauge")),
-        }
-    }
-
-    pub fn set(&self, host_name: LanHostName) -> Result<(), ()> {
-
-        self.names_name_metric.with_label_values(&[&host_name.to_owned().name.unwrap_or_default()]).set(host_name.to_owned().name.is_some().into());
-        self.names_source_metric.with_label_values(&[&host_name.to_owned().source.unwrap_or_default()]).set(host_name.to_owned().source.is_some().into());
-        Ok(())
-    }
-}
-
 pub struct LanBrowserMetricMap {
     factory: AuthenticatedHttpClientFactory,
-    prefix: String,
-    ifaces_metrics: Option<Vec<InterfaceMetrics>>
+    device_gauge: IntGaugeVec,
+    device_l3_connectivity_gauge: IntGaugeVec,
+    device_last_activity: IntGaugeVec,
+    device_name_gauge: IntGaugeVec,
+    iface_gauge: IntGaugeVec
 }
 
 impl LanBrowserMetricMap {
     pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+
+        let prfx = format!("{prefix}_lan_browser");
+
         Self {
             factory,
-            prefix: format!("{prefix}_lan_browser"),
-            ifaces_metrics: None
+            device_gauge: register_int_gauge_vec!(
+                format!("{prfx}_device"), "device, 1 for active",
+                    &["iface", "primary_name", "id", "type", "primary_name_manual", "l2ident_id", "l2ident_type", "vendor_name"]
+                ).expect(&format!("cannot create {prfx}_devices gauge")),
+            device_l3_connectivity_gauge: register_int_gauge_vec!(
+                format!("{prfx}_device_l3_connectivity"), "device l3 connectivity, 1 for active",
+                    &["ident", "iface", "addr", "name", "af"]
+                ).expect("cannot create {prfx}_device_l3 gauge"),
+            device_last_activity: register_int_gauge_vec!(
+                format!("{prfx}_device_last_activity"), "device last activity timestamp", &["iface", "name"]).expect(&format!("cannot create {prfx}_device_last_activity gauge")),
+            device_name_gauge: register_int_gauge_vec!(format!("{prfx}_device_name"), "device name", &["name", "source", "ident", "iface"]).expect(&format!("cannot create {prfx}_name gauge")),
+            iface_gauge: register_int_gauge_vec!(
+                format!("{prfx}_iface_hosts"), "network interfaces", &["name"]).expect(&format!("cannot create {prfx}_ifaces gauge")),
         }
     }
 
@@ -329,35 +104,6 @@ impl LanBrowserMetricMap {
         }
     }
 
-    async fn init_metrics(&self) -> Result<Vec<InterfaceMetrics>, Box<dyn std::error::Error>> {
-
-        let mut iface_metrics = vec![];
-
-        let ifaces = match self.get_ifaces().await
-            { Err(e) => return Err(e), Ok(r) => r};
-
-        for iface in ifaces {
-
-            let mut iface_metric = InterfaceMetrics::new(self.prefix.to_owned(), iface.to_owned());
-
-            if iface.host_count.unwrap_or(0) == 0 {
-                iface_metrics.push(iface_metric);
-                continue;
-            }
-
-            match self.get_devices(&iface).await {
-                Err(e) => error!("{e:#?}"),
-                Ok(r) => {
-                    iface_metric.register_hosts(r);
-                }
-            }
-
-            iface_metrics.push(iface_metric);
-        }
-
-        Ok(iface_metrics)
-    }
-
     async fn get_ifaces(&self) -> Result<Vec<LanBrowserInterface>, Box<dyn std::error::Error>> {
         debug!("fetching ifaces & devices");
 
@@ -382,18 +128,68 @@ impl LanBrowserMetricMap {
     async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
 
         let ifaces = match self.get_ifaces().await
-            { Err(e) => return Err(e), Ok(r) => r };
+            { Err(e) => return Err(e), Ok(r) => r};
 
+        for iface in ifaces {
 
-        for iface in ifaces.iter().filter(|i| i.host_count.unwrap_or(0) > 0).map(|i| i.to_owned()) {
+            self.iface_gauge.with_label_values(&[&iface.name.to_owned().unwrap_or_default()]).set(iface.host_count.unwrap_or(0).into());
 
-            let iface_id = format!("{}_{}", self.prefix, iface.to_owned().name.unwrap());
-            let iface_metric = self.ifaces_metrics.as_ref().unwrap().iter().find(|i| i.prefix == iface_id);
+            if iface.host_count.unwrap_or(0) == 0 {
+                continue;
+            }
 
-            if iface_metric.is_some() {
-                let hosts = self.get_devices(&iface).await;
+            match self.get_devices(&iface).await {
+                Err(e) => error!("{e:#?}"),
+                Ok(devs) => {
 
-                match iface_metric.unwrap().set(iface, hosts.unwrap()).await { Err(_) => { warn!("cannot set gauges for iface {}", iface_id)}, _ => {}};
+                    for dev in devs {
+                        let l2ident =
+                            dev.l2ident.unwrap_or(LanHostL2Ident { id: None, _type: None });
+
+                        self.device_gauge.with_label_values(
+                            &[
+                                &iface.name.to_owned().unwrap_or_default(),
+                                &dev.primary_name.to_owned().unwrap_or_default(),
+                                &dev.id.unwrap_or_default(),
+                                &dev.host_type.unwrap_or_default(),
+                                &dev.primary_name_manual.unwrap_or_default().to_string(),
+                                &l2ident.id.to_owned().unwrap_or_default(),
+                                &l2ident._type.to_owned().unwrap_or_default(),
+                                &dev.vendor_name.unwrap_or_default()
+                            ]
+                        ).set(dev.active.unwrap_or_default().into());
+
+                        self.device_last_activity.with_label_values(
+                            &[&iface.to_owned().name.unwrap_or_default(), &dev.primary_name.to_owned().unwrap_or_default()]).set(dev.last_activity.unwrap_or_default());
+
+                        let l3s = dev.l3connectivities.unwrap_or(vec![]);
+
+                        for l3 in l3s {
+                            self.device_l3_connectivity_gauge.with_label_values(
+                                &[
+                                    &l2ident.id.to_owned().unwrap_or_default(),
+                                    &iface.name.to_owned().unwrap_or_default(),
+                                    &l3.addr.unwrap_or_default(),
+                                    &dev.primary_name.to_owned().unwrap_or_default(),
+                                    &l3.af.unwrap_or_default()
+                                ]
+                            ).set(l3.active.unwrap_or_default().into());
+                        }
+
+                        let names = dev.names.unwrap_or(vec![]);
+
+                        for name in names {
+                            self.device_name_gauge.with_label_values(
+                                &[
+                                    &name.name.unwrap_or_default(),
+                                    &name.source.unwrap_or_default(),
+                                    &l2ident.id.to_owned().unwrap_or_default(),
+                                    &iface.name.to_owned().unwrap_or_default()
+                                ]
+                            ).set(1);
+                        }
+                    }
+                }
             }
         }
 
@@ -401,13 +197,6 @@ impl LanBrowserMetricMap {
     }
 
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-
-        match self.init_metrics().await {
-            Err(e) => return Err(e),
-            Ok(metrics) => {
-                self.ifaces_metrics = Some(metrics);
-            }
-        };
         Ok(())
     }
 
