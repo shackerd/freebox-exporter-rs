@@ -2,6 +2,8 @@
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fshackerd%2Ffreebox-exporter-rs.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fshackerd%2Ffreebox-exporter-rs?ref=badge_shield)
 [![Chat on Matrix](https://matrix.to/img/matrix-badge.svg)](https://matrix.to/#/#freebox-exporter-rs:matrix.org)
+[![discord](https://img.shields.io/badge/discord-join_chat-green)](
+https://discord.gg/QfV2D2KZ)
 
 Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually in work in progress. New contributors are welcome! Please join our [Matrix room](https://matrix.to/#/#freebox-exporter-rs:matrix.org) and say *"hey!"*
 
