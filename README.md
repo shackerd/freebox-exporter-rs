@@ -6,7 +6,7 @@
 Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually in work in progress. New contributors are welcome! Please join our [Matrix room](https://matrix.to/#/#freebox-exporter-rs:matrix.org) and say *"hey!"*
 
 > [!IMPORTANT]
-> **Disclaimer:** This project is unofficial and is **not affiliated with Free S.A.S. ISP nor Illiad Group**
+> **Disclaimer:** This project is unofficial and is **not affiliated with Free S.A.S. ISP nor Iliad Group**
 
 ## Grafana board
 
