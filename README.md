@@ -1,11 +1,12 @@
 # freebox-exporter-rs
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fshackerd%2Ffreebox-exporter-rs.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fshackerd%2Ffreebox-exporter-rs?ref=badge_shield)
+[![Chat on Matrix](https://matrix.to/img/matrix-badge.svg)](https://matrix.to/#/#freebox-exporter-rs:matrix.org)
 
-Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually under development, feel free to contribute!
+Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually in work in progress. New contributors are welcome! Please join our [Matrix room](https://matrix.to/#/#freebox-exporter-rs:matrix.org) and say *"hey!"*
 
 > [!IMPORTANT]
-> **Disclaimer:** This project is unofficial and is **not affiliated with Illiad Group**
+> **Disclaimer:** This project is unofficial and is **not affiliated with Free S.A.S. ISP nor Illiad Group**
 
 ## Grafana board
 
@@ -81,11 +82,15 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) a Grafana boa
 
 ## Roadmap
 
-* Expose all Freebox API
+* Expose all Freebox API*
 * Speedtest metrics
 * Provide systemd registration
 * Provide container support
 * Publish to crates.io (cargo install)
+
+(*) Which can be used as stats
+
+You can suggest your ideas in [discussion section](https://github.com/shackerd/freebox-exporter-rs/discussions/categories/ideas)
 
 ## Usage
 
@@ -115,7 +120,7 @@ Options:
 git clone https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-exporter-rs
 ```
 
-### Configuration
+### Configuring
 
 ``` toml
 [api]
@@ -227,7 +232,7 @@ curl http://localhost:9102/metrics
 
 ## Support this project
 
-If you want to help, you can contribute or you can still [buy me a coffee](https://buymeacoffee.com/shackerd) or leave a star!
+If you want to help :heart:, you can contribute, give feedbacks or you can still [buy me a :coffee:](https://buymeacoffee.com/shackerd) or leave a :star:!
 
 ## Useful links
 
