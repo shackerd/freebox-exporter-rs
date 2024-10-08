@@ -9,7 +9,7 @@ edition = "2021"
 async-trait = "0.1.83"
 chrono = "0.4.38"
 clap = { version = "4.5.19", features = ["derive"] }
-flexi_logger = { version = "0.29.1", features = ["async", "specfile", "compress", "colors"]}
+flexi_logger = { version = "0.29.2", features = ["async", "specfile", "compress", "colors"]}
 hmac = { version = "0.12.1", features = ["std"] }
 log = "0.4.22"
 openssl = { version = "0.10.66", features = ["vendored"] }
