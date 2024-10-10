@@ -1,0 +1,38 @@
+# Stage 1: Build stage
+FROM rust:alpine as builder
+
+# Install necessary dependencies
+RUN apk add --no-cache musl-dev openssl-dev perl make gcc
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy the Cargo.toml and Cargo.lock files
+COPY Cargo.toml Cargo.lock ./
+
+# Copy the source code
+COPY src ./src
+
+# Build the project
+RUN cargo build --release
+
+# Stage 2: Final stage
+FROM alpine:latest
+
+# Install necessary runtime dependencies
+RUN apk add --no-cache ca-certificates
+
+# Set the Current Working Directory inside the container
+WORKDIR /root/
+
+# Copy the compiled binary from the build stage
+COPY --from=builder /app/target/release/freebox-exporter-rs .
+
+# Copy the configuration file
+COPY config.toml /etc/freebox-exporter-rs/config.toml
+
+# Expose the port specified in the config.toml
+EXPOSE 9102
+
+# Command to run the executable with the default argument
+CMD ["/root/freebox-exporter-rs"]

@@ -119,15 +119,37 @@ Options:
   -V, --version                                  Print version
 ```
 
-## Building, debugging, configuring project
+## Running project
 
-### Clone project
+
+
+Running with docker
 
 ``` bash
-git clone https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-exporter-rs
+docker pull docker.io/shackerd/freebox-exporter-rs:latest
 ```
 
-### Configuring
+``` yaml
+version: '3.8'
+
+services:
+  freebox-exporter:
+    image: docker.io/shackerd/freebox-exporter-rs:latest
+    container_name: freebox-exporter
+    volumes:
+      - ./config:/etc/freebox-exporter-rs
+      - ./data:/data
+    ports:
+      - "9102:9102"
+    restart: unless-stopped
+    command: ["/root/freebox-exporter-rs", "-c", "/etc/freebox-exporter-rs/config.toml" ,"serve"]
+```
+
+> [!IMPORTANT]
+> * **port** must match with value set in your **configuration file**
+> * `data` volume path must match with value set in your **configuration file**
+
+## Configuring
 
 ``` toml
 [api]
@@ -197,6 +219,14 @@ port = 9102
 level = "Info"
 # Specify how long application should keep compressed log files, value is in days
 retention = 31
+```
+
+## Building, debugging
+
+### Clone project
+
+``` bash
+git clone https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-exporter-rs
 ```
 
 ### Run debug configuration, assuming application is registered on Freebox host
