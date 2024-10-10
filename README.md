@@ -147,7 +147,7 @@ services:
 
 > [!IMPORTANT]
 > * **port** must match with value set in your **configuration file**
-> * `data` volume path must match with value set in your **configuration file**
+> * `data` volume path must match with `data_directory` value set in your **configuration file**
 
 ## Configuring
 
