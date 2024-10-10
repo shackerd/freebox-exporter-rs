@@ -148,6 +148,7 @@ services:
 > [!IMPORTANT]
 > * **port** must match with value set in your **configuration file**
 > * `data` volume path must match with `data_directory` value set in your **configuration file**
+> * first time run, you may change the `serve` argument in the compose file to `register` and switch back to `serve` once app is authorized and **app token** has been created in **data** folder
 
 ## Configuring
 
