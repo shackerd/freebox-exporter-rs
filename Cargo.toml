@@ -12,7 +12,7 @@ clap = { version = "4.5.20", features = ["derive"] }
 flexi_logger = { version = "0.29.3", features = ["async", "specfile", "compress", "colors"]}
 hmac = { version = "0.12.1", features = ["std"] }
 log = "0.4.22"
-openssl = { version = "0.10.66", features = ["vendored"] }
+openssl = { version = "0.10.68", features = ["vendored"] }
 prometheus_exporter = "0.8.5"
 reqwest = { version = "0.12.8", features = ["json"] }
 serde = {version = "1.0.210", features = ["derive"] }
