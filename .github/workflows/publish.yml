@@ -191,3 +191,81 @@ jobs:
           files: "freebox-exporter-rs-*"
           # body_path: Changes.md
         if: matrix.toolchain == 'stable' && startsWith( github.ref, 'refs/tags/v' )
+      - name: Docker Login
+        # You may pin to the exact commit or the version.
+        # uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
+        uses: docker/login-action@v3.3.0
+        with:
+          # Server address of Docker registry. If not set then will default to Docker Hub
+          registry: docker.io
+          # Username used to log against the Docker registry
+          username: ${{ github.actor }} 
+          # Password or personal access token used to log against the Docker registry
+          password: ${{ secrets.DOCKER_PAT }}
+          # Specifies whether the given registry is ECR (auto, true or false)
+          ecr: auto
+          # Log out from the Docker registry at the end of a job
+          logout: true
+          if: matrix.toolchain == 'stable' && startsWith( github.ref, 'refs/tags/v' )
+      - name: Build and push Docker images
+        # You may pin to the exact commit or the version.
+        # uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75
+        uses: docker/build-push-action@v6.9.0
+        with:         
+          # List of build-time variables
+          #build-args: # optional
+          # List of additional build contexts (e.g., name=path)
+          #build-contexts: # optional
+          # Builder instance
+          #builder: # optional
+          # List of external cache sources for buildx (e.g., user/app:cache, type=local,src=path/to/dir)
+          #cache-from: # optional
+          # List of cache export destinations for buildx (e.g., user/app:cache, type=local,dest=path/to/dir)
+          #cache-to: # optional
+          # Optional parent cgroup for the container used in the build
+          #cgroup-parent: # optional
+          # Build's context is the set of files located in the specified PATH or URL
+          #context: # optional
+          # Path to the Dockerfile
+          file: # optional
+          # List of metadata for an image
+          labels: # optional
+          # Load is a shorthand for --output=type=docker
+          #load: # optional, default is false
+          # Set the networking mode for the RUN instructions during build
+          #network: # optional
+          # Do not use cache when building the image
+          #no-cache: # optional, default is false
+          # Do not cache specified stages
+          #no-cache-filters: # optional
+          # List of output destinations (format: type=local,dest=path)
+          #outputs: # optional
+          # List of target platforms for build
+          #platforms: # optional
+          # Generate provenance attestation for the build (shorthand for --attest=type=provenance)
+          #provenance: # optional
+          # Always attempt to pull all referenced images
+          #pull: # optional, default is false
+          # Push is a shorthand for --output=type=registry
+          push: true
+          # Generate SBOM attestation for the build (shorthand for --attest=type=sbom)
+          #sbom: # optional
+          # List of secrets to expose to the build (e.g., key=string, GIT_AUTH_TOKEN=mytoken)
+          #secrets: # optional
+          # List of secret env vars to expose to the build (e.g., key=envname, MY_SECRET=MY_ENV_VAR)
+          #secret-envs: # optional
+          # List of secret files to expose to the build (e.g., key=filename, MY_SECRET=./secret.txt)
+          #secret-files: # optional
+          # Size of /dev/shm (e.g., 2g)
+          #shm-size: # optional
+          # List of SSH agent socket or keys to expose to the build
+          #ssh: # optional
+          # List of tags
+          tags: latest
+          # Sets the target stage to build
+          #target: # optional
+          # Ulimit options (e.g., nofile=1024:1024)
+          #ulimit: # optional
+          # GitHub Token used to authenticate against a repository for Git context
+          #github-token: # optional, default is ${{ github.token }}
+          if: matrix.toolchain == 'stable' && startsWith( github.ref, 'refs/tags/v' )
