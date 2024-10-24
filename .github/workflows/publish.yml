@@ -227,9 +227,9 @@ jobs:
           # Build's context is the set of files located in the specified PATH or URL
           #context: # optional
           # Path to the Dockerfile
-          file: # optional
+          file: ContainerFile # optional
           # List of metadata for an image
-          labels: # optional
+          #labels: # optional
           # Load is a shorthand for --output=type=docker
           #load: # optional, default is false
           # Set the networking mode for the RUN instructions during build
