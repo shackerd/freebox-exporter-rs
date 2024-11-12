@@ -15,7 +15,7 @@ log = "0.4.22"
 openssl = { version = "0.10.68", features = ["vendored"] }
 prometheus_exporter = "0.8.5"
 reqwest = { version = "0.12.9", features = ["json"] }
-serde = {version = "1.0.214", features = ["derive"] }
+serde = {version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
 sha1 = "0.10.6"
 time = "0.3.36"
