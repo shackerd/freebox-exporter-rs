@@ -13,22 +13,28 @@ pub struct ApiVersion {
     api_domain: String,
     uid: String,
     api_version: String,
-    device_type: String
+    device_type: String,
 }
 pub const DEFAULT_FBX_HOST: &str = "mafreebox.freebox.fr";
 
 pub async fn get_api_url(host: &str) -> Result<String, Box<dyn std::error::Error>> {
-
     let client = http_client_factory().unwrap();
 
-    let resp =
-        (
-            match client.get(format!("https://{host}/api_version")).send().await
-                { Err(e) => return Err(Box::new(e)), Ok(r) => r }
-        ).json::<ApiVersion>().await?;
+    let resp = (match client
+        .get(format!("https://{host}/api_version"))
+        .send()
+        .await
+    {
+        Err(e) => return Err(Box::new(e)),
+        Ok(r) => r,
+    })
+    .json::<ApiVersion>()
+    .await?;
 
-    let url =
-        format!("https://{}:{}{}", resp.api_domain, resp.https_port, resp.api_base_url);
+    let url = format!(
+        "https://{}:{}{}",
+        resp.api_domain, resp.https_port, resp.api_base_url
+    );
 
     Ok(url)
 }
@@ -51,7 +57,7 @@ mod tests {
             Ok(z) => {
                 println!("{z}");
                 assert_eq!("https://localhost:3001/api/", z.as_str())
-            },
+            }
             Err(e) => {
                 println!("Error! {e:#?}");
             }
