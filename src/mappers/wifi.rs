@@ -1,3 +1,5 @@
+use std::usize;
+
 use async_trait::async_trait;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use serde::{Deserialize, Serialize};
@@ -277,6 +279,7 @@ fn calculate_avg_channel_survey_history(
 
 fn get_recent_channel_entries(histories: &[ChannelSurveyHistory]) -> Vec<ChannelSurveyHistory> {
     let len = histories.len() as u32;
+    let takes = 5 as usize; // must be issued from refresh value in config file, each array entry represents a second
 
     match len {
         0 => vec![ChannelSurveyHistory {
@@ -287,13 +290,13 @@ fn get_recent_channel_entries(histories: &[ChannelSurveyHistory]) -> Vec<Channel
             rx_percent: Some(0),
         }],
         l => {
-            if l <= 5 {
+            if l <= takes as u32 {
                 histories.to_vec()
             } else {
                 // take only the last 10 entries
                 let mut hist = histories.to_vec();
                 hist.sort_by(|a, b| b.timestamp.unwrap().cmp(&a.timestamp.unwrap()));
-                hist.split_at(len as usize - 10).1.to_vec()
+                hist.split_at(len as usize - takes).1.to_vec()
             }
         }
     }
