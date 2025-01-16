@@ -52,9 +52,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#10060; Port Forwarding: 0%
   * &#10060; Incoming port configuration: 0%
   * &#10060; UPnP IGD: 0%
-  * &#10060; LCD: 0%
   * &#10060; Network Share: 0%
-  * &#10060; UPnP AV: 0%
   * &#9989; Switch: **100%**
   * &#10060; Wi-Fi: 0%
   * &#9989; System: **100%**
@@ -75,10 +73,6 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#10060; System: 0%
   * &#10060; Sharing Link: 0%
   * &#10060; Upload: 0%
-
-* &#10134; Air Media
-  * &#10060; Configuration: 0%
-  * &#10060; Receivers: 0%
 
 * &#10060; Storage: 0%
 * &#10060; Parental filter: 0%
@@ -184,6 +178,8 @@ lan = true
 lan_browser = true
 # Exposes switch, this option may not work properly in bridge_mode
 switch = true
+# Exposes wifi
+wifi = true
 # Exposes settings
 settings = true
 # Exposes contacts

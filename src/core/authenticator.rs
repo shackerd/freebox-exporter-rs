@@ -503,6 +503,22 @@ impl Authenticator {
 
         Ok(res.result.unwrap())
     }
+
+    pub async fn diagnostic(&self, show_token: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let app_token = match self.load_app_token().await {
+            Err(e) => return Err(e),
+            Ok(t) => t,
+        };
+
+        let provider = SessionTokenProvider::new(app_token, self.api_url.clone());
+        let token_result = provider.login().await;
+
+        if token_result.is_ok() && show_token {
+            println!("APP_TOKEN: {}", token_result.unwrap());
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]

@@ -16,6 +16,7 @@ pub mod lan;
 pub mod lanbrowser;
 pub mod switch;
 pub mod system;
+pub mod wifi;
 
 #[async_trait]
 pub trait MetricMap {
@@ -73,6 +74,12 @@ impl Mapper {
             )));
         }
 
+        if conf.wifi.unwrap() {
+            maps.push(Box::new(wifi::WifiMetricMap::new(
+                factory.to_owned(),
+                conf.prefix.to_owned().unwrap(),
+            )));
+        }
         Self { maps }
     }
 
@@ -102,5 +109,17 @@ impl Mapper {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod api_specs_provider {
+    /// Get the API specs data from the file system
+    pub async fn get_specs_data(
+        api: &'static str,
+        endpoint: &'static str,
+    ) -> Result<String, std::io::Error> {
+        let path = format!("src/mappers/specs-data/{}/{}.json", api, endpoint);
+        tokio::fs::read_to_string(path).await
     }
 }

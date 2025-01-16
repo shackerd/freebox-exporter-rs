@@ -51,6 +51,7 @@ pub struct AuthenticatedHttpClientFactory {
 }
 
 impl AuthenticatedHttpClientFactory {
+    /// Create a new factory with the API URL and the session token provider.
     pub fn new(api_url: String, token_provider: SessionTokenProvider) -> Self {
         Self {
             api_url,
@@ -58,6 +59,9 @@ impl AuthenticatedHttpClientFactory {
         }
     }
 
+    /// Create a new HTTP client with the session token.
+    ///
+    /// Remark: Session token is automatically fetched.
     pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error>> {
         let mut headers = HeaderMap::new();
 

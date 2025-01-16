@@ -66,21 +66,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Register { pooling_interval } => {
             let interval = pooling_interval.unwrap_or_else(|| 6);
 
-            match register(conf, interval).await {
-                Err(e) => error!("{e:#?}"),
-                _ => {}
+            if let Err(e) = register(conf, interval).await {
+                error!("{e:#?}")
             }
         }
         Command::Serve { port } => {
             let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
 
-            match serve(conf, serve_port).await {
-                Err(e) => error!("{e:#?}"),
-                _ => {}
+            if let Err(e) = serve(conf, serve_port).await {
+                error!("{e:#?}")
             }
         }
         Command::Revoke => {
             todo!()
+        }
+        Command::SessionDiagnostic { show_token } => {
+            if let Err(e) = session_diagnostic(conf, show_token.unwrap_or_else(|| false)).await {
+                error!("{e:#?}");
+            }
         }
     }
 
@@ -144,6 +147,45 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     server.run().await
 }
 
+async fn get_api_url(conf: &Configuration) -> Result<String, Box<dyn std::error::Error>> {
+    let api_url = match conf
+        .to_owned()
+        .api
+        .mode
+        .expect("Please specify freebox mode")
+        .as_str()
+    {
+        "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await {
+            Err(e) => return Err(e),
+            Ok(r) => r,
+        },
+        "bridge" => discovery::get_static_api_url().unwrap(),
+        _ => panic!("Unrecognized freebox mode"),
+    };
+
+    Ok(api_url)
+}
+
+async fn session_diagnostic(
+    conf: Configuration,
+    show_token: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(api_url) = get_api_url(&conf).await {
+        info!("using api url: {api_url}");
+
+        let authenticator = authenticator::Authenticator::new(
+            api_url.to_owned(),
+            conf.to_owned().core.data_directory.unwrap(),
+        );
+
+        authenticator.diagnostic(show_token).await?;
+    } else {
+        error!("unable to get api url");
+    }
+
+    Ok(())
+}
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -159,5 +201,6 @@ struct Cli {
 enum Command {
     Register { pooling_interval: Option<u64> },
     Serve { port: Option<u16> },
+    SessionDiagnostic { show_token: Option<bool> },
     Revoke,
 }

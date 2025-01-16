@@ -1,0 +1,137 @@
+{
+    "success": true,
+    "result": [
+        {
+            "mac": "d0:23:db:36:15:aa",
+            "last_rx": {
+                "bitrate": 110,
+                "mcs": -1,
+                "shortgi": false,
+                "vht_mcs": -1,
+                "width": "20"
+            },
+            "tx_bytes": 3987,
+            "last_tx": {
+                "bitrate": 360,
+                "mcs": -1,
+                "shortgi": false,
+                "vht_mcs": -1,
+                "width": "20"
+            },
+            "id": "00:24:D4:AC:DC:88-d0:23:db:36:15:aa",
+            "bssid": "00:24:D4:AC:DC:88",
+            "flags": {
+                "vht": false,
+                "legacy": false,
+                "authorized": true,
+                "ht": false
+            },
+            "tx_rate": 0,
+            "host":
+            {
+                "l2ident": {
+                    "id": "d0:23:db:36:15:aa",
+                    "type": "mac_address"
+                },
+                "active": true,
+                "id": "wifi-d0:23:db:36:15:aa",
+                "last_time_reachable": 1360699498,
+                "persistent": true,
+                "names": [
+                    {
+                        "name": "iPhone-r0ro",
+                        "source": "dhcp"
+                    }
+                ],
+                "vendor_name": "Apple, Inc.",
+                "l3connectivities": [
+                    {
+                        "addr": "192.168.69.20",
+                        "active": true,
+                        "af": "ipv4",
+                        "reachable": true,
+                        "last_activity": 1360699498,
+                        "last_time_reachable": 1360699498
+                    }
+                ],
+                "reachable": true,
+                "last_activity": 1360699498,
+                "primary_name_manual": true,
+                "primary_name": "iPhone r0ro"
+            },
+            "inactive": 100,
+            "conn_duration": 875,
+            "hostname": "iPhone-de-r0ro",
+            "state": "authenticated",
+            "rx_bytes": 822,
+            "rx_rate": 0,
+            "signal": -28
+        },
+        {
+            "mac": "ff:ff:ff:ff:ff:ff",
+            "last_rx": {
+                "bitrate": 110,
+                "mcs": -1,
+                "shortgi": false,
+                "vht_mcs": -1,
+                "width": "20"
+            },
+            "tx_bytes": 2651,
+            "last_tx": {
+                "bitrate": 360,
+                "mcs": -1,
+                "shortgi": false,
+                "vht_mcs": -1,
+                "width": "20"
+            },
+            "id": "00:24:D4:AC:DC:88-ff:ff:ff:ff:ff:ff",
+            "bssid": "00:24:D4:AC:DC:88",
+            "flags": {
+                "vht": false,
+                "legacy": false,
+                "authorized": true,
+                "ht": false
+            },
+            "tx_rate": 0,
+            "host":
+            {
+                "l2ident": {
+                    "id": "ff:ff:ff:ff:ff:ff",
+                    "type": "mac_address"
+                },
+                "active": true,
+                "id": "wifi-ff:ff:ff:ff:ff:ff",
+                "last_time_reachable": 1360669498,
+                "persistent": true,
+                "names": [
+                    {
+                        "name": "Android-r0ro",
+                        "source": "dhcp"
+                    }
+                ],
+                "vendor_name": "Apple, Inc.",
+                "l3connectivities": [
+                    {
+                        "addr": "192.168.69.21",
+                        "active": true,
+                        "af": "ipv4",
+                        "reachable": true,
+                        "last_activity": 1360669498,
+                        "last_time_reachable": 1360669498
+                    }
+                ],
+                "reachable": true,
+                "last_activity": 1360669498,
+                "primary_name_manual": true,
+                "primary_name": "Android r0ro"
+            },
+            "inactive": 168,
+            "conn_duration": 263,
+            "hostname": "Android-de-r0ro",
+            "state": "authenticated",
+            "rx_bytes": 781,
+            "rx_rate": 0,
+            "signal": -38
+        }
+    ]
+}

@@ -1,0 +1,82 @@
+{
+    "success": true,
+    "result": [
+        {
+            "busy_percent": 37,
+            "tx_percent": 1,
+            "timestamp": 1736682332410,
+            "rx_bss_percent": 0,
+            "rx_percent": 33
+        },
+        {
+            "busy_percent": 35,
+            "tx_percent": 1,
+            "timestamp": 1736682332510,
+            "rx_bss_percent": 0,
+            "rx_percent": 32
+        },
+        {
+            "busy_percent": 35,
+            "tx_percent": 1,
+            "timestamp": 1736682332610,
+            "rx_bss_percent": 0,
+            "rx_percent": 31
+        },
+        {
+            "busy_percent": 34,
+            "tx_percent": 1,
+            "timestamp": 1736682332710,
+            "rx_bss_percent": 0,
+            "rx_percent": 30
+        },
+        {
+            "busy_percent": 33,
+            "tx_percent": 1,
+            "timestamp": 1736682332810,
+            "rx_bss_percent": 0,
+            "rx_percent": 29
+        },
+        {
+            "busy_percent": 32,
+            "tx_percent": 1,
+            "timestamp": 1736682332910,
+            "rx_bss_percent": 0,
+            "rx_percent": 29
+        },
+        {
+            "busy_percent": 33,
+            "tx_percent": 1,
+            "timestamp": 1736682333010,
+            "rx_bss_percent": 0,
+            "rx_percent": 30
+        },
+        {
+            "busy_percent": 33,
+            "tx_percent": 1,
+            "timestamp": 1736682333110,
+            "rx_bss_percent": 0,
+            "rx_percent": 29
+        },
+        {
+            "busy_percent": 33,
+            "tx_percent": 1,
+            "timestamp": 1736682333210,
+            "rx_bss_percent": 0,
+            "rx_percent": 29
+        },
+        {
+            "busy_percent": 34,
+            "tx_percent": 1,
+            "timestamp": 1736682333310,
+            "rx_bss_percent": 0,
+            "rx_percent": 30
+        },
+        {
+            "busy_percent": 36,
+            "tx_percent": 1,
+            "timestamp": 1736682333410,
+            "rx_bss_percent": 0,
+            "rx_percent": 32
+        }
+    ]
+}
