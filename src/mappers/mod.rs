@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::Duration;
 use connection::ConnectionMetricMap;
 use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
@@ -75,9 +76,12 @@ impl Mapper {
         }
 
         if conf.wifi.unwrap() {
+            let ttl = Duration::seconds(api_conf.refresh.unwrap_or(5) as i64);
+
             maps.push(Box::new(wifi::WifiMetricMap::new(
                 factory.to_owned(),
                 conf.prefix.to_owned().unwrap(),
+                ttl,
             )));
         }
         Self { maps }

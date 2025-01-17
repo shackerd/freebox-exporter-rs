@@ -1,6 +1,7 @@
 use std::usize;
 
 use async_trait::async_trait;
+use chrono::Duration;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use serde::{Deserialize, Serialize};
 
@@ -76,10 +77,15 @@ pub struct WifiMetricMap {
     tx_percent: IntGaugeVec,
     rx_percent: IntGaugeVec,
     rx_bss_percent: IntGaugeVec,
+    history_ttl: Duration,
 }
 
 impl WifiMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+    pub fn new(
+        factory: AuthenticatedHttpClientFactory,
+        prefix: String,
+        history_ttl: Duration,
+    ) -> Self {
         let prfx: String = format!("{prefix}_wifi");
         Self {
             factory,
@@ -107,6 +113,7 @@ impl WifiMetricMap {
                 &["ap", "name"]
             )
             .expect(&format!("cannot create {prfx}_tx_percent gauge")),
+            history_ttl,
         }
     }
 
@@ -156,7 +163,12 @@ impl WifiMetricMap {
             )));
         }
 
-        let recent = get_recent_channel_entries(res.result.as_ref().unwrap());
+        // represents the amount of entries we want to keep between each api call
+        let recent = get_recent_channel_entries(
+            res.result.as_ref().unwrap(),
+            (self.history_ttl.num_milliseconds() / 100) as usize, // each array entry represents 100ms
+        );
+
         let avg_history = calculate_avg_channel_survey_history(&recent);
 
         self.busy_percent
@@ -277,9 +289,11 @@ fn calculate_avg_channel_survey_history(
     }
 }
 
-fn get_recent_channel_entries(histories: &[ChannelSurveyHistory]) -> Vec<ChannelSurveyHistory> {
+fn get_recent_channel_entries(
+    histories: &[ChannelSurveyHistory],
+    max_range: usize,
+) -> Vec<ChannelSurveyHistory> {
     let len = histories.len() as u32;
-    let takes = 5 as usize; // must be issued from refresh value in config file, each array entry represents a second
 
     match len {
         0 => vec![ChannelSurveyHistory {
@@ -290,13 +304,13 @@ fn get_recent_channel_entries(histories: &[ChannelSurveyHistory]) -> Vec<Channel
             rx_percent: Some(0),
         }],
         l => {
-            if l <= takes as u32 {
+            if l <= max_range as u32 {
                 histories.to_vec()
             } else {
-                // take only the last 10 entries
+                // take only the last x entries
                 let mut hist = histories.to_vec();
                 hist.sort_by(|a, b| b.timestamp.unwrap().cmp(&a.timestamp.unwrap()));
-                hist.split_at(len as usize - takes).1.to_vec()
+                hist.split_at(len as usize - max_range).1.to_vec()
             }
         }
     }
