@@ -28,6 +28,9 @@ pub struct Station {
     pub bssid: Option<String>,
     pub flags: Option<Flags>,
     pub host: Option<Host>,
+    pub signal: Option<i8>,
+    pub inactive: Option<i64>,
+    pub state: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,7 +59,14 @@ pub struct Flags {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Host {
     pub l2ident: Option<L2Ident>,
+    pub l3connectivities: Option<Vec<L3Connectivities>>,
     pub names: Option<Vec<HostName>>,
+    pub active: Option<bool>,
+    pub last_activity: Option<i64>,
+    pub last_time_reachable: Option<i64>,
+    pub vendor_name: Option<String>,
+    pub primary_name: Option<String>,
+    pub primary_name_manual: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -72,6 +82,16 @@ pub struct L2Ident {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct L3Connectivities {
+    pub addr: Option<String>,
+    pub af: Option<String>,
+    pub active: Option<bool>,
+    pub reachable: Option<bool>,
+    pub last_activity: Option<i64>,
+    pub last_time_reachable: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChannelSurveyHistory {
     pub timestamp: Option<u64>,
     pub busy_percent: Option<u8>,
@@ -82,11 +102,33 @@ pub struct ChannelSurveyHistory {
 
 pub struct WifiMetricMap {
     factory: AuthenticatedHttpClientFactory,
+    history_ttl: Duration,
     busy_percent: IntGaugeVec,
     tx_percent: IntGaugeVec,
     rx_percent: IntGaugeVec,
     rx_bss_percent: IntGaugeVec,
-    history_ttl: Duration,
+    station_active_gauge: IntGaugeVec,
+    station_rx_bitrate_gauge: IntGaugeVec,
+    station_rx_mcs_gauge: IntGaugeVec,
+    station_rx_shortgi_gauge: IntGaugeVec,
+    station_rx_vht_mcs_gauge: IntGaugeVec,
+    station_rx_width_gauge: IntGaugeVec,
+    station_rx_bytes_gauge: IntGaugeVec,
+    station_rx_rate_gauge: IntGaugeVec,
+    station_tx_bitrate_gauge: IntGaugeVec,
+    station_tx_mcs_gauge: IntGaugeVec,
+    station_tx_shortgi_gauge: IntGaugeVec,
+
+    station_tx_vht_mcs_gauge: IntGaugeVec,
+    station_tx_width_gauge: IntGaugeVec,
+    station_tx_bytes_gauge: IntGaugeVec,
+    station_tx_rate_gauge: IntGaugeVec,
+    station_signal_gauge: IntGaugeVec,
+    station_inactive_gauge: IntGaugeVec,
+    station_state_gauge: IntGaugeVec,
+    station_flags_gauge: IntGaugeVec,
+    station_last_activity_gauge: IntGaugeVec,
+    station_last_time_reachable_gauge: IntGaugeVec,
 }
 
 impl WifiMetricMap {
@@ -98,6 +140,7 @@ impl WifiMetricMap {
         let prfx: String = format!("{prefix}_wifi");
         Self {
             factory,
+            history_ttl,
             busy_percent: register_int_gauge_vec!(
                 format!("{prfx}_busy_percent"),
                 format!("{prfx}_busy_percent"),
@@ -122,11 +165,165 @@ impl WifiMetricMap {
                 &["ap", "name"]
             )
             .expect(&format!("cannot create {prfx}_tx_percent gauge")),
-            history_ttl,
+            station_active_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_active"),
+                format!("{prfx}_station_active 1 for active"),
+                &["primary_name", "ap_name", "ap_id", "mac", "vendor_name"]
+            )
+            .expect(&format!("cannot create {prfx}_station_mac gauge")),
+            station_rx_bitrate_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_bitrate"),
+                format!("{prfx}_station_rx_bitrate"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_bitrate gauge")),
+
+            station_rx_mcs_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_mcs"),
+                format!("{prfx}_station_rx_mcs"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_mcs gauge")),
+
+            station_rx_shortgi_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_shortgi"),
+                format!("{prfx}_station_rx_shortgi 1 for shortgi enabled"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_shortgi gauge")),
+
+            station_rx_vht_mcs_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_vht_mcs"),
+                format!("{prfx}_station_rx_vht_mcs"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_vht_mcs gauge")),
+
+            station_rx_width_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_width"),
+                format!("{prfx}_station_rx_width"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_width gauge")),
+
+            station_rx_bytes_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_bytes"),
+                format!("{prfx}_station_rx_bytes"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_bytes gauge")),
+
+            station_rx_rate_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_rx_rate"),
+                format!("{prfx}_station_rx_rate"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_rx_rate gauge")),
+
+            station_tx_bitrate_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_bitrate"),
+                format!("{prfx}_station_tx_bitrate"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_bitrate gauge")),
+
+            station_tx_mcs_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_mcs"),
+                format!("{prfx}_station_tx_mcs"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_mcs gauge")),
+
+            station_tx_shortgi_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_shortgi"),
+                format!("{prfx}_station_tx_shortgi 1 for shortgi enabled"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_shortgi gauge")),
+
+            station_tx_vht_mcs_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_vht_mcs"),
+                format!("{prfx}_station_tx_vht_mcs"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_vht_mcs gauge")),
+
+            station_tx_width_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_width"),
+                format!("{prfx}_station_tx_width"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_width gauge")),
+
+            station_tx_bytes_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_bytes"),
+                format!("{prfx}_station_tx_bytes"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_bytes gauge")),
+
+            station_tx_rate_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_tx_rate"),
+                format!("{prfx}_station_tx_rate"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_tx_rate gauge")),
+
+            station_signal_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_signal"),
+                format!("{prfx}_station_signal"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_signal gauge")),
+
+            station_inactive_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_inactive"),
+                format!("{prfx}_station_inactive"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_inactive gauge")),
+
+            station_state_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_state"),
+                format!("{prfx}_station_state"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac", "state"]
+            )
+            .expect(&format!("cannot create {prfx}_station_state gauge")),
+
+            station_flags_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_flags"),
+                format!("{prfx}_station_flags"),
+                &[
+                    "primary_name",
+                    "ipv4",
+                    "ap_name",
+                    "ap_id",
+                    "mac",
+                    "vht",
+                    "legacy",
+                    "authorized",
+                    "ht"
+                ]
+            )
+            .expect(&format!("cannot create {prfx}_station_vht gauge")),
+            station_last_activity_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_last_activity"),
+                format!("{prfx}_station_last_activity"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!("cannot create {prfx}_station_last_activity gauge")),
+            station_last_time_reachable_gauge: register_int_gauge_vec!(
+                format!("{prfx}_station_last_time_reachable"),
+                format!("{prfx}_station_last_time_reachable"),
+                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+            )
+            .expect(&format!(
+                "cannot create {prfx}_station_last_time_reachable gauge"
+            )),
         }
     }
 
-    async fn set_channel_survey_history(
+    async fn set_channel_survey_history_gauges(
         &self,
         ap: &AccessPoint,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -272,29 +469,160 @@ impl WifiMetricMap {
         Ok(res.result.unwrap())
     }
 
-    pub async fn set_stations(
+    pub async fn set_stations_gauges(
         &self,
         stations: &[Station],
+        ap: &AccessPoint,
     ) -> Result<(), Box<dyn std::error::Error>> {
         for station in stations.iter() {
-            let mac = station.mac.as_ref().unwrap();
             let last_rx = station.last_rx.as_ref().unwrap();
             let last_tx = station.last_tx.as_ref().unwrap();
-            let tx_bytes = station.tx_bytes.unwrap();
-            let tx_rate = station.tx_rate.unwrap();
-            let rx_bytes = station.rx_bytes.unwrap();
-            let rx_rate = station.rx_rate.unwrap();
-            let id = station.id.as_ref().unwrap();
-            let bssid = station.bssid.as_ref().unwrap();
             let flags = station.flags.as_ref().unwrap();
             let host = station.host.as_ref().unwrap();
-            let l2ident = host.l2ident.as_ref().unwrap();
-            let names = host.to_owned().names.unwrap();
+            // let l2ident = host.l2ident.as_ref().unwrap();
+            // let hostnames = host.to_owned().names.unwrap();
+            let mut l3s = host.l3connectivities.as_ref().unwrap().to_vec();
+            l3s.sort_by(|a, b| {
+                b.last_time_reachable
+                    .unwrap()
+                    .cmp(&a.last_time_reachable.unwrap())
+            });
+            let l3 = l3s.first().unwrap(); // take the most recent entry
 
-            println!(
-                "mac: {}, last_rx: {:?}, last_tx: {:?}, tx_bytes: {}, tx_rate: {}, rx_bytes: {}, rx_rate: {}, id: {}, bssid: {}, flags: {:?}, host: {:?}, l2ident: {:?}, names: {:?}",
-                mac, last_rx, last_tx, tx_bytes, tx_rate, rx_bytes, rx_rate, id, bssid, flags, host, l2ident, names
-            );
+            let mac = station.mac.to_owned().unwrap();
+            let rx_bitrate = last_rx.bitrate.unwrap();
+            let rx_mcs = last_rx.mcs.unwrap();
+            let rx_shortgi = last_rx.shortgi.unwrap();
+            let rx_vht_mcs = last_rx.vht_mcs.unwrap();
+            let rx_width = last_rx.width.to_owned().unwrap();
+            let rx_bytes = station.rx_bytes.unwrap();
+            let rx_rate = station.rx_rate.unwrap();
+            let tx_bitrate = last_tx.bitrate.unwrap();
+            let tx_mcs = last_tx.mcs.unwrap();
+            let tx_shortgi = last_tx.shortgi.unwrap();
+            let tx_vht_mcs = last_tx.vht_mcs.unwrap();
+            let tx_width = last_tx.to_owned().width.unwrap();
+            let tx_bytes = station.tx_bytes.unwrap();
+            let tx_rate = station.tx_rate.unwrap();
+            // let id = station.id.to_owned().unwrap();
+            // let bssid = station.bssid.to_owned().unwrap();
+            let signal = station.signal.unwrap();
+            let inactive = station.inactive.unwrap();
+            let state = station.state.to_owned().unwrap();
+            let vht = flags.vht.unwrap();
+            let legacy = flags.legacy.unwrap();
+            let authorized = flags.authorized.unwrap();
+            let ht = flags.ht.unwrap();
+            let active = host.to_owned().active.unwrap();
+            let last_activity = host.to_owned().last_activity.unwrap();
+            let last_time_reachable = host.to_owned().last_time_reachable.unwrap();
+            let vendor_name = host.to_owned().vendor_name.unwrap();
+            let primary_name = host.to_owned().primary_name.unwrap();
+            // let primary_name_manual = host.to_owned().primary_name_manual.unwrap();
+            // let id = l2ident.id.to_owned().unwrap();
+            // let r#type = l2ident.r#type.to_owned().unwrap();
+            let addr = l3.addr.to_owned().unwrap();
+            // let af = l3.af.to_owned().unwrap();
+            // let active = l3.active.unwrap();
+            // let reachable = l3.reachable.unwrap();
+            // let last_activity = l3.last_activity.unwrap();
+            // let last_time_reachable = l3.last_time_reachable.unwrap();
+            let ap_name = ap.name.to_owned().unwrap();
+            let ap_id = ap.id.to_owned().unwrap().to_string();
+
+            self.station_active_gauge
+                .with_label_values(&[&primary_name, &ap_name, &ap_id, &mac, &vendor_name])
+                .set(active.into());
+
+            self.station_rx_bitrate_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_bitrate as i64);
+
+            self.station_rx_mcs_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_mcs as i64);
+
+            self.station_rx_shortgi_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_shortgi.into());
+
+            self.station_rx_vht_mcs_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_vht_mcs as i64);
+
+            self.station_rx_width_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_width.parse::<i64>().unwrap_or(0));
+
+            self.station_rx_bytes_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_bytes as i64);
+
+            self.station_rx_rate_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(rx_rate as i64);
+
+            self.station_tx_bitrate_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_bitrate as i64);
+
+            self.station_tx_mcs_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_mcs as i64);
+
+            self.station_tx_shortgi_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_shortgi.into());
+
+            self.station_tx_vht_mcs_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_vht_mcs as i64);
+
+            self.station_tx_width_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_width.parse::<i64>().unwrap_or(0));
+
+            self.station_tx_bytes_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_bytes as i64);
+
+            self.station_tx_rate_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(tx_rate as i64);
+
+            self.station_signal_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(signal as i64);
+
+            self.station_inactive_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(inactive);
+
+            self.station_state_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac, &state])
+                .set(1);
+
+            self.station_flags_gauge.with_label_values(&[
+                &primary_name,
+                &addr,
+                &ap_name,
+                &ap_id,
+                &mac,
+                &vht.to_string(),
+                &legacy.to_string(),
+                &authorized.to_string(),
+                &ht.to_string(),
+            ]);
+
+            self.station_last_activity_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(last_activity);
+
+            self.station_last_time_reachable_gauge
+                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .set(last_time_reachable);
+
+            // println!("{:?}", station);
         }
 
         Ok(())
@@ -307,7 +635,7 @@ impl WifiMetricMap {
         }
         let aps = aps?;
         for ap in aps.iter() {
-            self.set_channel_survey_history(&ap).await?;
+            self.set_channel_survey_history_gauges(&ap).await?;
 
             let stations = self.get_stations(&ap).await;
 
@@ -315,7 +643,7 @@ impl WifiMetricMap {
                 return Err(e);
             }
 
-            self.set_stations(&stations.unwrap()).await?;
+            self.set_stations_gauges(&stations.unwrap(), &ap).await?;
         }
         Ok(())
     }
