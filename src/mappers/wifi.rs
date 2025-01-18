@@ -19,12 +19,14 @@ pub struct WifiConfig {
 pub struct Station {
     pub mac: Option<String>,
     pub last_rx: Option<LastRxTx>,
-    pub tx_bytes: Option<u64>,
     pub last_tx: Option<LastRxTx>,
+    pub tx_bytes: Option<u64>,
+    pub tx_rate: Option<u64>,
+    pub rx_bytes: Option<u64>,
+    pub rx_rate: Option<u64>,
     pub id: Option<String>,
     pub bssid: Option<String>,
     pub flags: Option<Flags>,
-    pub tx_rate: Option<u64>,
     pub host: Option<Host>,
 }
 
@@ -54,6 +56,13 @@ pub struct Flags {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Host {
     pub l2ident: Option<L2Ident>,
+    pub names: Option<Vec<HostName>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HostName {
+    pub name: Option<String>,
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -190,6 +199,46 @@ impl WifiMetricMap {
         Ok(())
     }
 
+    async fn get_stations(
+        &self,
+        ap: &AccessPoint,
+    ) -> Result<Vec<Station>, Box<dyn std::error::Error>> {
+        let client = self.factory.create_client().await?;
+
+        let res = client
+            .get(format!(
+                "{}v4/wifi/ap/{}/stations",
+                self.factory.api_url,
+                ap.id.unwrap()
+            ))
+            .send()
+            .await;
+
+        if let Err(e) = res {
+            return Err(Box::new(e));
+        }
+
+        let res = res?.json::<FreeboxResponse<Vec<Station>>>().await;
+
+        if let Err(e) = res {
+            return Err(Box::new(e));
+        }
+
+        let res = res?;
+
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(
+                res.msg.unwrap_or_default(),
+            )));
+        }
+
+        if let None = res.result {
+            return Ok(vec![]);
+        }
+
+        Ok(res.result.unwrap())
+    }
+
     async fn get_access_point(&self) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error>> {
         let client = self.factory.create_client().await?;
 
@@ -210,20 +259,45 @@ impl WifiMetricMap {
 
         let res = res?;
 
-        if let None = res.result {
-            return Err(Box::new(FreeboxResponseError::new(format!(
-                "{}v4/wifi/ap was empty",
-                self.factory.api_url
-            ))));
-        }
-
         if !res.success.unwrap_or(false) {
             return Err(Box::new(FreeboxResponseError::new(
                 res.msg.unwrap_or_default(),
             )));
         }
 
+        if let None = res.result {
+            return Ok(vec![]);
+        }
+
         Ok(res.result.unwrap())
+    }
+
+    pub async fn set_stations(
+        &self,
+        stations: &[Station],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for station in stations.iter() {
+            let mac = station.mac.as_ref().unwrap();
+            let last_rx = station.last_rx.as_ref().unwrap();
+            let last_tx = station.last_tx.as_ref().unwrap();
+            let tx_bytes = station.tx_bytes.unwrap();
+            let tx_rate = station.tx_rate.unwrap();
+            let rx_bytes = station.rx_bytes.unwrap();
+            let rx_rate = station.rx_rate.unwrap();
+            let id = station.id.as_ref().unwrap();
+            let bssid = station.bssid.as_ref().unwrap();
+            let flags = station.flags.as_ref().unwrap();
+            let host = station.host.as_ref().unwrap();
+            let l2ident = host.l2ident.as_ref().unwrap();
+            let names = host.to_owned().names.unwrap();
+
+            println!(
+                "mac: {}, last_rx: {:?}, last_tx: {:?}, tx_bytes: {}, tx_rate: {}, rx_bytes: {}, rx_rate: {}, id: {}, bssid: {}, flags: {:?}, host: {:?}, l2ident: {:?}, names: {:?}",
+                mac, last_rx, last_tx, tx_bytes, tx_rate, rx_bytes, rx_rate, id, bssid, flags, host, l2ident, names
+            );
+        }
+
+        Ok(())
     }
 
     pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -234,6 +308,14 @@ impl WifiMetricMap {
         let aps = aps?;
         for ap in aps.iter() {
             self.set_channel_survey_history(&ap).await?;
+
+            let stations = self.get_stations(&ap).await;
+
+            if let Err(e) = stations {
+                return Err(e);
+            }
+
+            self.set_stations(&stations.unwrap()).await?;
         }
         Ok(())
     }
