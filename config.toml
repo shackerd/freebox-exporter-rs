@@ -33,18 +33,6 @@ switch = true
 system = true
 # Exposes wifi
 wifi = true
-# Exposes contacts
-contacts = true
-# Exposes calls
-calls = true
-# Exposes explorer
-explorer = true
-# Exposes downloader
-downloader = true
-# Exposes parental
-parental = true
-# Exposes pvr
-pvr = true
 # Sets metrics prefix, it cannot be empty
 prefix = "fbx_exporter"
 

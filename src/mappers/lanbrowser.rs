@@ -43,9 +43,9 @@ pub struct LanHostL3Connectivity {
     pub addr: Option<String>,
     pub af: Option<String>,
     pub active: Option<bool>,
-    pub reachable: Option<bool>,
-    pub last_activity: Option<i64>,
-    pub last_time_reachable: Option<i64>,
+    // pub reachable: Option<bool>,
+    // pub last_activity: Option<i64>,
+    // pub last_time_reachable: Option<i64>,
 }
 
 pub struct LanBrowserMetricMap {

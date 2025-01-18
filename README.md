@@ -115,8 +115,6 @@ Options:
 
 ## Running project
 
-
-
 Running with docker
 
 ``` bash
@@ -140,9 +138,9 @@ services:
 ```
 
 > [!IMPORTANT]
-> * **port** must match with value set in your **configuration file**
-> * `data` volume path must match with `data_directory` value set in your **configuration file**
-> * first time run, you may change the `serve` argument in the compose file to `register` and switch back to `serve` once app is authorized and **app token** has been created in **data** folder
+> **port** must match with value set in your **configuration file**
+> `data` volume path must match with `data_directory` value set in your **configuration file**
+> first time run, you may change the `serve` argument in the compose file to `register` and switch back to `serve` once app is authorized and **app token** has been created in **data** folder
 
 ## Configuring
 
@@ -180,20 +178,6 @@ lan_browser = true
 switch = true
 # Exposes wifi
 wifi = true
-# Exposes settings
-settings = true
-# Exposes contacts
-contacts = true
-# Exposes calls
-calls = true
-# Exposes explorer
-explorer = true
-# Exposes downloader
-downloader = true
-# Exposes parental
-parental = true
-# Exposes pvr
-pvr = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"
