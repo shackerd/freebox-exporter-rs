@@ -21,7 +21,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 
 ## Features
 
-* Freebox metrics exposition (WIP)
+* Freebox metrics exposition
 * Metrics caching & background update
 * Customizable data directory
 * Customizable metrics prefix
@@ -30,7 +30,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 * Customizable/CLI overridable log verbosity
 * CLI overridable configuration file path
 
-## Current API progress
+## API Implementation
 
 * &#10134; Authentication
   * &#9989; Register: **100%**
@@ -54,10 +54,12 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#10060; UPnP IGD: 0%
   * &#10060; Network Share: 0%
   * &#9989; Switch: **100%**
-  * &#10060; Wi-Fi: 0%
+  * &#10134; Wi-Fi: **50%**%
   * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
   * &#10060; VPN Client: 0%
+
+## Not implemented, on-demand
 
 * &#10134; Download
   * &#10060; Stats: 0%
@@ -83,13 +85,9 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 
 ## Roadmap
 
-* Expose all Freebox API*
 * Speedtest metrics
 * Provide systemd registration
-* Provide container support
 * Publish to crates.io (cargo install)
-
-(*) Which can be used as stats
 
 You can suggest your ideas in [discussion section](https://github.com/shackerd/freebox-exporter-rs/discussions/categories/ideas)
 
