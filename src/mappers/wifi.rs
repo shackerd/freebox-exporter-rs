@@ -479,56 +479,61 @@ impl WifiMetricMap {
             let last_tx = station.last_tx.as_ref().unwrap();
             let flags = station.flags.as_ref().unwrap();
             let host = station.host.as_ref().unwrap();
-            // let l2ident = host.l2ident.as_ref().unwrap();
-            // let hostnames = host.to_owned().names.unwrap();
+
             let mut l3s = host.l3connectivities.as_ref().unwrap().to_vec();
             l3s.sort_by(|a, b| {
                 b.last_time_reachable
                     .unwrap()
                     .cmp(&a.last_time_reachable.unwrap())
             });
-            let l3 = l3s.first().unwrap(); // take the most recent entry
 
-            let mac = station.mac.to_owned().unwrap();
-            let rx_bitrate = last_rx.bitrate.unwrap();
-            let rx_mcs = last_rx.mcs.unwrap();
-            let rx_shortgi = last_rx.shortgi.unwrap();
-            let rx_vht_mcs = last_rx.vht_mcs.unwrap();
-            let rx_width = last_rx.width.to_owned().unwrap();
-            let rx_bytes = station.rx_bytes.unwrap();
-            let rx_rate = station.rx_rate.unwrap();
-            let tx_bitrate = last_tx.bitrate.unwrap();
-            let tx_mcs = last_tx.mcs.unwrap();
-            let tx_shortgi = last_tx.shortgi.unwrap();
-            let tx_vht_mcs = last_tx.vht_mcs.unwrap();
-            let tx_width = last_tx.to_owned().width.unwrap();
-            let tx_bytes = station.tx_bytes.unwrap();
-            let tx_rate = station.tx_rate.unwrap();
-            // let id = station.id.to_owned().unwrap();
-            // let bssid = station.bssid.to_owned().unwrap();
-            let signal = station.signal.unwrap();
-            let inactive = station.inactive.unwrap();
-            let state = station.state.to_owned().unwrap();
-            let vht = flags.vht.unwrap();
-            let legacy = flags.legacy.unwrap();
-            let authorized = flags.authorized.unwrap();
-            let ht = flags.ht.unwrap();
-            let active = host.to_owned().active.unwrap();
-            let last_activity = host.to_owned().last_activity.unwrap();
-            let last_time_reachable = host.to_owned().last_time_reachable.unwrap();
-            let vendor_name = host.to_owned().vendor_name.unwrap();
-            let primary_name = host.to_owned().primary_name.unwrap();
-            // let primary_name_manual = host.to_owned().primary_name_manual.unwrap();
-            // let id = l2ident.id.to_owned().unwrap();
-            // let r#type = l2ident.r#type.to_owned().unwrap();
-            let addr = l3.addr.to_owned().unwrap();
-            // let af = l3.af.to_owned().unwrap();
-            // let active = l3.active.unwrap();
-            // let reachable = l3.reachable.unwrap();
-            // let last_activity = l3.last_activity.unwrap();
-            // let last_time_reachable = l3.last_time_reachable.unwrap();
-            let ap_name = ap.name.to_owned().unwrap();
-            let ap_id = ap.id.to_owned().unwrap().to_string();
+            let l3 = l3s
+                .iter()
+                .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
+                .next();
+
+            if let None = l3 {
+                return Err(Box::new(FreeboxResponseError::new(format!(
+                    "no ipv4 address found for station {}",
+                    station.mac.as_ref().unwrap()
+                ))));
+            }
+
+            let l3 = l3.unwrap(); // take the most recent entry
+
+            let mac = station.mac.to_owned().unwrap_or("unknown".to_string());
+            let rx_bitrate = last_rx.bitrate.unwrap_or(0);
+            let rx_mcs = last_rx.mcs.unwrap_or(0);
+            let rx_shortgi = last_rx.shortgi.unwrap_or_default();
+            let rx_vht_mcs = last_rx.vht_mcs.unwrap_or(0);
+            let rx_width = last_rx.width.to_owned().unwrap_or("unknown".to_string());
+            let rx_bytes = station.rx_bytes.unwrap_or(0);
+            let rx_rate = station.rx_rate.unwrap_or(0);
+            let tx_bitrate = last_tx.bitrate.unwrap_or(0);
+            let tx_mcs = last_tx.mcs.unwrap_or(0);
+            let tx_shortgi = last_tx.shortgi.unwrap_or_default();
+            let tx_vht_mcs = last_tx.vht_mcs.unwrap_or(0);
+            let tx_width = last_tx.to_owned().width.unwrap_or("unknown".to_string());
+            let tx_bytes = station.tx_bytes.unwrap_or(0);
+            let tx_rate = station.tx_rate.unwrap_or(0);
+            let signal = station.signal.unwrap_or(i8::MIN);
+            let inactive = station.inactive.unwrap_or(i64::MIN);
+            let state = station.state.to_owned().unwrap_or("unknown".to_string());
+            let vht = flags.vht.unwrap_or_default();
+            let legacy = flags.legacy.unwrap_or_default();
+            let authorized = flags.authorized.unwrap_or_default();
+            let ht = flags.ht.unwrap_or_default();
+            let active = host.to_owned().active.unwrap_or_default();
+            let last_activity = host.to_owned().last_activity.unwrap_or(i64::MIN);
+            let last_time_reachable = host.to_owned().last_time_reachable.unwrap_or(i64::MIN);
+            let vendor_name = host.to_owned().vendor_name.unwrap_or("unknown".to_string());
+            let primary_name = host
+                .to_owned()
+                .primary_name
+                .unwrap_or("unknown".to_string());
+            let addr = l3.addr.to_owned().unwrap_or("unknown".to_string());
+            let ap_name = ap.name.to_owned().unwrap_or("unknown".to_string());
+            let ap_id = ap.id.to_owned().map_or(i8::MIN, |i| i as i8).to_string();
 
             self.station_active_gauge
                 .with_label_values(&[&primary_name, &ap_name, &ap_id, &mac, &vendor_name])
@@ -621,8 +626,6 @@ impl WifiMetricMap {
             self.station_last_time_reachable_gauge
                 .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
                 .set(last_time_reachable);
-
-            // println!("{:?}", station);
         }
 
         Ok(())
