@@ -179,7 +179,17 @@ impl LanBrowserMetricMap {
         }
     }
 
+    fn reset_all(&self) {
+        self.device_gauge.reset();
+        self.device_l3_connectivity_gauge.reset();
+        self.device_last_activity.reset();
+        self.device_name_gauge.reset();
+        self.iface_gauge.reset();
+    }
+
     async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.reset_all();
+
         let ifaces = match self.get_ifaces().await {
             Err(e) => return Err(e),
             Ok(r) => r,

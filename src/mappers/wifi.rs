@@ -631,7 +631,36 @@ impl WifiMetricMap {
         Ok(())
     }
 
+    pub fn reset_all(&self) {
+        self.busy_percent.reset();
+        self.tx_percent.reset();
+        self.rx_percent.reset();
+        self.rx_bss_percent.reset();
+        self.station_active_gauge.reset();
+        self.station_rx_bitrate_gauge.reset();
+        self.station_rx_mcs_gauge.reset();
+        self.station_rx_shortgi_gauge.reset();
+        self.station_rx_vht_mcs_gauge.reset();
+        self.station_rx_width_gauge.reset();
+        self.station_rx_bytes_gauge.reset();
+        self.station_rx_rate_gauge.reset();
+        self.station_tx_bitrate_gauge.reset();
+        self.station_tx_mcs_gauge.reset();
+        self.station_tx_shortgi_gauge.reset();
+        self.station_tx_vht_mcs_gauge.reset();
+        self.station_tx_width_gauge.reset();
+        self.station_tx_bytes_gauge.reset();
+        self.station_tx_rate_gauge.reset();
+        self.station_signal_gauge.reset();
+        self.station_inactive_gauge.reset();
+        self.station_state_gauge.reset();
+        self.station_flags_gauge.reset();
+        self.station_last_activity_gauge.reset();
+        self.station_last_time_reachable_gauge.reset();
+    }
+
     pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.reset_all();
         let aps = self.get_access_point().await;
         if let Err(e) = aps {
             return Err(e);

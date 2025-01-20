@@ -411,7 +411,45 @@ impl SwitchMetricMap {
         }
     }
 
+    fn reset_all(&self) {
+        self.rx_packets_rate_gauge.reset();
+        self.rx_good_bytes_gauge.reset();
+        self.rx_oversize_packets_gauge.reset();
+        self.rx_unicast_packets_gauge.reset();
+        self.tx_bytes_rate_gauge.reset();
+        self.tx_unicast_packets_gauge.reset();
+        self.rx_bytes_rate_gauge.reset();
+        self.tx_packets_gauge.reset();
+        self.tx_collisions_gauge.reset();
+        self.tx_packets_rate_gauge.reset();
+        self.tx_fcs_gauge.reset();
+        self.tx_bytes_gauge.reset();
+        self.rx_jabber_packets_gauge.reset();
+        self.tx_single_gauge.reset();
+        self.tx_excessive_gauge.reset();
+        self.rx_pause_gauge.reset();
+        self.rx_multicast_packets_gauge.reset();
+        self.tx_pause_gauge.reset();
+        self.rx_good_packets_gauge.reset();
+        self.rx_broadcast_packets_gauge.reset();
+        self.tx_multiple_gauge.reset();
+        self.tx_deferred_gauge.reset();
+        self.tx_late_gauge.reset();
+        self.tx_multicast_packets_gauge.reset();
+        self.rx_fcs_packets_gauge.reset();
+        self.tx_broadcast_packets_gauge.reset();
+        self.rx_err_packets_gauge.reset();
+        self.rx_fragments_packets_gauge.reset();
+        self.rx_bad_bytes_gauge.reset();
+        self.rx_undersize_packets_gauge.reset();
+        self.port_status_gauge.reset();
+        self.port_speed_gauge.reset();
+        self.port_mac_list_gauge.reset();
+    }
+
     async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.reset_all();
+
         let port_statuses = match self.get_ports_status().await {
             Err(e) => return Err(e),
             Ok(r) => r,
