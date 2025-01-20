@@ -1,16 +1,19 @@
-use std::fmt::Display;
-use reqwest::{header::{HeaderMap, HeaderValue}, Client };
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Client,
+};
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 use super::authenticator::SessionTokenProvider;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FreeboxResponse<T : Clone> {
+pub struct FreeboxResponse<T: Clone> {
     pub msg: Option<String>,
     pub success: Option<bool>,
     pub uid: Option<String>,
     pub error_code: Option<String>,
-    pub result: Option<T>
+    pub result: Option<T>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -23,7 +26,7 @@ pub struct Permissions {
     pub explorer: Option<bool>,
     pub downloader: Option<bool>,
     pub parental: Option<bool>,
-    pub pvr: Option<bool>
+    pub pvr: Option<bool>,
 }
 
 impl Default for Permissions {
@@ -36,7 +39,7 @@ impl Default for Permissions {
             explorer: Default::default(),
             downloader: Default::default(),
             parental: Default::default(),
-            pvr: Default::default()
+            pvr: Default::default(),
         }
     }
 }
@@ -44,33 +47,39 @@ impl Default for Permissions {
 #[derive(Clone)]
 pub struct AuthenticatedHttpClientFactory {
     pub api_url: String,
-    token_provider: SessionTokenProvider
+    token_provider: SessionTokenProvider,
 }
 
 impl AuthenticatedHttpClientFactory {
-
+    /// Create a new factory with the API URL and the session token provider.
     pub fn new(api_url: String, token_provider: SessionTokenProvider) -> Self {
         Self {
             api_url,
-            token_provider
+            token_provider,
         }
     }
 
+    /// Create a new HTTP client with the session token.
+    ///
+    /// Remark: Session token is automatically fetched.
     pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error>> {
-
         let mut headers = HeaderMap::new();
 
-        let session_token = match self.token_provider.get().await
-            { Err(e) => return Err(e), Ok(t) => t};
+        let session_token = match self.token_provider.get().await {
+            Err(e) => return Err(e),
+            Ok(t) => t,
+        };
 
-        headers.append("X-Fbx-App-Auth", HeaderValue::from_str(session_token.as_str()).unwrap());
+        headers.append(
+            "X-Fbx-App-Auth",
+            HeaderValue::from_str(session_token.as_str()).unwrap(),
+        );
 
-        let client =
-            reqwest::ClientBuilder::new()
-                .danger_accept_invalid_certs(true)
-                .default_headers(headers)
-                .build()
-                .expect("cannot create HTTP Client");
+        let client = reqwest::ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .default_headers(headers)
+            .build()
+            .expect("cannot create HTTP Client");
         Ok(client)
     }
 }
@@ -89,17 +98,16 @@ internal_error 	Internal error
  */
 
 pub fn http_client_factory() -> Result<Client, ()> {
-    let client =
-        reqwest::ClientBuilder::new()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .expect("cannot create HTTP Client");
+    let client = reqwest::ClientBuilder::new()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .expect("cannot create HTTP Client");
     Ok(client)
 }
 
 #[derive(Debug)]
 pub struct FreeboxResponseError {
-    pub reason: String
+    pub reason: String,
 }
 
 impl FreeboxResponseError {
@@ -114,4 +122,4 @@ impl Display for FreeboxResponseError {
     }
 }
 
-impl std::error::Error for FreeboxResponseError { }
+impl std::error::Error for FreeboxResponseError {}

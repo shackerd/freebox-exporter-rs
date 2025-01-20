@@ -1,9 +1,9 @@
 use async_trait::async_trait;
+use lazy_static::lazy_static;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use regex::Regex;
 use serde::Deserialize;
-use lazy_static::lazy_static;
 
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
 
@@ -362,10 +362,7 @@ impl SwitchMetricMap {
         Ok(statuses)
     }
 
-    fn handle_malformed_mac_list(
-        res: &str,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-
+    fn handle_malformed_mac_list(res: &str) -> Result<String, Box<dyn std::error::Error>> {
         let fixed_results = REG_MAC.replace_all(res, r#""mac_list":[]"#).to_string();
         Ok(fixed_results)
     }
@@ -374,7 +371,6 @@ impl SwitchMetricMap {
         &self,
         port_status: &SwitchPortStatus,
     ) -> Result<SwitchPortStats, Box<dyn std::error::Error>> {
-
         debug!("fetching switch ports stats");
 
         let port_id = port_status.id.unwrap_or_default();
@@ -415,7 +411,45 @@ impl SwitchMetricMap {
         }
     }
 
+    fn reset_all(&self) {
+        self.rx_packets_rate_gauge.reset();
+        self.rx_good_bytes_gauge.reset();
+        self.rx_oversize_packets_gauge.reset();
+        self.rx_unicast_packets_gauge.reset();
+        self.tx_bytes_rate_gauge.reset();
+        self.tx_unicast_packets_gauge.reset();
+        self.rx_bytes_rate_gauge.reset();
+        self.tx_packets_gauge.reset();
+        self.tx_collisions_gauge.reset();
+        self.tx_packets_rate_gauge.reset();
+        self.tx_fcs_gauge.reset();
+        self.tx_bytes_gauge.reset();
+        self.rx_jabber_packets_gauge.reset();
+        self.tx_single_gauge.reset();
+        self.tx_excessive_gauge.reset();
+        self.rx_pause_gauge.reset();
+        self.rx_multicast_packets_gauge.reset();
+        self.tx_pause_gauge.reset();
+        self.rx_good_packets_gauge.reset();
+        self.rx_broadcast_packets_gauge.reset();
+        self.tx_multiple_gauge.reset();
+        self.tx_deferred_gauge.reset();
+        self.tx_late_gauge.reset();
+        self.tx_multicast_packets_gauge.reset();
+        self.rx_fcs_packets_gauge.reset();
+        self.tx_broadcast_packets_gauge.reset();
+        self.rx_err_packets_gauge.reset();
+        self.rx_fragments_packets_gauge.reset();
+        self.rx_bad_bytes_gauge.reset();
+        self.rx_undersize_packets_gauge.reset();
+        self.port_status_gauge.reset();
+        self.port_speed_gauge.reset();
+        self.port_mac_list_gauge.reset();
+    }
+
     async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.reset_all();
+
         let port_statuses = match self.get_ports_status().await {
             Err(e) => return Err(e),
             Ok(r) => r,
@@ -554,7 +588,11 @@ impl SwitchMetricMap {
             self.port_speed_gauge
                 .with_label_values(&[&port_status.id.unwrap_or_default().to_string()])
                 .set(
-                    i64::from_str_radix(&port_status.speed.unwrap_or("0".to_string()), 10).unwrap(),
+                    port_status
+                        .speed
+                        .unwrap_or("0".to_string())
+                        .parse::<i64>()
+                        .unwrap_or(0),
                 );
 
             for host in port_status.mac_list.to_owned().unwrap_or_default() {
@@ -578,10 +616,10 @@ impl MetricMap for SwitchMetricMap {
     }
 
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        match self.set_all().await {
-            Err(e) => return Err(e),
-            _ => {}
-        };
+        if let Err(e) = self.set_all().await {
+            return Err(e);
+        }
+
         Ok(())
     }
 }
@@ -590,7 +628,6 @@ lazy_static! {
     // for performance reasons, we compile the regex only once
     static ref REG_MAC: Regex = Regex::new(r#""mac_list"[^\[]+\{\s{0,}}"#).unwrap();
 }
-
 
 #[cfg(test)]
 mod non_reg_tests {
@@ -601,7 +638,6 @@ mod non_reg_tests {
     // https://github.com/shackerd/freebox-exporter-rs/issues/90
     #[test]
     fn poc_malformed_mac_list() {
-
         // The output error described in the issue shows that their is a panic when trying to deserialize a sequence, the only sequence in the payload is the mac_list field
 
         // this is a payload with a malformed mac_list field, it contains an empty object {} instead of an array [] as it should be in the response

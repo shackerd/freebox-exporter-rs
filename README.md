@@ -21,7 +21,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 
 ## Features
 
-* Freebox metrics exposition (WIP)
+* Freebox metrics exposition
 * Metrics caching & background update
 * Customizable data directory
 * Customizable metrics prefix
@@ -30,7 +30,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 * Customizable/CLI overridable log verbosity
 * CLI overridable configuration file path
 
-## Current API progress
+## API Implementation
 
 * &#10134; Authentication
   * &#9989; Register: **100%**
@@ -52,14 +52,14 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#10060; Port Forwarding: 0%
   * &#10060; Incoming port configuration: 0%
   * &#10060; UPnP IGD: 0%
-  * &#10060; LCD: 0%
   * &#10060; Network Share: 0%
-  * &#10060; UPnP AV: 0%
   * &#9989; Switch: **100%**
-  * &#10060; Wi-Fi: 0%
+  * &#10134; Wi-Fi: **50%**%
   * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
   * &#10060; VPN Client: 0%
+
+## Not implemented, on-demand
 
 * &#10134; Download
   * &#10060; Stats: 0%
@@ -76,10 +76,6 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#10060; Sharing Link: 0%
   * &#10060; Upload: 0%
 
-* &#10134; Air Media
-  * &#10060; Configuration: 0%
-  * &#10060; Receivers: 0%
-
 * &#10060; Storage: 0%
 * &#10060; Parental filter: 0%
 * &#10134; PVR
@@ -89,13 +85,9 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 
 ## Roadmap
 
-* Expose all Freebox API*
 * Speedtest metrics
 * Provide systemd registration
-* Provide container support
 * Publish to crates.io (cargo install)
-
-(*) Which can be used as stats
 
 You can suggest your ideas in [discussion section](https://github.com/shackerd/freebox-exporter-rs/discussions/categories/ideas)
 
@@ -121,8 +113,6 @@ Options:
 
 ## Running project
 
-
-
 Running with docker
 
 ``` bash
@@ -146,9 +136,9 @@ services:
 ```
 
 > [!IMPORTANT]
-> * **port** must match with value set in your **configuration file**
-> * `data` volume path must match with `data_directory` value set in your **configuration file**
-> * first time run, you may change the `serve` argument in the compose file to `register` and switch back to `serve` once app is authorized and **app token** has been created in **data** folder
+> **port** must match with value set in your **configuration file**
+> `data` volume path must match with `data_directory` value set in your **configuration file**
+> first time run, you may change the `serve` argument in the compose file to `register` and switch back to `serve` once app is authorized and **app token** has been created in **data** folder
 
 ## Configuring
 
@@ -184,20 +174,8 @@ lan = true
 lan_browser = true
 # Exposes switch, this option may not work properly in bridge_mode
 switch = true
-# Exposes settings
-settings = true
-# Exposes contacts
-contacts = true
-# Exposes calls
-calls = true
-# Exposes explorer
-explorer = true
-# Exposes downloader
-downloader = true
-# Exposes parental
-parental = true
-# Exposes pvr
-pvr = true
+# Exposes wifi
+wifi = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

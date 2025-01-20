@@ -31,18 +31,8 @@ lan_browser = true
 switch = true
 # Exposes settings
 system = true
-# Exposes contacts
-contacts = true
-# Exposes calls
-calls = true
-# Exposes explorer
-explorer = true
-# Exposes downloader
-downloader = true
-# Exposes parental
-parental = true
-# Exposes pvr
-pvr = true
+# Exposes wifi
+wifi = true
 # Sets metrics prefix, it cannot be empty
 prefix = "fbx_exporter"
 
