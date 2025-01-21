@@ -61,7 +61,7 @@ impl SessionTokenProvider {
         }
     }
 
-    pub async fn get(&self) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn get(&self) -> Result<String, Box<dyn std::error::Error + Send>> {
         let duration = Utc::now() - *self.issued_on.lock().await;
 
         if duration > TimeDelta::minutes(30) {
@@ -84,7 +84,7 @@ impl SessionTokenProvider {
         Ok((*self.value.lock().await).clone())
     }
 
-    async fn login(&self) -> Result<String, Box<dyn std::error::Error>> {
+    async fn login(&self) -> Result<String, Box<dyn std::error::Error + Send>> {
         debug!("login in");
 
         let token = self.app_token.clone();
@@ -112,7 +112,7 @@ impl SessionTokenProvider {
         }
     }
 
-    async fn get_challenge(&self) -> Result<ChallengeResult, Box<dyn std::error::Error>> {
+    async fn get_challenge(&self) -> Result<ChallengeResult, Box<dyn std::error::Error + Send>> {
         debug!("fetching challenge");
 
         let client = http_client_factory().unwrap();
@@ -156,7 +156,7 @@ impl SessionTokenProvider {
     async fn get_session_token(
         &self,
         password: String,
-    ) -> Result<SessionResult, Box<dyn std::error::Error>> {
+    ) -> Result<SessionResult, Box<dyn std::error::Error + Send>> {
         debug!("negociating session token");
 
         let client = http_client_factory().unwrap();
@@ -206,7 +206,7 @@ impl SessionTokenProvider {
         &self,
         app_token: String,
         result: ChallengeResult,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<String, Box<dyn std::error::Error + Send>> {
         debug!("computing session password");
 
         let mut mac = match HmacSha1::new_from_slice(app_token.as_bytes()) {

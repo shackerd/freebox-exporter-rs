@@ -16,6 +16,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
 
 ![board-1](./doc/board-1.png)
 ![board-2](./doc/board-2.png)
+![board-3](./doc/board-3.png)
 
 You will find [here](https://grafana.com/grafana/dashboards/21637) the original Grafana board for the exporter, thanks go to [@ottobaer](https://github.com/ottobaer)!
 
@@ -54,7 +55,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#10060; UPnP IGD: 0%
   * &#10060; Network Share: 0%
   * &#9989; Switch: **100%**
-  * &#10134; Wi-Fi: **50%**%
+  * &#9989; Wi-Fi: **100%**%
   * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
   * &#10060; VPN Client: 0%

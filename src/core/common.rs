@@ -62,7 +62,7 @@ impl AuthenticatedHttpClientFactory {
     /// Create a new HTTP client with the session token.
     ///
     /// Remark: Session token is automatically fetched.
-    pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error>> {
+    pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error + Send>> {
         let mut headers = HeaderMap::new();
 
         let session_token = match self.token_provider.get().await {

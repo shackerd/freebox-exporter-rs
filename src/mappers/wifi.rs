@@ -34,9 +34,15 @@ pub struct Station {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccessPointCapabilities {
+    pub band: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccessPoint {
     pub name: Option<String>,
     pub id: Option<u8>,
+    pub config: Option<AccessPointCapabilities>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -100,12 +106,41 @@ pub struct ChannelSurveyHistory {
     pub rx_percent: Option<u8>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NeighborsAccessPoint {
+    pub capabilities: Option<NeighborsAccessPointFlags>,
+    pub channel: Option<u8>,
+    // pub channel_width: Option<u8>,
+    pub ssid: Option<String>,
+    pub bssid: Option<String>,
+    pub signal: Option<i8>,
+    pub secondary_channel: Option<u8>,
+    pub band: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NeighborsAccessPointFlags {
+    pub vht: Option<bool>,
+    pub legacy: Option<bool>,
+    pub he: Option<bool>,
+    pub ht: Option<bool>,
+    pub eht: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChannelUsage {
+    pub band: Option<String>,
+    pub noise_level: Option<i8>,
+    pub channel: Option<u8>,
+    pub rx_busy_percent: Option<u8>,
+}
+
 pub struct WifiMetricMap {
     factory: AuthenticatedHttpClientFactory,
     history_ttl: Duration,
-    busy_percent: IntGaugeVec,
-    tx_percent: IntGaugeVec,
-    rx_percent: IntGaugeVec,
+    busy_percent_gauge: IntGaugeVec,
+    tx_percent_gauge: IntGaugeVec,
+    rx_percent_gauge: IntGaugeVec,
     rx_bss_percent: IntGaugeVec,
     station_active_gauge: IntGaugeVec,
     station_rx_bitrate_gauge: IntGaugeVec,
@@ -129,6 +164,8 @@ pub struct WifiMetricMap {
     station_flags_gauge: IntGaugeVec,
     station_last_activity_gauge: IntGaugeVec,
     station_last_time_reachable_gauge: IntGaugeVec,
+    neighbors_access_point_gauge: IntGaugeVec,
+    channel_usage_gauge: IntGaugeVec,
 }
 
 impl WifiMetricMap {
@@ -141,152 +178,167 @@ impl WifiMetricMap {
         Self {
             factory,
             history_ttl,
-            busy_percent: register_int_gauge_vec!(
+            busy_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_busy_percent"),
                 format!("{prfx}_busy_percent"),
-                &["ap", "name"]
+                &["ap", "name", "band"]
             )
             .expect(&format!("cannot create {prfx}_busy_percent gauge")),
             rx_bss_percent: register_int_gauge_vec!(
                 format!("{prfx}_rx_bss_percent"),
                 format!("{prfx}_rx_bss_percent"),
-                &["ap", "name"]
+                &["ap", "name", "band"]
             )
             .expect(&format!("cannot create {prfx}_rx_bss_percent gauge")),
-            rx_percent: register_int_gauge_vec!(
+            rx_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_rx_percent"),
                 format!("{prfx}_rx_percent"),
-                &["ap", "name"]
+                &["ap", "name", "band"]
             )
             .expect(&format!("cannot create {prfx}_rx_percent gauge")),
-            tx_percent: register_int_gauge_vec!(
+            tx_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_tx_percent"),
                 format!("{prfx}_tx_percent"),
-                &["ap", "name"]
+                &["ap", "name", "band"]
             )
             .expect(&format!("cannot create {prfx}_tx_percent gauge")),
             station_active_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_active"),
                 format!("{prfx}_station_active 1 for active"),
-                &["primary_name", "ap_name", "ap_id", "mac", "vendor_name"]
+                &[
+                    "primary_name",
+                    "ap_name",
+                    "band",
+                    "ap_id",
+                    "mac",
+                    "vendor_name"
+                ]
             )
             .expect(&format!("cannot create {prfx}_station_mac gauge")),
             station_rx_bitrate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_bitrate"),
                 format!("{prfx}_station_rx_bitrate"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_bitrate gauge")),
 
             station_rx_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_mcs"),
                 format!("{prfx}_station_rx_mcs"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_mcs gauge")),
 
             station_rx_shortgi_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_shortgi"),
                 format!("{prfx}_station_rx_shortgi 1 for shortgi enabled"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_shortgi gauge")),
 
             station_rx_vht_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_vht_mcs"),
                 format!("{prfx}_station_rx_vht_mcs"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_vht_mcs gauge")),
 
             station_rx_width_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_width"),
                 format!("{prfx}_station_rx_width"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_width gauge")),
 
             station_rx_bytes_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_bytes"),
                 format!("{prfx}_station_rx_bytes"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_bytes gauge")),
 
             station_rx_rate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_rate"),
                 format!("{prfx}_station_rx_rate"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_rx_rate gauge")),
 
             station_tx_bitrate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_bitrate"),
                 format!("{prfx}_station_tx_bitrate"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_bitrate gauge")),
 
             station_tx_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_mcs"),
                 format!("{prfx}_station_tx_mcs"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_mcs gauge")),
 
             station_tx_shortgi_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_shortgi"),
                 format!("{prfx}_station_tx_shortgi 1 for shortgi enabled"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_shortgi gauge")),
 
             station_tx_vht_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_vht_mcs"),
                 format!("{prfx}_station_tx_vht_mcs"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_vht_mcs gauge")),
 
             station_tx_width_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_width"),
                 format!("{prfx}_station_tx_width"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_width gauge")),
 
             station_tx_bytes_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_bytes"),
                 format!("{prfx}_station_tx_bytes"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_bytes gauge")),
 
             station_tx_rate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_rate"),
                 format!("{prfx}_station_tx_rate"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_tx_rate gauge")),
 
             station_signal_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_signal"),
                 format!("{prfx}_station_signal"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_signal gauge")),
 
             station_inactive_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_inactive"),
                 format!("{prfx}_station_inactive"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_inactive gauge")),
 
             station_state_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_state"),
                 format!("{prfx}_station_state"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac", "state"]
+                &[
+                    "primary_name",
+                    "ipv4",
+                    "ap_name",
+                    "band",
+                    "ap_id",
+                    "mac",
+                    "state"
+                ]
             )
             .expect(&format!("cannot create {prfx}_station_state gauge")),
 
@@ -297,6 +349,7 @@ impl WifiMetricMap {
                     "primary_name",
                     "ipv4",
                     "ap_name",
+                    "band",
                     "ap_id",
                     "mac",
                     "vht",
@@ -309,28 +362,55 @@ impl WifiMetricMap {
             station_last_activity_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_last_activity"),
                 format!("{prfx}_station_last_activity"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!("cannot create {prfx}_station_last_activity gauge")),
             station_last_time_reachable_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_last_time_reachable"),
                 format!("{prfx}_station_last_time_reachable"),
-                &["primary_name", "ipv4", "ap_name", "ap_id", "mac"]
+                &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
             .expect(&format!(
                 "cannot create {prfx}_station_last_time_reachable gauge"
             )),
+            neighbors_access_point_gauge: register_int_gauge_vec!(
+                format!("{prfx}_neighbors_access_point"),
+                format!("{prfx}_neighbors_access_point signal strength"),
+                &[
+                    "channel",
+                    // "channel_width",
+                    "ssid",
+                    "bssid",
+                    "band",
+                    "vht",
+                    "legacy",
+                    "he",
+                    "ht",
+                    "eht",
+                    "secondary_channel",
+                ]
+            )
+            .expect(&format!(
+                "cannot create {prfx}_neighbors_access_point gauge"
+            )),
+            channel_usage_gauge: register_int_gauge_vec!(
+                format!("{prfx}_channel_usage"),
+                format!("{prfx}_channel_usage noise level"),
+                &["band", "channel", "rx_busy_percent"]
+            )
+            .expect(&format!("cannot create {prfx}_channel_usage gauge")),
         }
     }
 
     async fn set_channel_survey_history_gauges(
         &self,
         ap: &AccessPoint,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send>> {
         let client = self.factory.create_client().await?;
         let ts = chrono::offset::Local::now().timestamp();
         let root_url = &self.factory.api_url;
         let ap_id = ap.id.as_ref().unwrap().to_string();
+        let band = ap.config.as_ref().unwrap().band.as_ref().unwrap();
         let ap_name = match ap.name.as_ref() {
             Some(n) => n,
             None => "unknown",
@@ -347,7 +427,8 @@ impl WifiMetricMap {
             return Err(Box::new(e));
         }
 
-        let res = res?
+        let res = res
+            .unwrap()
             .json::<FreeboxResponse<Vec<ChannelSurveyHistory>>>()
             .await;
 
@@ -355,7 +436,7 @@ impl WifiMetricMap {
             return Err(Box::new(e));
         }
 
-        let res = res?;
+        let res = res.unwrap();
 
         if let None = res.result {
             return Err(Box::new(FreeboxResponseError::new(format!(
@@ -377,20 +458,20 @@ impl WifiMetricMap {
 
         let avg_history = calculate_avg_channel_survey_history(&recent);
 
-        self.busy_percent
-            .with_label_values(&[&ap_id, &ap_name])
+        self.busy_percent_gauge
+            .with_label_values(&[&ap_id, &ap_name, &band])
             .set(avg_history.busy_percent.unwrap() as i64);
 
-        self.tx_percent
-            .with_label_values(&[&ap_id, &ap_name])
+        self.tx_percent_gauge
+            .with_label_values(&[&ap_id, &ap_name, &band])
             .set(avg_history.tx_percent.unwrap() as i64);
 
         self.rx_bss_percent
-            .with_label_values(&[&ap_id, &ap_name])
+            .with_label_values(&[&ap_id, &ap_name, &band])
             .set(avg_history.rx_bss_percent.unwrap() as i64);
 
-        self.rx_percent
-            .with_label_values(&[&ap_id, &ap_name])
+        self.rx_percent_gauge
+            .with_label_values(&[&ap_id, &ap_name, &band])
             .set(avg_history.rx_percent.unwrap() as i64);
 
         Ok(())
@@ -399,7 +480,7 @@ impl WifiMetricMap {
     async fn get_stations(
         &self,
         ap: &AccessPoint,
-    ) -> Result<Vec<Station>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<Station>, Box<dyn std::error::Error + Send>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -415,13 +496,13 @@ impl WifiMetricMap {
             return Err(Box::new(e));
         }
 
-        let res = res?.json::<FreeboxResponse<Vec<Station>>>().await;
+        let res = res.unwrap().json::<FreeboxResponse<Vec<Station>>>().await;
 
         if let Err(e) = res {
             return Err(Box::new(e));
         }
 
-        let res = res?;
+        let res = res.unwrap();
 
         if !res.success.unwrap_or(false) {
             return Err(Box::new(FreeboxResponseError::new(
@@ -436,7 +517,96 @@ impl WifiMetricMap {
         Ok(res.result.unwrap())
     }
 
-    async fn get_access_point(&self) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error>> {
+    async fn get_channel_usage(
+        &self,
+        ap: &AccessPoint,
+    ) -> Result<Vec<ChannelUsage>, Box<dyn std::error::Error + Send>> {
+        let client = self.factory.create_client().await?;
+
+        let res = client
+            .get(format!(
+                "{}v4/wifi/ap/{}/channel_usage",
+                self.factory.api_url,
+                ap.id.unwrap()
+            ))
+            .send()
+            .await;
+
+        if let Err(e) = res {
+            return Err(Box::new(e));
+        }
+
+        let res = res
+            .unwrap()
+            .json::<FreeboxResponse<Vec<ChannelUsage>>>()
+            .await;
+
+        if let Err(e) = res {
+            return Err(Box::new(e));
+        }
+
+        let res = res.unwrap();
+
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(
+                res.msg.unwrap_or_default(),
+            )));
+        }
+
+        if let None = res.result {
+            return Ok(vec![]);
+        }
+
+        Ok(res.result.unwrap())
+    }
+
+    async fn get_neighbors_access_points(
+        &self,
+        ap: &AccessPoint,
+    ) -> Result<Vec<NeighborsAccessPoint>, Box<dyn std::error::Error + Send>> {
+        let client = self.factory.create_client().await?;
+
+        let res = client
+            .get(format!(
+                "{}v4/wifi/ap/{}/neighbors",
+                self.factory.api_url,
+                ap.id.unwrap()
+            ))
+            .send()
+            .await;
+
+        if let Err(e) = res {
+            return Err(Box::new(e));
+        }
+
+        let res = res.unwrap();
+
+        let res = res
+            .json::<FreeboxResponse<Vec<NeighborsAccessPoint>>>()
+            .await;
+
+        if let Err(e) = res {
+            return Err(Box::new(e));
+        }
+
+        let res = res.unwrap();
+
+        if !res.success.unwrap_or(false) {
+            return Err(Box::new(FreeboxResponseError::new(
+                res.msg.unwrap_or_default(),
+            )));
+        }
+
+        if let None = res.result {
+            return Ok(vec![]);
+        }
+
+        Ok(res.result.unwrap())
+    }
+
+    async fn get_access_point(
+        &self,
+    ) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error + Send>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -448,13 +618,16 @@ impl WifiMetricMap {
             return Err(Box::new(e));
         }
 
-        let res = res?.json::<FreeboxResponse<Vec<AccessPoint>>>().await;
+        let res = res
+            .unwrap()
+            .json::<FreeboxResponse<Vec<AccessPoint>>>()
+            .await;
 
         if let Err(e) = res {
             return Err(Box::new(e));
         }
 
-        let res = res?;
+        let res = res.unwrap();
 
         if !res.success.unwrap_or(false) {
             return Err(Box::new(FreeboxResponseError::new(
@@ -473,7 +646,7 @@ impl WifiMetricMap {
         &self,
         stations: &[Station],
         ap: &AccessPoint,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send>> {
         for station in stations.iter() {
             let last_rx = station.last_rx.as_ref().unwrap();
             let last_tx = station.last_tx.as_ref().unwrap();
@@ -534,83 +707,91 @@ impl WifiMetricMap {
             let addr = l3.addr.to_owned().unwrap_or("unknown".to_string());
             let ap_name = ap.name.to_owned().unwrap_or("unknown".to_string());
             let ap_id = ap.id.to_owned().map_or(i8::MIN, |i| i as i8).to_string();
+            let band = ap
+                .config
+                .as_ref()
+                .unwrap()
+                .band
+                .to_owned()
+                .unwrap_or("unknown".to_string());
 
             self.station_active_gauge
-                .with_label_values(&[&primary_name, &ap_name, &ap_id, &mac, &vendor_name])
+                .with_label_values(&[&primary_name, &ap_name, &band, &ap_id, &mac, &vendor_name])
                 .set(active.into());
 
             self.station_rx_bitrate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_bitrate as i64);
 
             self.station_rx_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_mcs as i64);
 
             self.station_rx_shortgi_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_shortgi.into());
 
             self.station_rx_vht_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_vht_mcs as i64);
 
             self.station_rx_width_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_width.parse::<i64>().unwrap_or(0));
 
             self.station_rx_bytes_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_bytes as i64);
 
             self.station_rx_rate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(rx_rate as i64);
 
             self.station_tx_bitrate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_bitrate as i64);
 
             self.station_tx_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_mcs as i64);
 
             self.station_tx_shortgi_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_shortgi.into());
 
             self.station_tx_vht_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_vht_mcs as i64);
 
             self.station_tx_width_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_width.parse::<i64>().unwrap_or(0));
 
             self.station_tx_bytes_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_bytes as i64);
 
             self.station_tx_rate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(tx_rate as i64);
 
             self.station_signal_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(signal as i64);
 
             self.station_inactive_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(inactive);
 
             self.station_state_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac, &state])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac, &state])
                 .set(1);
 
             self.station_flags_gauge.with_label_values(&[
                 &primary_name,
                 &addr,
                 &ap_name,
+                &band,
                 &ap_id,
                 &mac,
                 &vht.to_string(),
@@ -620,11 +801,11 @@ impl WifiMetricMap {
             ]);
 
             self.station_last_activity_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(last_activity);
 
             self.station_last_time_reachable_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &ap_id, &mac])
+                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
                 .set(last_time_reachable);
         }
 
@@ -632,9 +813,9 @@ impl WifiMetricMap {
     }
 
     pub fn reset_all(&self) {
-        self.busy_percent.reset();
-        self.tx_percent.reset();
-        self.rx_percent.reset();
+        self.busy_percent_gauge.reset();
+        self.tx_percent_gauge.reset();
+        self.rx_percent_gauge.reset();
         self.rx_bss_percent.reset();
         self.station_active_gauge.reset();
         self.station_rx_bitrate_gauge.reset();
@@ -657,9 +838,69 @@ impl WifiMetricMap {
         self.station_flags_gauge.reset();
         self.station_last_activity_gauge.reset();
         self.station_last_time_reachable_gauge.reset();
+        self.neighbors_access_point_gauge.reset();
+        self.channel_usage_gauge.reset();
     }
 
-    pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_neighbors_access_points(
+        &self,
+        neighbors: &[NeighborsAccessPoint],
+    ) -> Result<(), Box<dyn std::error::Error + Send>> {
+        for neighbor in neighbors.iter() {
+            let capabilities = neighbor.capabilities.as_ref().unwrap();
+            let channel = neighbor.channel.unwrap_or(0);
+            // let channel_width = neighbor.channel_width.unwrap_or(0);
+
+            let ssid = neighbor.ssid.to_owned().unwrap_or("unknown".to_string());
+            let bssid = neighbor.bssid.to_owned().unwrap_or("unknown".to_string());
+            let signal = neighbor.signal.unwrap_or(i8::MIN);
+            let secondary_channel = neighbor.secondary_channel.unwrap_or(0);
+            let band = neighbor.band.to_owned().unwrap_or("unknown".to_string());
+            let vht = capabilities.vht.unwrap_or_default();
+            let legacy = capabilities.legacy.unwrap_or_default();
+            let he = capabilities.he.unwrap_or_default();
+            let ht = capabilities.ht.unwrap_or_default();
+            let eht = capabilities.eht.unwrap_or_default();
+
+            self.neighbors_access_point_gauge
+                .with_label_values(&[
+                    &channel.to_string(),
+                    // &channel_width.to_string(),
+                    &ssid,
+                    &bssid,
+                    &band,
+                    &vht.to_string(),
+                    &legacy.to_string(),
+                    &he.to_string(),
+                    &ht.to_string(),
+                    &eht.to_string(),
+                    &secondary_channel.to_string(),
+                ])
+                .set(signal as i64);
+        }
+
+        Ok(())
+    }
+
+    fn set_channel_usage_gauges(
+        &self,
+        channel_usage: &[ChannelUsage],
+    ) -> Result<(), Box<dyn std::error::Error + Send>> {
+        for usage in channel_usage.iter() {
+            let band = usage.band.to_owned().unwrap_or("unknown".to_string());
+            let noise_level = usage.noise_level.unwrap_or(i8::MIN);
+            let channel = usage.channel.unwrap_or(0);
+            let rx_busy_percent = usage.rx_busy_percent.unwrap_or(0);
+
+            self.channel_usage_gauge
+                .with_label_values(&[&band, &channel.to_string(), &rx_busy_percent.to_string()])
+                .set(noise_level as i64);
+        }
+
+        Ok(())
+    }
+
+    pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send>> {
         self.reset_all();
         let aps = self.get_access_point().await;
         if let Err(e) = aps {
@@ -667,7 +908,29 @@ impl WifiMetricMap {
         }
         let aps = aps?;
         for ap in aps.iter() {
-            self.set_channel_survey_history_gauges(&ap).await?;
+            if let Err(e) = self.set_channel_survey_history_gauges(&ap).await {
+                return Err(e);
+            }
+
+            let channel_usage = self.get_channel_usage(&ap).await;
+
+            if let Ok(e) = channel_usage {
+                if let Err(e) = self.set_channel_usage_gauges(&e) {
+                    return Err(e);
+                }
+            } else if let Err(e) = channel_usage {
+                return Err(e);
+            }
+
+            let neighbors = self.get_neighbors_access_points(&ap).await;
+
+            if let Ok(a) = neighbors {
+                if let Err(e) = self.set_neighbors_access_points(&a) {
+                    return Err(e);
+                }
+            } else if let Err(e) = neighbors {
+                return Err(e);
+            }
 
             let stations = self.get_stations(&ap).await;
 
@@ -675,7 +938,9 @@ impl WifiMetricMap {
                 return Err(e);
             }
 
-            self.set_stations_gauges(&stations.unwrap(), &ap).await?;
+            if let Err(e) = self.set_stations_gauges(&stations.unwrap(), &ap).await {
+                return Err(e);
+            }
         }
         Ok(())
     }
@@ -813,5 +1078,35 @@ mod tests_deserialize {
         assert_eq!(avg_history.tx_percent.unwrap(), 1);
         assert_eq!(avg_history.rx_percent.unwrap(), 30);
         assert_eq!(avg_history.rx_bss_percent.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn deserialize_api_latest_ap_neighbors() {
+        let json_data = get_specs_data("wifi", "api_latest_wifi_ap_0_neighbors-get")
+            .await
+            .unwrap();
+
+        let data: Result<FreeboxResponse<Vec<NeighborsAccessPoint>>, _> = from_str(&json_data);
+
+        if let Ok(e) = &data {
+            println!("{:?}", e);
+        }
+
+        assert!(data.is_ok());
+    }
+
+    #[tokio::test]
+    async fn deserialize_api_latest_ap_channel_usage() {
+        let json_data = get_specs_data("wifi", "api_latest_wifi_ap_0_channel_usage-get")
+            .await
+            .unwrap();
+
+        let data: Result<FreeboxResponse<Vec<ChannelUsage>>, _> = from_str(&json_data);
+
+        if let Ok(e) = &data {
+            println!("{:?}", e);
+        }
+
+        assert!(data.is_ok());
     }
 }
