@@ -1,0 +1,51 @@
+{
+    "success": true,
+    "result": [
+        {
+            "capabilities": {
+                "vht": false,
+                "ht": true,
+                "legacy": false,
+                "he": false,
+                "eht": false
+            },
+            "ssid": "SSID_1",
+            "channel": 1,
+            "band": "2d4g",
+            "bssid": "XX:XX:XX:XX:XX:XX",
+            "secondary_channel": 0,
+            "signal": -76
+        },
+        {
+            "channel_width": "20",
+            "capabilities": {
+                "vht": false,
+                "ht": true,
+                "legacy": false,
+                "he": false,
+                "eht": false
+            },
+            "ssid": "SSID_2",
+            "channel": 1,
+            "band": "2d4g",
+            "bssid": "YY:YY:YY:YY:YY:YY",
+            "secondary_channel": 0,
+            "signal": -47
+        },
+        {
+            "capabilities": {
+                "vht": false,
+                "ht": true,
+                "legacy": false,
+                "he": false,
+                "eht": false
+            },
+            "ssid": "SSID_3",
+            "channel": 1,
+            "band": "2d4g",
+            "bssid": "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ",
+            "secondary_channel": 0,
+            "signal": -50
+        }
+    ]
+}

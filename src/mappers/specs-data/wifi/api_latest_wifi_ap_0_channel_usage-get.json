@@ -1,0 +1,83 @@
+{
+    "success": true,
+    "result": [
+        {
+            "band": "2d4g",
+            "noise_level": -83,
+            "rx_busy_percent": 32,
+            "channel": 1
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -82,
+            "rx_busy_percent": 13,
+            "channel": 2
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -85,
+            "rx_busy_percent": 28,
+            "channel": 3
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -83,
+            "rx_busy_percent": 53,
+            "channel": 4
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -83,
+            "rx_busy_percent": 32,
+            "channel": 5
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -82,
+            "rx_busy_percent": 23,
+            "channel": 6
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -82,
+            "rx_busy_percent": 36,
+            "channel": 7
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -83,
+            "rx_busy_percent": 42,
+            "channel": 8
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -81,
+            "rx_busy_percent": 39,
+            "channel": 9
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -81,
+            "rx_busy_percent": 79,
+            "channel": 10
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -82,
+            "rx_busy_percent": 42,
+            "channel": 11
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -85,
+            "rx_busy_percent": 86,
+            "channel": 12
+        },
+        {
+            "band": "2d4g",
+            "noise_level": -86,
+            "rx_busy_percent": 77,
+            "channel": 13
+        }
+    ]
+}
