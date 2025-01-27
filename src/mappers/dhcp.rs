@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use log::error;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
-use reqwest::Client;
 use serde::Deserialize;
 
 use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse};
@@ -24,7 +22,6 @@ struct DynamicDhcpLease {
     assign_time: Option<u64>,
     lease_remaining: Option<u64>,
     refresh_time: Option<u64>,
-    is_static: Option<bool>,
 }
 
 trait DhcpLease: std::fmt::Debug + Send {
@@ -35,6 +32,7 @@ trait DhcpLease: std::fmt::Debug + Send {
     fn get_is_static(&self) -> Option<bool>;
     fn get_lease_remaining(&self) -> Option<i64>;
     fn get_assign_time(&self) -> Option<u64>;
+    fn get_refresh_time(&self) -> Option<i64>;
 }
 
 impl DhcpLease for StaticDhcpLease {
@@ -64,6 +62,10 @@ impl DhcpLease for StaticDhcpLease {
 
     fn get_assign_time(&self) -> Option<u64> {
         Some(0)
+    }
+
+    fn get_refresh_time(&self) -> Option<i64> {
+        Some(-1)
     }
 }
 
@@ -95,6 +97,10 @@ impl DhcpLease for DynamicDhcpLease {
     fn get_assign_time(&self) -> Option<u64> {
         self.assign_time.clone()
     }
+
+    fn get_refresh_time(&self) -> Option<i64> {
+        self.refresh_time.clone().map(|v| v as i64)
+    }
 }
 
 pub struct DhcpMetricMap {
@@ -108,16 +114,6 @@ impl DhcpMetricMap {
     pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
         let prfx: String = format!("{prefix}_dhcp");
 
-        /*
-            id: Option<String>,
-        hostname: Option<String>,
-        ip: Option<String>,
-        mac: Option<String>,
-        assign_time: Option<u64>,
-        lease_remaining: Option<u64>,
-        refresh_time: Option<u64>,
-        is_static: Option<bool>,
-         */
         Self {
             factory,
             lease_remaining_gauge: register_int_gauge_vec!(
@@ -273,7 +269,7 @@ impl DhcpMetricMap {
                     &lease.get_mac().unwrap_or_default(),
                     &lease.get_is_static().unwrap_or_default().to_string(),
                 ])
-                .set(lease.get_assign_time().unwrap_or_default() as i64);
+                .set(lease.get_refresh_time().unwrap_or_default());
 
             self.assign_time_gauge
                 .with_label_values(&[
@@ -290,7 +286,6 @@ impl DhcpMetricMap {
     }
 
     fn reset_all(&self) {
-        // Reset all metrics
         self.lease_remaining_gauge.reset();
         self.refresh_time_gauge.reset();
         self.assign_time_gauge.reset();
