@@ -47,7 +47,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#9989; Lan: **100%**
   * &#9989; Lan Browser: **100%**
   * &#10060; Freeplug: 0%
-  * &#10060; DHCP: 0%
+  * &#9989; DHCP: **100%**
   * &#10060; Ftp: 0%
   * &#10060; NAT: 0%
   * &#10060; Port Forwarding: 0%
@@ -177,6 +177,8 @@ lan_browser = true
 switch = true
 # Exposes wifi
 wifi = true
+# Exposes dhcp
+dhcp = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

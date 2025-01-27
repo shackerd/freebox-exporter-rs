@@ -33,6 +33,8 @@ switch = true
 system = true
 # Exposes wifi
 wifi = true
+# Exposes dhcp
+dhcp = true
 # Sets metrics prefix, it cannot be empty
 prefix = "fbx_exporter"
 

@@ -13,6 +13,7 @@ use crate::core::{
 };
 
 pub mod connection;
+pub mod dhcp;
 pub mod lan;
 pub mod lanbrowser;
 pub mod switch;
@@ -84,6 +85,14 @@ impl Mapper {
                 ttl,
             )));
         }
+
+        if conf.dhcp.unwrap() {
+            maps.push(Box::new(dhcp::DhcpMetricMap::new(
+                factory.to_owned(),
+                conf.prefix.to_owned().unwrap(),
+            )));
+        }
+
         Self { maps }
     }
 

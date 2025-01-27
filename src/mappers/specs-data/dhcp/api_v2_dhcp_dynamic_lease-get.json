@@ -1,0 +1,65 @@
+{
+    "success": true,
+    "result": [
+        {
+            "mac": "XX:XX:XX:XX:XX:XX",
+            "host": {
+                "l2ident": {
+                    "id": "XX:XX:XX:XX:XX:XX",
+                    "type": "mac_address"
+                },
+                "active": true,
+                "persistent": false,
+                "names": [
+                    {
+                        "name": "Device-1",
+                        "source": "mdns"
+                    }
+                ],
+                "vendor_name": "Vendor Name",
+                "host_type": "device_type",
+                "interface": "interface_type",
+                "id": "ether-xx:xx:xx:xx:xx:xx",
+                "last_time_reachable": 1738010880,
+                "primary_name_manual": false,
+                "l3connectivities": [
+                    {
+                        "addr": "192.168.1.XXX",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738010907,
+                        "af": "ipv4",
+                        "last_time_reachable": 1738010880
+                    },
+                    {
+                        "addr": "fe80::XXXX:XXXX:XXXX:XXXX",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738010907,
+                        "af": "ipv6",
+                        "last_time_reachable": 1738010874
+                    },
+                    {
+                        "addr": "2a01:e0a:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738010875,
+                        "af": "ipv6",
+                        "last_time_reachable": 1738010875
+                    }
+                ],
+                "default_name": "Device-1",
+                "first_activity": 1727051168,
+                "reachable": true,
+                "last_activity": 1738010907,
+                "primary_name": "Device-1"
+            },
+            "refresh_time": 1738010875,
+            "hostname": "Device-1",
+            "assign_time": 1738010875,
+            "lease_remaining": 43090,
+            "is_static": false,
+            "ip": "192.168.1.XXX"
+        }
+    ]
+}
