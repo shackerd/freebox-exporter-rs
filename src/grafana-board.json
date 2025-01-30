@@ -31,6 +31,12 @@
     },
     {
       "type": "panel",
+      "id": "news",
+      "name": "News",
+      "version": ""
+    },
+    {
+      "type": "panel",
       "id": "piechart",
       "name": "Pie chart",
       "version": ""
@@ -51,6 +57,12 @@
       "type": "panel",
       "id": "state-timeline",
       "name": "State timeline",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
       "version": ""
     },
     {
@@ -1224,7 +1236,7 @@
                 "value": null
               },
               {
-                "color": "#fffbc5",
+                "color": "yellow",
                 "value": 2200
               },
               {
@@ -1300,7 +1312,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "super-light-blue",
+                "color": "#adceff",
                 "value": null
               }
             ]
@@ -1545,12 +1557,32 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 13
+      },
+      "id": 46,
+      "options": {
+        "feedUrl": "https://corsproxy.io/?url=https://feedfry.com/rss/11efdf526bd38226bf10c6a22705473a",
+        "showImage": true
+      },
+      "title": "News",
+      "type": "news"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 19
       },
       "id": 15,
       "panels": [],
@@ -1639,7 +1671,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 20
       },
       "id": 14,
       "options": {
@@ -1799,7 +1831,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 20
       },
       "id": 16,
       "options": {
@@ -1880,7 +1912,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 27
       },
       "id": 11,
       "panels": [],
@@ -1935,8 +1967,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1952,7 +1983,7 @@
         "h": 6,
         "w": 11,
         "x": 0,
-        "y": 22
+        "y": 28
       },
       "id": 10,
       "options": {
@@ -2037,8 +2068,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2054,7 +2084,7 @@
         "h": 6,
         "w": 10,
         "x": 11,
-        "y": 22
+        "y": 28
       },
       "id": 12,
       "options": {
@@ -2107,8 +2137,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2211,7 +2240,7 @@
         "h": 3,
         "w": 3,
         "x": 21,
-        "y": 22
+        "y": 28
       },
       "id": 18,
       "options": {
@@ -2341,7 +2370,7 @@
         "h": 3,
         "w": 3,
         "x": 21,
-        "y": 25
+        "y": 31
       },
       "id": 17,
       "options": {
@@ -2388,7 +2417,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 34
       },
       "id": 6,
       "panels": [],
@@ -2491,7 +2520,7 @@
         "h": 7,
         "w": 13,
         "x": 0,
-        "y": 29
+        "y": 35
       },
       "id": 7,
       "options": {
@@ -2629,7 +2658,7 @@
         "h": 7,
         "w": 11,
         "x": 13,
-        "y": 29
+        "y": 35
       },
       "id": 1,
       "options": {
@@ -2775,7 +2804,7 @@
         "h": 7,
         "w": 4,
         "x": 0,
-        "y": 36
+        "y": 42
       },
       "id": 13,
       "options": {
@@ -2937,7 +2966,7 @@
         "h": 7,
         "w": 20,
         "x": 4,
-        "y": 36
+        "y": 42
       },
       "id": 19,
       "options": {
@@ -3087,7 +3116,7 @@
         "h": 8,
         "w": 16,
         "x": 0,
-        "y": 43
+        "y": 49
       },
       "id": 9,
       "options": {
@@ -3327,7 +3356,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 43
+        "y": 49
       },
       "id": 2,
       "options": {
@@ -3388,7 +3417,228 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 57
+      },
+      "id": 47,
+      "panels": [],
+      "title": "DHCP",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": 120000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 45,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "fbx_exporter_dhcp_lease_remaining{instance=\"$node\", job=\"$job\", is_static=\"false\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{hostname}} ({{ip}})",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "DHCP Dynamic Leases Remaining",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 48,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "fbx_exporter_dhcp_assign_time{instance=\"$node\", job=\"$job\"}",
+          "format": "table",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "DHCP Last Assigned Leases",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "hostname": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "ip": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "is_static": {
+                "aggregations": [
+                  "uniqueValues"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 66
       },
       "id": 33,
       "panels": [],
@@ -3459,7 +3709,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 67
       },
       "id": 41,
       "options": {
@@ -3600,7 +3850,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 67
       },
       "id": 35,
       "options": {
@@ -3747,7 +3997,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 75
       },
       "id": 36,
       "options": {
@@ -3860,7 +4110,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 60
+        "y": 75
       },
       "id": 37,
       "options": {
@@ -3993,7 +4243,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 83
       },
       "id": 43,
       "options": {
@@ -4117,7 +4367,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 83
       },
       "id": 42,
       "options": {
@@ -4208,7 +4458,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 76
+        "y": 91
       },
       "id": 38,
       "options": {
@@ -4311,7 +4561,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 76
+        "y": 91
       },
       "id": 39,
       "options": {
@@ -4355,7 +4605,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 84
+        "y": 99
       },
       "id": 5,
       "panels": [],
@@ -4404,7 +4654,7 @@
         "h": 6,
         "w": 20,
         "x": 0,
-        "y": 85
+        "y": 100
       },
       "id": 3,
       "options": {
@@ -4502,7 +4752,7 @@
         "h": 6,
         "w": 4,
         "x": 20,
-        "y": 85
+        "y": 100
       },
       "id": 4,
       "options": {
@@ -4555,7 +4805,10 @@
   ],
   "refresh": "5s",
   "schemaVersion": 39,
-  "tags": [],
+  "tags": [
+    "freebox-exporter-rs",
+    "freebox"
+  ],
   "templating": {
     "list": [
       {
@@ -4664,7 +4917,7 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "freebox-exporter-rs",
-  "uid": "beao5wwrxw268d",
+  "uid": "debl9scewcoowa",
   "version": 1,
   "weekStart": ""
 }
