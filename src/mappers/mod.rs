@@ -38,59 +38,94 @@ impl Mapper {
     ) -> Self {
         let mut maps: Vec<Box<dyn MetricMap>> = vec![];
 
-        if conf.connection.unwrap() {
-            maps.push(Box::new(ConnectionMetricMap::new(
-                factory.to_owned(),
-                conf.prefix.to_owned().unwrap(),
-            )));
-        }
-        if conf.system.unwrap() {
-            maps.push(Box::new(SystemMetricMap::new(
-                factory.to_owned(),
-                conf.prefix.to_owned().unwrap(),
-            )));
-        }
-
-        if conf.lan.unwrap() {
-            maps.push(Box::new(LanMetricMap::new(
-                factory.to_owned(),
-                conf.prefix.to_owned().unwrap(),
-            )));
-        }
-
-        if conf.lan_browser.unwrap() {
-            let mode = api_conf.mode.unwrap_or_default();
-            if mode == "router" {
-                let lan_browser_map =
-                    LanBrowserMetricMap::new(factory.to_owned(), conf.prefix.to_owned().unwrap());
-                maps.push(Box::new(lan_browser_map));
-            } else {
-                warn!("lan_browser is incompatible with this freebox mode ({}), the option has been disabled", mode);
+        if let Some(e) = conf.connection {
+            if e {
+                maps.push(Box::new(ConnectionMetricMap::new(
+                    factory.to_owned(),
+                    conf.prefix.to_owned().unwrap(),
+                )));
             }
+        } else {
+            warn!(
+                "Connection metrics are disabled by default, missing entry in the configuration file"
+            );
+        }
+        if let Some(e) = conf.system {
+            if e {
+                maps.push(Box::new(SystemMetricMap::new(
+                    factory.to_owned(),
+                    conf.prefix.to_owned().unwrap(),
+                )));
+            }
+        } else {
+            warn!(
+                "System metrics are disabled by default, missing entry in the configuration file"
+            );
         }
 
-        if conf.switch.unwrap() {
-            maps.push(Box::new(SwitchMetricMap::new(
-                factory.to_owned(),
-                conf.prefix.to_owned().unwrap(),
-            )));
+        if let Some(e) = conf.lan {
+            if e {
+                maps.push(Box::new(LanMetricMap::new(
+                    factory.to_owned(),
+                    conf.prefix.to_owned().unwrap(),
+                )));
+            }
+        } else {
+            warn!("LAN metrics are disabled by default, missing entry in the configuration file");
         }
 
-        if conf.wifi.unwrap() {
-            let ttl = Duration::seconds(api_conf.refresh.unwrap_or(5) as i64);
-
-            maps.push(Box::new(wifi::WifiMetricMap::new(
-                factory.to_owned(),
-                conf.prefix.to_owned().unwrap(),
-                ttl,
-            )));
+        if let Some(e) = conf.lan_browser {
+            if e {
+                let mode = api_conf.mode.unwrap_or_default();
+                if mode == "router" {
+                    let lan_browser_map = LanBrowserMetricMap::new(
+                        factory.to_owned(),
+                        conf.prefix.to_owned().unwrap(),
+                    );
+                    maps.push(Box::new(lan_browser_map));
+                } else {
+                    warn!("lan_browser is incompatible with this freebox mode ({}), the option has been disabled", mode);
+                }
+            }
+        } else {
+            warn!("LAN browser metrics are disabled by default, missing entry in the configuration file");
         }
 
-        if conf.dhcp.unwrap() {
-            maps.push(Box::new(dhcp::DhcpMetricMap::new(
-                factory.to_owned(),
-                conf.prefix.to_owned().unwrap(),
-            )));
+        if let Some(e) = conf.switch {
+            if e {
+                maps.push(Box::new(SwitchMetricMap::new(
+                    factory.to_owned(),
+                    conf.prefix.to_owned().unwrap(),
+                )));
+            }
+        } else {
+            warn!(
+                "Switch metrics are disabled by default, missing entry in the configuration file"
+            );
+        }
+
+        if let Some(e) = conf.wifi {
+            if e {
+                let wifi_map = wifi::WifiMetricMap::new(
+                    factory.to_owned(),
+                    conf.prefix.to_owned().unwrap(),
+                    Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
+                );
+                maps.push(Box::new(wifi_map));
+            }
+        } else {
+            warn!("Wifi metrics are disabled by default, missing entry in the configuration file");
+        }
+
+        if let Some(e) = conf.dhcp {
+            if e {
+                maps.push(Box::new(dhcp::DhcpMetricMap::new(
+                    factory.to_owned(),
+                    conf.prefix.to_owned().unwrap(),
+                )));
+            }
+        } else {
+            warn!("DHCP metrics are disabled by default, missing entry in the configuration file");
         }
 
         Self { maps }
