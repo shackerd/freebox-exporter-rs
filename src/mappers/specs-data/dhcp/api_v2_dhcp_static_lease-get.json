@@ -1,0 +1,161 @@
+{
+    "success": true,
+    "result": [
+        {
+            "mac": "XX:XX:XX:XX:XX:XX",
+            "comment": "Test",
+            "hostname": "Device-1",
+            "id": "XX:XX:XX:XX:XX:XX",
+            "host": {
+                "l2ident": {
+                    "id": "XX:XX:XX:XX:XX:XX",
+                    "type": "mac_address"
+                },
+                "active": false,
+                "persistent": true,
+                "names": [
+                    {
+                        "name": "Device-1",
+                        "source": "mdns"
+                    }
+                ],
+                "vendor_name": "Vendor Name",
+                "host_type": "device_type",
+                "interface": "interface_type",
+                "id": "ether-xx:xx:xx:xx:xx:xx",
+                "last_time_reachable": 1736794177,
+                "primary_name_manual": false,
+                "l3connectivities": [
+                    {
+                        "addr": "192.168.1.XXX",
+                        "active": false,
+                        "reachable": false,
+                        "last_activity": 1736794177,
+                        "af": "ipv4",
+                        "last_time_reachable": 1736794177
+                    },
+                    {
+                        "addr": "fe80::XXXX:XXXX:XXXX:XXXX",
+                        "active": false,
+                        "reachable": false,
+                        "last_activity": 1736794158,
+                        "af": "ipv6",
+                        "last_time_reachable": 1736794158
+                    },
+                    {
+                        "addr": "2a01:e0a:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX",
+                        "active": false,
+                        "reachable": false,
+                        "last_activity": 1736793860,
+                        "af": "ipv6",
+                        "last_time_reachable": 1736793860
+                    },
+                    {
+                        "addr": "2a01:e0a:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX",
+                        "active": false,
+                        "reachable": false,
+                        "last_activity": 1736794152,
+                        "af": "ipv6",
+                        "last_time_reachable": 1736794152
+                    }
+                ],
+                "default_name": "Device-1",
+                "first_activity": 1736793672,
+                "reachable": false,
+                "last_activity": 1736794177,
+                "primary_name": "Device-1"
+            },
+            "ip": "192.168.1.XXX"
+        },
+        {
+            "mac": "YY:YY:YY:YY:YY:YY",
+            "comment": "",
+            "hostname": "Device-2",
+            "id": "YY:YY:YY:YY:YY:YY",
+            "host": {
+                "l2ident": {
+                    "id": "YY:YY:YY:YY:YY:YY",
+                    "type": "mac_address"
+                },
+                "active": true,
+                "persistent": true,
+                "names": [
+                    {
+                        "name": "Device-2",
+                        "source": "dhcp"
+                    },
+                    {
+                        "name": "Device-2-Alt",
+                        "source": "mdns"
+                    }
+                ],
+                "vendor_name": "",
+                "host_type": "device_type",
+                "interface": "interface_type",
+                "id": "ether-yy:yy:yy:yy:yy:yy",
+                "last_time_reachable": 1738012239,
+                "primary_name_manual": false,
+                "l3connectivities": [
+                    {
+                        "addr": "192.168.1.XXX",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738012189,
+                        "af": "ipv4",
+                        "last_time_reachable": 1738012189
+                    },
+                    {
+                        "addr": "fe80::YYYY:YYYY:YYYY:YYYY",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738012240,
+                        "af": "ipv6",
+                        "last_time_reachable": 1738012239
+                    },
+                    {
+                        "addr": "2a01:e0a:XXXX:XXXX:YYYY:YYYY:YYYY:YYYY",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738012200,
+                        "af": "ipv6",
+                        "last_time_reachable": 1738012200
+                    },
+                    {
+                        "addr": "2a01:e0a:XXXX:XXXX:YYYY:YYYY:YYYY:YYYY",
+                        "active": true,
+                        "reachable": true,
+                        "last_activity": 1738012225,
+                        "af": "ipv6",
+                        "last_time_reachable": 1738012225
+                    }
+                ],
+                "access_point": {
+                    "rx_bytes": 558899,
+                    "type": "gateway",
+                    "tx_bytes": 1874799,
+                    "tx_rate": 0,
+                    "uid": "450bd09c89353840039d2495b2d8f4a7",
+                    "connectivity_type": "wifi",
+                    "wifi_information": {
+                        "band": "2d4g",
+                        "sess_duration": 1307,
+                        "phy_rx_rate": 130,
+                        "ssid": "SSID",
+                        "standard": "n",
+                        "bssid": "8C:97:EA:F2:88:E0",
+                        "phy_tx_rate": 433,
+                        "signal": -69
+                    },
+                    "rx_rate": 0,
+                    "mac": "70:FC:8F:A0:47:4E"
+                },
+                "default_name": "Device-2",
+                "first_activity": 1736681524,
+                "reachable": true,
+                "last_activity": 1738012240,
+                "primary_name": "Device-2"
+            },
+            "ip": "192.168.1.XXX"
+        }
+    ]
+}

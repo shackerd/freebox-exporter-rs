@@ -33,6 +33,7 @@ pub struct MetricsConfiguration {
     pub lan_browser: Option<bool>,
     pub switch: Option<bool>,
     pub wifi: Option<bool>,
+    pub dhcp: Option<bool>,
     // pub contacts: Option<bool>,
     // pub calls: Option<bool>,
     // pub explorer: Option<bool>,
@@ -231,6 +232,7 @@ retention = 31";
                 lan: None,
                 switch: None,
                 wifi: None,
+                dhcp: None,
             },
         };
 
@@ -261,6 +263,7 @@ retention = 31";
                 lan: None,
                 switch: None,
                 wifi: None,
+                dhcp: None,
             },
         };
 
@@ -291,6 +294,7 @@ retention = 31";
                 lan: None,
                 switch: None,
                 wifi: None,
+                dhcp: None,
             },
         };
 
@@ -328,6 +332,7 @@ retention = 31";
                 lan: None,
                 switch: None,
                 wifi: None,
+                dhcp: None,
             },
         };
 
@@ -358,6 +363,7 @@ retention = 31";
                 lan: None,
                 switch: None,
                 wifi: None,
+                dhcp: None,
             },
         };
 
@@ -388,6 +394,7 @@ retention = 31";
                 lan: None,
                 switch: None,
                 wifi: None,
+                dhcp: None,
             },
         };
 
