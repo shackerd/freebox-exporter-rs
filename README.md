@@ -100,10 +100,10 @@ This project uses `clap` crate you will find usage by using the following comman
 Usage: freebox-exporter-rs [OPTIONS] <COMMAND>
 
 Commands:
-  auto
-  register
-  serve
-  session-diagnostic
+  auto                starts the application and registers it if necessary
+  register            registers the application
+  serve               starts the application
+  session-diagnostic  runs a diagnostic on the session
   revoke
   help                Print this message or the help of the given subcommand(s)
 
