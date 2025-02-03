@@ -131,7 +131,7 @@ impl Mapper {
         Self { maps }
     }
 
-    pub async fn init_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn init_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send>> {
         for map in self.maps.iter_mut() {
             let res = map.init().await;
             match res {
@@ -144,7 +144,7 @@ impl Mapper {
         Ok(())
     }
 
-    pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send>> {
         for map in self.maps.iter_mut() {
             let res = map.set().await;
 

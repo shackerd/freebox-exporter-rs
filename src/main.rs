@@ -62,6 +62,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .start()?;
 
+    info!(
+        "freebox exporter: {version}",
+        version = env!("CARGO_PKG_VERSION")
+    );
+
     match &cli.command {
         Command::Register { pooling_interval } => {
             let interval = pooling_interval.unwrap_or_else(|| 6);
@@ -85,6 +90,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 error!("{e:#?}");
             }
         }
+        Command::Auto {
+            pooling_interval,
+            port,
+        } => {
+            let interval = pooling_interval.unwrap_or_else(|| 6);
+            let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
+
+            if let Err(e) = auto_register_and_serve(&conf, interval, serve_port).await {
+                error!("{e:#?}");
+            }
+        }
     }
 
     // force flush before exit
@@ -93,8 +109,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let api_url = match conf.api.mode.expect("Please specify freebox mode").as_str() {
+async fn auto_register_and_serve(
+    conf: &Configuration,
+    interval: u64,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error + Send>> {
+    let res = get_api_url(conf).await;
+
+    if let Err(e) = res {
+        return Err(e);
+    }
+
+    let api_url = res.unwrap();
+
+    let authenticator = authenticator::Authenticator::new(
+        api_url.to_owned(),
+        conf.core.data_directory.as_ref().unwrap().to_owned(),
+    );
+
+    if authenticator.is_registered() {
+        info!("application is already registered, logging in");
+    } else {
+        let res = authenticator.register(interval).await;
+        if let Err(e) = res {
+            return Err(e);
+        }
+    }
+
+    let factory = match authenticator.login().await {
+        Err(e) => return Err(e),
+        Ok(r) => r,
+    };
+
+    let mapper = Mapper::new(factory, conf.to_owned().metrics, conf.to_owned().api);
+    let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
+
+    server.run().await
+}
+
+async fn get_api_url(conf: &Configuration) -> Result<String, Box<dyn std::error::Error + Send>> {
+    let api_url = match conf
+        .api
+        .mode
+        .as_ref()
+        .expect("Please specify freebox mode")
+        .as_str()
+    {
         "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await {
             Err(e) => return Err(e),
             Ok(r) => r,
@@ -104,8 +164,22 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
             panic!("Unrecognized freebox mode")
         }
     };
-
     info!("using api url: {api_url}");
+
+    Ok(api_url)
+}
+
+async fn register(
+    conf: Configuration,
+    interval: u64,
+) -> Result<(), Box<dyn std::error::Error + Send>> {
+    let res = get_api_url(&conf).await;
+
+    if let Err(e) = res {
+        return Err(e);
+    }
+
+    let api_url = res.unwrap();
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
@@ -113,7 +187,7 @@ async fn register(conf: Configuration, interval: u64) -> Result<(), Box<dyn std:
     authenticator.register(interval).await
 }
 
-async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error + Send>> {
     let api_url = match conf
         .to_owned()
         .api
@@ -145,25 +219,6 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await
-}
-
-async fn get_api_url(conf: &Configuration) -> Result<String, Box<dyn std::error::Error>> {
-    let api_url = match conf
-        .to_owned()
-        .api
-        .mode
-        .expect("Please specify freebox mode")
-        .as_str()
-    {
-        "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await {
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        },
-        "bridge" => discovery::get_static_api_url().unwrap(),
-        _ => panic!("Unrecognized freebox mode"),
-    };
-
-    Ok(api_url)
 }
 
 async fn session_diagnostic(
@@ -199,8 +254,27 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    Register { pooling_interval: Option<u64> },
-    Serve { port: Option<u16> },
-    SessionDiagnostic { show_token: Option<bool> },
+    /// starts the application and registers it if necessary
+    Auto {
+        /// the interval in seconds to check for user validation in registration process
+        pooling_interval: Option<u64>,
+        /// the port to serve the metrics on
+        port: Option<u16>,
+    },
+    /// registers the application
+    Register {
+        /// the interval in seconds to check for user validation in registration process
+        pooling_interval: Option<u64>,
+    },
+    /// starts the application
+    Serve {
+        /// the port to serve the metrics on
+        port: Option<u16>,
+    },
+    /// runs a diagnostic on the session
+    SessionDiagnostic {
+        /// show the token
+        show_token: Option<bool>,
+    },
     Revoke,
 }

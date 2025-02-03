@@ -100,10 +100,12 @@ This project uses `clap` crate you will find usage by using the following comman
 Usage: freebox-exporter-rs [OPTIONS] <COMMAND>
 
 Commands:
+  auto
   register
   serve
+  session-diagnostic
   revoke
-  help      Print this message or the help of the given subcommand(s)
+  help                Print this message or the help of the given subcommand(s)
 
 Options:
   -c, --configuration-file <CONFIGURATION_FILE>

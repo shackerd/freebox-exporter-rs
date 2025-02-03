@@ -19,7 +19,7 @@ impl Server {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send>> {
         debug!("initiating prometheus server");
 
         let addr_raw = format!("0.0.0.0:{}", self.port);

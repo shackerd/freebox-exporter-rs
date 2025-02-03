@@ -17,7 +17,7 @@ pub struct ApiVersion {
 }
 pub const DEFAULT_FBX_HOST: &str = "mafreebox.freebox.fr";
 
-pub async fn get_api_url(host: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn get_api_url(host: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
     let client = http_client_factory().unwrap();
 
     let resp = (match client
@@ -29,7 +29,12 @@ pub async fn get_api_url(host: &str) -> Result<String, Box<dyn std::error::Error
         Ok(r) => r,
     })
     .json::<ApiVersion>()
-    .await?;
+    .await;
+
+    let resp = match resp {
+        Err(e) => return Err(Box::new(e)),
+        Ok(r) => r,
+    };
 
     let url = format!(
         "https://{}:{}{}",

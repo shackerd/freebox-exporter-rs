@@ -281,7 +281,7 @@ impl Authenticator {
         Ok(())
     }
 
-    async fn load_app_token(&self) -> Result<String, Box<dyn std::error::Error>> {
+    async fn load_app_token(&self) -> Result<String, Box<dyn std::error::Error + Send>> {
         debug!("loading APP_TOKEN");
 
         let path = Path::new(self.token_file.as_str());
@@ -311,7 +311,15 @@ impl Authenticator {
         Ok(token)
     }
 
-    pub async fn register(&self, pool_interval: u64) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn is_registered(&self) -> bool {
+        let path = Path::new(self.token_file.as_str());
+        path.exists()
+    }
+
+    pub async fn register(
+        &self,
+        pool_interval: u64,
+    ) -> Result<(), Box<dyn std::error::Error + Send>> {
         let prompt_result = match self.prompt().await {
             Ok(r) => r,
             Err(e) => return Err(e),
@@ -342,7 +350,7 @@ impl Authenticator {
 
     pub async fn login(
         &self,
-    ) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error>> {
+    ) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error + Send>> {
         debug!("login in");
 
         let app_token = match self.load_app_token().await {
@@ -361,7 +369,7 @@ impl Authenticator {
         }
     }
 
-    async fn prompt(&self) -> Result<PromptResult, Box<dyn std::error::Error>> {
+    async fn prompt(&self) -> Result<PromptResult, Box<dyn std::error::Error + Send>> {
         debug!("prompting for registration");
 
         let client = http_client_factory().unwrap();
