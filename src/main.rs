@@ -179,7 +179,7 @@ async fn register(
         return Err(e);
     }
 
-    let api_url = res.unwrap();
+    let api_url = res?;
 
     let authenticator =
         authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
@@ -188,22 +188,13 @@ async fn register(
 }
 
 async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error + Send>> {
-    let api_url = match conf
-        .to_owned()
-        .api
-        .mode
-        .expect("Please specify freebox mode")
-        .as_str()
-    {
-        "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await {
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        },
-        "bridge" => discovery::get_static_api_url().unwrap(),
-        _ => panic!("Unrecognized freebox mode"),
-    };
+    let res = get_api_url(&conf).await;
 
-    info!("using api url: {api_url}");
+    if let Err(e) = res {
+        return Err(e);
+    }
+
+    let api_url = res?;
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
