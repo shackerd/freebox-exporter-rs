@@ -48,53 +48,19 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
   * &#9989; Lan Browser: **100%**
   * &#10060; Freeplug: 0%
   * &#9989; DHCP: **100%**
-  * &#10060; Ftp: 0%
-  * &#10060; NAT: 0%
-  * &#10060; Port Forwarding: 0%
-  * &#10060; Incoming port configuration: 0%
-  * &#10060; UPnP IGD: 0%
-  * &#10060; Network Share: 0%
   * &#9989; Switch: **100%**
   * &#9989; Wi-Fi: **100%**%
   * &#9989; System: **100%**
   * &#10060; VPN Server: 0%
   * &#10060; VPN Client: 0%
 
-## Not implemented, on-demand
-
-* &#10134; Download
-  * &#10060; Stats: 0%
-  * &#10060; Files: 0%
-  * &#10060; Trackers: 0%
-  * &#10060; Peers: 0%
-  * &#10060; Pieces: 0%
-  * &#10060; Blacklist: 0%
-  * &#10060; Feeds: 0%
-  * &#10060; Configuration: 0%
-
-* &#10134; File
-  * &#10060; System: 0%
-  * &#10060; Sharing Link: 0%
-  * &#10060; Upload: 0%
-
-* &#10060; Storage: 0%
-* &#10060; Parental filter: 0%
-* &#10134; PVR
-  * &#10060; Programmed records: 0%
-  * &#10060; Finished records: 0%
-  * &#10060; Storage media: 0%
-
-## Roadmap
-
-* Speedtest metrics
-* Provide systemd registration
-* Publish to crates.io (cargo install)
+## Enhancements
 
 You can suggest your ideas in [discussion section](https://github.com/shackerd/freebox-exporter-rs/discussions/categories/ideas)
 
 ## Usage
 
-This project uses `clap` crate you will find usage by using the following command `freebox-exporter-rs -h`
+You will find usage by using the following command `freebox-exporter-rs -h`
 
 ``` text
 Usage: freebox-exporter-rs [OPTIONS] <COMMAND>
