@@ -1,10 +1,12 @@
 use crate::core::common::{
     http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError,
 };
+use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use core::str;
 use hmac::{Hmac, Mac};
 use log::{debug, error, info, warn};
+use mockall::automock;
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use std::{path::Path, sync::Arc, thread, time::Duration};
@@ -229,26 +231,36 @@ impl SessionTokenProvider {
 
 pub struct Authenticator {
     api_url: String,
-    token_file: String,
+    token_store: Box<dyn TokenStorage>,
 }
 
-impl Authenticator {
-    pub fn new(api_url: String, data_dir: String) -> Self {
-        Self {
-            api_url,
-            token_file: Authenticator::get_token_file_path(data_dir.to_owned()),
-        }
+#[automock]
+#[async_trait]
+pub trait TokenStorage {
+    async fn store(&self, token: String) -> Result<(), Box<dyn std::error::Error + Send>>;
+    async fn get(&self) -> Result<String, Box<dyn std::error::Error + Send>>;
+}
+
+pub struct FileStorage {
+    path: String,
+}
+
+impl FileStorage {
+    pub fn new(data_dir: String) -> Self {
+        let path = FileStorage::get_token_file_path(data_dir);
+        Self { path }
     }
 
-    fn get_token_file_path(data_dir: String) -> String {
+    pub fn get_token_file_path(data_dir: String) -> String {
         let sep = if cfg!(windows) { '\\' } else { '/' };
         format!("{}{}{}", data_dir, sep, "token.dat")
     }
+}
 
-    async fn store_app_token(&self, token: String) -> Result<(), Box<dyn std::error::Error>> {
-        debug!("storing APP_TOKEN");
-
-        let path = Path::new(self.token_file.as_str());
+#[async_trait]
+impl TokenStorage for FileStorage {
+    async fn store(&self, token: String) -> Result<(), Box<dyn std::error::Error + Send>> {
+        let path = Path::new(&self.path);
 
         if path.exists() {
             match std::fs::remove_file(path) {
@@ -281,17 +293,18 @@ impl Authenticator {
         Ok(())
     }
 
-    async fn load_app_token(&self) -> Result<String, Box<dyn std::error::Error + Send>> {
-        debug!("loading APP_TOKEN");
-
-        let path = Path::new(self.token_file.as_str());
+    async fn get(&self) -> Result<String, Box<dyn std::error::Error + Send>> {
+        let path = Path::new(self.path.as_str());
 
         if !path.exists() {
-            error!("token file does not exist {}, did you registered the application? See register command", self.token_file);
-            panic!("token file does not exist")
+            error!(
+                "file does not exist {}, did you registered the application? See register command",
+                self.path
+            );
+            panic!("file does not exist")
         }
 
-        let mut file = match File::open(self.token_file.as_str()).await {
+        let mut file = match File::open(&self.path).await {
             Err(e) => return Err(Box::new(e)),
             Ok(f) => f,
         };
@@ -310,10 +323,28 @@ impl Authenticator {
 
         Ok(token)
     }
+}
 
-    pub fn is_registered(&self) -> bool {
-        let path = Path::new(self.token_file.as_str());
-        path.exists()
+impl Authenticator {
+    pub fn new(api_url: String, store: Box<dyn TokenStorage>) -> Self {
+        Self {
+            api_url,
+            token_store: store,
+        }
+    }
+
+    pub async fn is_registered(&self) -> Result<bool, Box<dyn std::error::Error + Send>> {
+        let token = self.token_store.get().await;
+
+        if let Err(e) = token {
+            return Err(e);
+        }
+
+        let token = token?;
+
+        let path = Path::new(token.as_str());
+
+        Ok(path.exists())
     }
 
     pub async fn register(
@@ -325,7 +356,7 @@ impl Authenticator {
             Err(e) => return Err(e),
         };
 
-        match self.store_app_token(prompt_result.to_owned().app_token).await {
+        match self.token_store.store(prompt_result.to_owned().app_token).await {
             Err(_) => warn!("storing applicaton token failed, you can still save it by yourself (token.dat): {}", prompt_result.app_token),
             _ => {}
         }
@@ -353,7 +384,7 @@ impl Authenticator {
     ) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error + Send>> {
         debug!("login in");
 
-        let app_token = match self.load_app_token().await {
+        let app_token = match self.token_store.get().await {
             Err(e) => return Err(e),
             Ok(t) => t,
         };
@@ -513,7 +544,7 @@ impl Authenticator {
     }
 
     pub async fn diagnostic(&self, show_token: bool) -> Result<(), Box<dyn std::error::Error>> {
-        let app_token = match self.load_app_token().await {
+        let app_token = match self.token_store.get().await {
             Err(e) => return Err(e),
             Ok(t) => t,
         };
@@ -573,23 +604,52 @@ pub struct SessionResult {
 #[cfg(test)]
 mod tests {
 
-    use crate::{authenticator, discovery};
+    use crate::{authenticator, core::authenticator::MockTokenStorage, discovery};
+    use serde_json::json;
     use std::path::Path;
     use tokio::{
         fs::{self, File},
         io::AsyncWriteExt,
     };
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer,
+    };
 
     #[tokio::test]
     async fn register_test() {
-        let api_url = discovery::get_api_url("localhost:3001").await.unwrap();
+        let mock_server = MockServer::start().await;
+        let mut store_mock = MockTokenStorage::new();
+        store_mock.expect_store().times(1).returning(|_| Ok(()));
 
-        let authenticator = authenticator::Authenticator::new(api_url.to_owned(), "./".to_string());
+        let response = wiremock::ResponseTemplate::new(200).set_body_json(json!(
+            {"result": {"app_token": "foo.bar", "track_id": 1 }, "success": true}
+        ));
+
+        Mock::given(method("POST"))
+            .and(path("/api/v4/login/authorize"))
+            .respond_with(response)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/v4/login/authorize/1"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "result": { "status": "granted" }, "success": true,
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let api_url = format!("{}/api/", mock_server.uri());
+
+        println!("api_url: {api_url}");
+
+        let authenticator =
+            authenticator::Authenticator::new(api_url.to_owned(), Box::new(store_mock));
 
         match authenticator.register(1).await {
             Ok(_) => {}
             Err(e) => {
-                println!("Have you launched mockoon?");
                 println!("{e}:#?");
                 panic!();
             }
@@ -627,12 +687,16 @@ mod tests {
 
     #[tokio::test]
     async fn login_test() {
-        let api_url = discovery::get_api_url("localhost:3001").await.unwrap();
+        let api_url = discovery::get_api_url("localhost", 3001, true)
+            .await
+            .unwrap();
 
         let path = create_sample_token().await.unwrap();
 
-        let authenticator =
-            authenticator::Authenticator::new(api_url.to_owned(), "./test".to_string());
+        let authenticator = authenticator::Authenticator::new(
+            api_url.to_owned(),
+            Box::new(MockTokenStorage::new()),
+        );
 
         match authenticator.login().await {
             Ok(_) => {}

@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use core::{
-    authenticator,
+    authenticator::{self, FileStorage},
     configuration::{get_configuration, Configuration},
     discovery,
     prometheus::{self},
@@ -124,10 +124,14 @@ async fn auto_register_and_serve(
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
-        conf.core.data_directory.as_ref().unwrap().to_owned(),
+        Box::new(FileStorage::new(
+            conf.core.data_directory.as_ref().unwrap().to_owned(),
+        )),
     );
 
-    if authenticator.is_registered() {
+    let is_registered = authenticator.is_registered().await;
+
+    if is_registered.unwrap_or_default() {
         info!("application is already registered, logging in");
     } else {
         let res = authenticator.register(interval).await;
@@ -155,7 +159,7 @@ async fn get_api_url(conf: &Configuration) -> Result<String, Box<dyn std::error:
         .expect("Please specify freebox mode")
         .as_str()
     {
-        "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST).await {
+        "router" => match discovery::get_api_url(discovery::DEFAULT_FBX_HOST, 443, true).await {
             Err(e) => return Err(e),
             Ok(r) => r,
         },
@@ -181,8 +185,12 @@ async fn register(
 
     let api_url = res?;
 
-    let authenticator =
-        authenticator::Authenticator::new(api_url.to_owned(), conf.core.data_directory.unwrap());
+    let authenticator = authenticator::Authenticator::new(
+        api_url.to_owned(),
+        Box::new(FileStorage::new(
+            conf.core.data_directory.as_ref().unwrap().to_owned(),
+        )),
+    );
 
     authenticator.register(interval).await
 }
@@ -198,7 +206,9 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
-        conf.to_owned().core.data_directory.unwrap(),
+        Box::new(FileStorage::new(
+            conf.core.data_directory.as_ref().unwrap().to_owned(),
+        )),
     );
 
     let factory = match authenticator.login().await {
@@ -221,7 +231,9 @@ async fn session_diagnostic(
 
         let authenticator = authenticator::Authenticator::new(
             api_url.to_owned(),
-            conf.to_owned().core.data_directory.unwrap(),
+            Box::new(FileStorage::new(
+                conf.core.data_directory.as_ref().unwrap().to_owned(),
+            )),
         );
 
         authenticator.diagnostic(show_token).await?;
