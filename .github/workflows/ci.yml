@@ -19,16 +19,5 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
-    - name: mockoon-cli
-      # You may pin to the exact commit or the version.
-      # uses: mockoon/cli-action@971589e873f22f7c9604e4236d6dfae3164efa6c
-      uses: mockoon/cli-action@v2.0.0
-      with:
-        # Mockoon CLI version to pull from NPM
-        version: latest
-        # Mockoon CLI data file (local file or URL)
-        data-file: src/api-mock.json
-        # Mockoon CLI port
-        port: 3001
     - name: Run tests
       run: cargo test --verbose

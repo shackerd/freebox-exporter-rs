@@ -604,13 +604,8 @@ pub struct SessionResult {
 #[cfg(test)]
 mod tests {
 
-    use crate::{authenticator, core::authenticator::MockTokenStorage, discovery};
+    use crate::{authenticator, core::authenticator::MockTokenStorage};
     use serde_json::json;
-    use std::path::Path;
-    use tokio::{
-        fs::{self, File},
-        io::AsyncWriteExt,
-    };
     use wiremock::{
         matchers::{method, path},
         Mock, MockServer,
@@ -656,59 +651,42 @@ mod tests {
         };
     }
 
-    async fn create_sample_token() -> Result<&'static Path, Box<dyn std::error::Error>> {
-        let data_dir_path = Path::new("./test/");
-        let token_path = Path::new("./test/token.dat");
-
-        if !data_dir_path.exists() {
-            fs::create_dir(data_dir_path)
-                .await
-                .expect("cannot create test directory");
-        }
-
-        if token_path.exists() {
-            fs::remove_file(token_path)
-                .await
-                .expect("cannot remove sample token file");
-        }
-
-        let mut file = File::create(token_path)
-            .await
-            .expect("cannot create sample token file");
-        let content = "foo.bar";
-
-        file.write_all(content.as_bytes())
-            .await
-            .expect("cannot write to sample token file");
-        file.shutdown().await.unwrap();
-
-        Ok(token_path)
-    }
-
     #[tokio::test]
     async fn login_test() {
-        let api_url = discovery::get_api_url("localhost", 3001, true)
-            .await
-            .unwrap();
+        let mock_server = MockServer::start().await;
+        let mut store_mock = MockTokenStorage::new();
+        store_mock
+            .expect_get()
+            .times(1)
+            .returning(|| Ok("foo.bar".to_string()));
 
-        let path = create_sample_token().await.unwrap();
+        let api_url = format!("{}/api/", mock_server.uri());
 
-        let authenticator = authenticator::Authenticator::new(
-            api_url.to_owned(),
-            Box::new(MockTokenStorage::new()),
-        );
+        Mock::given(method("GET"))
+            .and(path("/api/v4/login/"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "result": { "challenge": "1234" }, "success": true,
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v4/login/session"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "result": { "session_token": "4321" }, "success": true,
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let authenticator =
+            authenticator::Authenticator::new(api_url.to_owned(), Box::new(store_mock));
 
         match authenticator.login().await {
             Ok(_) => {}
             Err(e) => {
-                println!("Have you launched mockoon?");
                 println!("{e}:#?");
                 panic!();
             }
         }
-
-        fs::remove_file(path)
-            .await
-            .expect("cannot cleanup sample token file");
     }
 }

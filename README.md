@@ -196,10 +196,7 @@ cargo run register
 
 ### Running tests
 
-> [!TIP]
-> This project uses [Mockoon](https://mockoon.com/) for API mocking, you need to install GUI or CLI and start it with `api-mock.json` file.
-
-Then run the following command.
+Run the following command.
 
 ``` bash
 cargo test
