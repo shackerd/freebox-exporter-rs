@@ -336,15 +336,7 @@ impl Authenticator {
     pub async fn is_registered(&self) -> Result<bool, Box<dyn std::error::Error + Send>> {
         let token = self.token_store.get().await;
 
-        if let Err(e) = token {
-            return Err(e);
-        }
-
-        let token = token?;
-
-        let path = Path::new(token.as_str());
-
-        Ok(path.exists())
+        Ok(token.is_ok())
     }
 
     pub async fn register(
@@ -554,7 +546,7 @@ impl Authenticator {
         let token_result = provider.login().await;
 
         if token_result.is_ok() && show_token {
-            println!("APP_TOKEN: {}", token_result.unwrap());
+            println!("SESSION_TOKEN: {}", token_result.unwrap());
         }
 
         Ok(())
