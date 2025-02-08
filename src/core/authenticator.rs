@@ -404,12 +404,13 @@ impl Authenticator {
         debug!("prompting for registration");
 
         let client = http_client_factory().unwrap();
+        let hostname = hostname::get().unwrap();
 
         let payload = PromptPayload::new(
             String::from("fr.freebox.prometheus.exporter"),
             String::from("Prometheus Exporter"),
             String::from("1.0.0.0"),
-            String::from("todo"),
+            String::from(hostname.to_str().unwrap()),
         );
 
         let resp = match (match client
