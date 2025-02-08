@@ -5,7 +5,10 @@ use core::{
     discovery,
     prometheus::{self},
 };
-use flexi_logger::FileSpec;
+use flexi_logger::{
+    filter::{self, LogLineFilter},
+    FileSpec,
+};
 use log::{error, info};
 use mappers::Mapper;
 use std::str::FromStr;
@@ -50,9 +53,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .as_str(),
     )?
+    .filter(Box::new(IgnoreReqwest))
     .log_to_file(specs)
     .write_mode(flexi_logger::WriteMode::BufferAndFlush)
-    .duplicate_to_stdout(flexi_logger::Duplicate::Info)
+    .duplicate_to_stdout(flexi_logger::Duplicate::Debug)
     .set_palette("b1;3;2;4;6".to_string())
     .cleanup_in_background_thread(true)
     .rotate(
@@ -82,6 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 error!("{e:#?}")
             }
         }
+
         Command::Revoke => {
             todo!()
         }
@@ -227,8 +232,6 @@ async fn session_diagnostic(
     show_token: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(api_url) = get_api_url(&conf).await {
-        info!("using api url: {api_url}");
-
         let authenticator = authenticator::Authenticator::new(
             api_url.to_owned(),
             Box::new(FileStorage::new(
@@ -280,4 +283,25 @@ enum Command {
         show_token: Option<bool>,
     },
     Revoke,
+}
+
+struct IgnoreReqwest;
+
+impl LogLineFilter for IgnoreReqwest {
+    fn write(
+        &self,
+        now: &mut flexi_logger::DeferredNow,
+        record: &log::Record,
+        log_line_writer: &dyn filter::LogLineWriter,
+    ) -> std::io::Result<()> {
+        if record
+            .module_path()
+            .unwrap_or_default()
+            .starts_with("reqwest")
+        {
+            return Ok(());
+        }
+
+        log_line_writer.write(now, record)
+    }
 }
