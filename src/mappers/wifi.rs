@@ -135,8 +135,8 @@ pub struct ChannelUsage {
     pub rx_busy_percent: Option<u8>,
 }
 
-pub struct WifiMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct WifiMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     history_ttl: Duration,
     busy_percent_gauge: IntGaugeVec,
     tx_percent_gauge: IntGaugeVec,
@@ -168,9 +168,9 @@ pub struct WifiMetricMap {
     channel_usage_gauge: IntGaugeVec,
 }
 
-impl WifiMetricMap {
+impl<'a> WifiMetricMap<'a> {
     pub fn new(
-        factory: AuthenticatedHttpClientFactory,
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
         prefix: String,
         history_ttl: Duration,
     ) -> Self {
@@ -405,7 +405,7 @@ impl WifiMetricMap {
     async fn set_channel_survey_history_gauges(
         &self,
         ap: &AccessPoint,
-    ) -> Result<(), Box<dyn std::error::Error + Send>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
         let ts = chrono::offset::Local::now().timestamp();
         let root_url = &self.factory.api_url;
@@ -480,7 +480,7 @@ impl WifiMetricMap {
     async fn get_stations(
         &self,
         ap: &AccessPoint,
-    ) -> Result<Vec<Station>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<Station>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -520,7 +520,7 @@ impl WifiMetricMap {
     async fn get_channel_usage(
         &self,
         ap: &AccessPoint,
-    ) -> Result<Vec<ChannelUsage>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<ChannelUsage>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -563,7 +563,7 @@ impl WifiMetricMap {
     async fn get_neighbors_access_points(
         &self,
         ap: &AccessPoint,
-    ) -> Result<Vec<NeighborsAccessPoint>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<NeighborsAccessPoint>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -606,7 +606,7 @@ impl WifiMetricMap {
 
     async fn get_access_point(
         &self,
-    ) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -646,7 +646,7 @@ impl WifiMetricMap {
         &self,
         stations: &[Station],
         ap: &AccessPoint,
-    ) -> Result<(), Box<dyn std::error::Error + Send>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for station in stations.iter() {
             let last_rx = station.last_rx.as_ref().unwrap();
             let last_tx = station.last_tx.as_ref().unwrap();
@@ -845,7 +845,7 @@ impl WifiMetricMap {
     pub fn set_neighbors_access_points(
         &self,
         neighbors: &[NeighborsAccessPoint],
-    ) -> Result<(), Box<dyn std::error::Error + Send>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for neighbor in neighbors.iter() {
             let capabilities = neighbor.capabilities.as_ref().unwrap();
             let channel = neighbor.channel.unwrap_or(0);
@@ -885,7 +885,7 @@ impl WifiMetricMap {
     fn set_channel_usage_gauges(
         &self,
         channel_usage: &[ChannelUsage],
-    ) -> Result<(), Box<dyn std::error::Error + Send>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for usage in channel_usage.iter() {
             let band = usage.band.to_owned().unwrap_or("unknown".to_string());
             let noise_level = usage.noise_level.unwrap_or(i8::MIN);
@@ -900,7 +900,7 @@ impl WifiMetricMap {
         Ok(())
     }
 
-    pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send>> {
+    pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
         let aps = self.get_access_point().await;
         if let Err(e) = aps {
@@ -947,12 +947,12 @@ impl WifiMetricMap {
 }
 
 #[async_trait]
-impl MetricMap for WifiMetricMap {
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+impl<'a> MetricMap<'a> for WifiMetricMap<'a> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = self.set_all().await {
             return Err(e);
         }

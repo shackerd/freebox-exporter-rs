@@ -103,15 +103,15 @@ impl DhcpLease for DynamicDhcpLease {
     }
 }
 
-pub struct DhcpMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct DhcpMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     lease_remaining_gauge: IntGaugeVec,
     refresh_time_gauge: IntGaugeVec,
     assign_time_gauge: IntGaugeVec,
 }
 
-impl DhcpMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+impl<'a> DhcpMetricMap<'a> {
+    pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         let prfx: String = format!("{prefix}_dhcp");
 
         Self {
@@ -141,7 +141,7 @@ impl DhcpMetricMap {
 
     async fn fetch_dhcp_static_leases(
         &self,
-    ) -> Result<Vec<StaticDhcpLease>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<StaticDhcpLease>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -176,7 +176,7 @@ impl DhcpMetricMap {
 
     async fn fetch_dhcp_dynamic_leases(
         &self,
-    ) -> Result<Vec<DynamicDhcpLease>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<DynamicDhcpLease>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.factory.create_client().await?;
 
         let res = client
@@ -211,7 +211,7 @@ impl DhcpMetricMap {
 
     async fn fetch_dhcp_leases(
         &self,
-    ) -> Result<Vec<Box<dyn DhcpLease>>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<Box<dyn DhcpLease>>, Box<dyn std::error::Error + Send + Sync>> {
         let mut leases: Vec<Box<dyn DhcpLease>> = vec![];
 
         let dyn_leases = self.fetch_dhcp_dynamic_leases().await;
@@ -241,7 +241,7 @@ impl DhcpMetricMap {
         Ok(leases)
     }
 
-    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send>> {
+    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let leases = self.fetch_dhcp_leases().await;
 
         if let Err(e) = leases {
@@ -293,8 +293,8 @@ impl DhcpMetricMap {
 }
 
 #[async_trait]
-impl MetricMap for DhcpMetricMap {
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         self.reset_all();
 
         if let Err(e) = self.set_all().await {
@@ -304,7 +304,7 @@ impl MetricMap for DhcpMetricMap {
         Ok(())
     }
 
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Initialize any necessary state or metrics
         Ok(())
     }

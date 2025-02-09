@@ -26,8 +26,8 @@ pub struct SystemConfig {
     pub firmware_version: Option<String>,
 }
 
-pub struct SystemMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct SystemMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
     temp_cpub_metric: IntGauge,
@@ -43,8 +43,8 @@ pub struct SystemMetricMap {
     firmware_version_metric: IntGaugeVec,
 }
 
-impl SystemMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+impl<'a> SystemMetricMap<'a> {
+    pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         Self {
             factory,
             mac_metric: register_int_gauge_vec!(
@@ -128,7 +128,7 @@ impl SystemMetricMap {
         }
     }
 
-    async fn set_system_config(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_system_config(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching system config");
 
         let body = self
@@ -198,12 +198,12 @@ impl SystemMetricMap {
 }
 
 #[async_trait]
-impl MetricMap for SystemMetricMap {
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+impl<'a> MetricMap<'a> for SystemMetricMap<'a> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self.set_system_config().await {
             Err(e) => return Err(e),
             _ => {}

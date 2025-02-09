@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use core::{
-    authenticator::{self, FileStorage},
+    authenticator::{self, app_token_storage::FileStorage},
     configuration::{get_configuration, Configuration},
     discovery,
     prometheus::{self},
@@ -19,16 +19,16 @@ const DEFAULT_CONF_FILE: &str = "config.toml";
 const DEFAULT_LOG_LEVEL: &str = "Info";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli = Cli::parse();
 
     let conf_path: &str = &cli
         .configuration_file
         .unwrap_or(DEFAULT_CONF_FILE.to_string());
 
-    let conf = get_configuration(conf_path.to_string()).await?;
+    let conf = get_configuration(conf_path.to_string()).await.unwrap();
 
-    conf.assert_data_dir_permissions()?;
+    conf.assert_data_dir_permissions().unwrap();
     conf.assert_metrics_prefix_is_not_empty()
         .expect("metrics prefix cannot be empty");
 
@@ -52,7 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap(),
             )
             .as_str(),
-    )?
+    )
+    .unwrap()
     .filter(Box::new(IgnoreReqwest))
     .log_to_file(specs)
     .write_mode(flexi_logger::WriteMode::BufferAndFlush)
@@ -64,7 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         flexi_logger::Naming::TimestampsDirect,
         flexi_logger::Cleanup::KeepCompressedFiles(conf.log.retention.unwrap_or_else(|| 31)),
     )
-    .start()?;
+    .start()
+    .unwrap();
 
     info!(
         "freebox exporter: {version}",
@@ -118,7 +120,7 @@ async fn auto_register_and_serve(
     conf: &Configuration,
     interval: u64,
     port: u16,
-) -> Result<(), Box<dyn std::error::Error + Send>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let res = get_api_url(conf).await;
 
     if let Err(e) = res {
@@ -150,13 +152,15 @@ async fn auto_register_and_serve(
         Ok(r) => r,
     };
 
-    let mapper = Mapper::new(factory, conf.to_owned().metrics, conf.to_owned().api);
+    let mapper = Mapper::new(&factory, conf.to_owned().metrics, conf.to_owned().api);
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await
 }
 
-async fn get_api_url(conf: &Configuration) -> Result<String, Box<dyn std::error::Error + Send>> {
+async fn get_api_url(
+    conf: &Configuration,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let api_url = match conf
         .api
         .mode
@@ -181,7 +185,7 @@ async fn get_api_url(conf: &Configuration) -> Result<String, Box<dyn std::error:
 async fn register(
     conf: Configuration,
     interval: u64,
-) -> Result<(), Box<dyn std::error::Error + Send>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let res = get_api_url(&conf).await;
 
     if let Err(e) = res {
@@ -200,7 +204,10 @@ async fn register(
     authenticator.register(interval).await
 }
 
-async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error::Error + Send>> {
+async fn serve(
+    conf: Configuration,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let res = get_api_url(&conf).await;
 
     if let Err(e) = res {
@@ -221,7 +228,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
         Ok(r) => r,
     };
 
-    let mapper = Mapper::new(factory, conf.to_owned().metrics, conf.to_owned().api);
+    let mapper = Mapper::new(&factory, conf.to_owned().metrics, conf.to_owned().api);
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await
@@ -230,7 +237,7 @@ async fn serve(conf: Configuration, port: u16) -> Result<(), Box<dyn std::error:
 async fn session_diagnostic(
     conf: Configuration,
     show_token: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if let Ok(api_url) = get_api_url(&conf).await {
         let authenticator = authenticator::Authenticator::new(
             api_url.to_owned(),

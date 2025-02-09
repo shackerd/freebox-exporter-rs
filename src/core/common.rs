@@ -3,7 +3,8 @@ use reqwest::{
     Client,
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
+use tokio::sync::Mutex;
 
 use super::authenticator::SessionTokenProvider;
 
@@ -45,27 +46,29 @@ impl Default for Permissions {
 }
 
 #[derive(Clone)]
-pub struct AuthenticatedHttpClientFactory {
+pub struct AuthenticatedHttpClientFactory<'a> {
     pub api_url: String,
-    token_provider: SessionTokenProvider,
+    token_provider: Arc<Mutex<SessionTokenProvider<'a>>>,
 }
 
-impl AuthenticatedHttpClientFactory {
+impl<'a> AuthenticatedHttpClientFactory<'a> {
     /// Create a new factory with the API URL and the session token provider.
-    pub fn new(api_url: String, token_provider: SessionTokenProvider) -> Self {
+    pub fn new(api_url: String, token_provider: SessionTokenProvider<'a>) -> Self {
         Self {
             api_url,
-            token_provider,
+            token_provider: Arc::new(Mutex::new(token_provider)),
         }
     }
 
     /// Create a new HTTP client with the session token.
     ///
     /// Remark: Session token is automatically fetched.
-    pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error + Send>> {
+    pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error + Sync + Send>> {
         let mut headers = HeaderMap::new();
 
-        let session_token = match self.token_provider.get().await {
+        let provider_guard = self.token_provider.lock().await;
+
+        let session_token = match provider_guard.get().await {
             Err(e) => return Err(e),
             Ok(t) => t,
         };

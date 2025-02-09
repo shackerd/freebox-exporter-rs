@@ -4,14 +4,14 @@ use log::debug;
 
 use crate::mappers::Mapper;
 
-pub struct Server {
+pub struct Server<'a> {
     port: u16,
     refresh_interval: u64,
-    mapper: Mapper,
+    mapper: Mapper<'a>,
 }
 
-impl Server {
-    pub fn new(port: u16, refresh_interval: u64, mapper: Mapper) -> Self {
+impl<'a> Server<'a> {
+    pub fn new(port: u16, refresh_interval: u64, mapper: Mapper<'a>) -> Self {
         Self {
             port,
             refresh_interval,
@@ -19,7 +19,7 @@ impl Server {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send>> {
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("initiating prometheus server");
 
         let addr_raw = format!("0.0.0.0:{}", self.port);

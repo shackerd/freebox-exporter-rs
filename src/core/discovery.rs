@@ -21,7 +21,7 @@ pub async fn get_api_url(
     host: &str,
     port: u16,
     use_ssl: bool,
-) -> Result<String, Box<dyn std::error::Error + Send>> {
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let client = http_client_factory().unwrap();
 
     let protocol = if use_ssl { "https" } else { "http" };
