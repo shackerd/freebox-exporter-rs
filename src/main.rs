@@ -65,6 +65,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         flexi_logger::Naming::TimestampsDirect,
         flexi_logger::Cleanup::KeepCompressedFiles(conf.log.retention.unwrap_or_else(|| 31)),
     )
+    .format_for_files(flexi_logger::detailed_format)
+    .format_for_stdout(flexi_logger::detailed_format)
+    .format_for_stderr(flexi_logger::detailed_format)
     .start()
     .unwrap();
 
