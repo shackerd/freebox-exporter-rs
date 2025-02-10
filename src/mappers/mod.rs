@@ -9,7 +9,7 @@ use system::SystemMetricMap;
 
 use crate::core::{
     common::http_client_factory::AuthenticatedHttpClientFactory,
-    configuration::{ApiConfiguration, MetricsConfiguration},
+    configuration::sections::{ApiConfiguration, MetricsConfiguration},
 };
 
 pub mod connection;
