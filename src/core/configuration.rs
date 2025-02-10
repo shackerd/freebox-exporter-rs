@@ -93,6 +93,10 @@ pub async fn get_configuration(
 
     match toml::from_str::<Configuration>(&result) {
         Ok(c) => {
+            if let Err(e) = assert_configuration_is_valid(&c) {
+                return Err(e);
+            }
+
             return Ok(c);
         }
         Err(e) => {
@@ -100,6 +104,31 @@ pub async fn get_configuration(
             panic!("Configuration file is corrupted");
         }
     }
+}
+
+fn assert_configuration_is_valid(
+    c: &Configuration,
+) -> Result<Configuration, Box<dyn std::error::Error + Send + Sync>> {
+    let permissions = c.assert_data_dir_permissions();
+
+    if let Err(e) = permissions {
+        println!("{e:#?}");
+        return Err("data dir does not exist or access is denied".into());
+    }
+    let prefix = c.assert_metrics_prefix_is_not_empty();
+
+    if let Err(e) = prefix {
+        println!("{e:#?}");
+        return Err("metrics prefix cannot be empty".into());
+    }
+
+    let data_dir = c.core.data_directory.to_owned();
+
+    if data_dir.is_none() {
+        return Err("data directory is missing in configuration file".into());
+    }
+
+    Ok(c.to_owned())
 }
 
 #[cfg(test)]

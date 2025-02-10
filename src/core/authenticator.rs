@@ -248,9 +248,8 @@ impl Authenticator {
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        authenticator,
-        core::authenticator::application_token_provider::MockApplicationTokenProvider,
+    use crate::core::authenticator::{
+        self, application_token_provider::MockApplicationTokenProvider,
     };
     use serde_json::json;
     use wiremock::{

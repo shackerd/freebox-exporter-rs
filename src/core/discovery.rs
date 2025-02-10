@@ -76,7 +76,7 @@ mod tests {
         Mock, MockServer,
     };
 
-    use crate::discovery;
+    use crate::core::discovery;
 
     #[tokio::test]
     async fn get_api_url_test() {
