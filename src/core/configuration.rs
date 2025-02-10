@@ -34,12 +34,6 @@ pub struct MetricsConfiguration {
     pub switch: Option<bool>,
     pub wifi: Option<bool>,
     pub dhcp: Option<bool>,
-    // pub contacts: Option<bool>,
-    // pub calls: Option<bool>,
-    // pub explorer: Option<bool>,
-    // pub downloader: Option<bool>,
-    // pub parental: Option<bool>,
-    // pub pvr: Option<bool>,
     pub prefix: Option<String>,
 }
 
@@ -189,12 +183,6 @@ retention = 31";
         assert_eq!(true, conf.metrics.switch.unwrap());
         assert_eq!(true, conf.metrics.wifi.unwrap());
         assert_eq!(false, conf.metrics.system.unwrap());
-        // assert_eq!(true, conf.metrics.contacts.unwrap());
-        // assert_eq!(true, conf.metrics.calls.unwrap());
-        // assert_eq!(true, conf.metrics.explorer.unwrap());
-        // assert_eq!(true, conf.metrics.downloader.unwrap());
-        // assert_eq!(true, conf.metrics.parental.unwrap());
-        // assert_eq!(true, conf.metrics.pvr.unwrap());
         assert_eq!("fbx", conf.metrics.prefix.unwrap());
 
         assert_eq!(".".to_string(), conf.core.data_directory.unwrap());
@@ -219,13 +207,7 @@ retention = 31";
                 retention: None,
             },
             metrics: MetricsConfiguration {
-                // calls: None,
                 connection: None,
-                // contacts: None,
-                // downloader: None,
-                // explorer: None,
-                // parental: None,
-                // pvr: None,
                 system: None,
                 prefix: None,
                 lan_browser: None,
@@ -250,13 +232,7 @@ retention = 31";
                 retention: None,
             },
             metrics: MetricsConfiguration {
-                // calls: None,
                 connection: None,
-                // contacts: None,
-                // downloader: None,
-                // explorer: None,
-                // parental: None,
-                // pvr: None,
                 system: None,
                 prefix: None,
                 lan_browser: None,
@@ -281,13 +257,7 @@ retention = 31";
                 retention: None,
             },
             metrics: MetricsConfiguration {
-                // calls: None,
                 connection: None,
-                // contacts: None,
-                // downloader: None,
-                // explorer: None,
-                // parental: None,
-                // pvr: None,
                 system: None,
                 prefix: None,
                 lan_browser: None,
@@ -319,13 +289,7 @@ retention = 31";
                 retention: None,
             },
             metrics: MetricsConfiguration {
-                // calls: None,
                 connection: None,
-                // contacts: None,
-                // downloader: None,
-                // explorer: None,
-                // parental: None,
-                // pvr: None,
                 system: None,
                 prefix: None,
                 lan_browser: None,
@@ -350,13 +314,7 @@ retention = 31";
                 retention: None,
             },
             metrics: MetricsConfiguration {
-                // calls: None,
                 connection: None,
-                // contacts: None,
-                // downloader: None,
-                // explorer: None,
-                // parental: None,
-                // pvr: None,
                 system: None,
                 prefix: Some(" ".to_string()),
                 lan_browser: None,
@@ -381,13 +339,7 @@ retention = 31";
                 retention: None,
             },
             metrics: MetricsConfiguration {
-                // calls: None,
                 connection: None,
-                // contacts: None,
-                // downloader: None,
-                // explorer: None,
-                // parental: None,
-                // pvr: None,
                 system: None,
                 prefix: Some("fbx_exporter".to_string()),
                 lan_browser: None,

@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse};
+use crate::core::common::http_client_factory::AuthenticatedHttpClientFactory;
+use crate::core::common::transport::FreeboxResponse;
 use crate::mappers::MetricMap;
 
 #[derive(Debug, Deserialize, Clone)]

@@ -1,13 +1,14 @@
 use crate::core::common::{
-    http_client_factory, AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError,
+    http_client_factory::http_client_factory,
+    transport::{FreeboxResponse, FreeboxResponseError},
 };
-use app_token_storage::ApplicationTokenStorage;
+use application_token_provider::ApplicationTokenProvider;
 use authentication_error::AuthenticationError;
 use common::AuthorizationResult;
 use log::{debug, error, info, warn};
 use std::{thread, time::Duration};
 
-pub mod app_token_storage;
+pub mod application_token_provider;
 pub mod authentication_error;
 pub mod common;
 pub mod prompt;
@@ -15,13 +16,15 @@ pub mod session_token_provider;
 pub use prompt::{PromptPayload, PromptResult};
 pub use session_token_provider::SessionTokenProvider;
 
+use super::common::http_client_factory::AuthenticatedHttpClientFactory;
+
 pub struct Authenticator {
     api_url: String,
-    token_store: Box<dyn ApplicationTokenStorage>,
+    token_store: Box<dyn ApplicationTokenProvider>,
 }
 
 impl Authenticator {
-    pub fn new(api_url: String, store: Box<dyn ApplicationTokenStorage>) -> Self {
+    pub fn new(api_url: String, store: Box<dyn ApplicationTokenProvider>) -> Self {
         Self {
             api_url,
             token_store: store,
@@ -246,7 +249,8 @@ impl Authenticator {
 mod tests {
 
     use crate::{
-        authenticator, core::authenticator::app_token_storage::MockApplicationTokenStorage,
+        authenticator,
+        core::authenticator::application_token_provider::MockApplicationTokenProvider,
     };
     use serde_json::json;
     use wiremock::{
@@ -257,7 +261,7 @@ mod tests {
     #[tokio::test]
     async fn register_test() {
         let mock_server = MockServer::start().await;
-        let mut store_mock = MockApplicationTokenStorage::new();
+        let mut store_mock = MockApplicationTokenProvider::new();
         store_mock.expect_store().times(1).returning(|_| Ok(()));
 
         let response = wiremock::ResponseTemplate::new(200).set_body_json(json!(
@@ -297,7 +301,7 @@ mod tests {
     #[tokio::test]
     async fn login_test() {
         let mock_server = MockServer::start().await;
-        let mut store_mock = MockApplicationTokenStorage::new();
+        let mut store_mock = MockApplicationTokenProvider::new();
         store_mock
             .expect_get()
             .times(1)

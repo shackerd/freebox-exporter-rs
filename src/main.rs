@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use core::{
-    authenticator::{self, app_token_storage::FileStorage},
+    authenticator::{self, application_token_provider::FileSystemProvider},
     configuration::{get_configuration, Configuration},
     discovery,
     prometheus::{self},
@@ -131,7 +131,7 @@ async fn auto_register_and_serve(
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
-        Box::new(FileStorage::new(
+        Box::new(FileSystemProvider::new(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
     );
@@ -196,7 +196,7 @@ async fn register(
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
-        Box::new(FileStorage::new(
+        Box::new(FileSystemProvider::new(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
     );
@@ -218,7 +218,7 @@ async fn serve(
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
-        Box::new(FileStorage::new(
+        Box::new(FileSystemProvider::new(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
     );
@@ -241,7 +241,7 @@ async fn session_diagnostic(
     if let Ok(api_url) = get_api_url(&conf).await {
         let authenticator = authenticator::Authenticator::new(
             api_url.to_owned(),
-            Box::new(FileStorage::new(
+            Box::new(FileSystemProvider::new(
                 conf.core.data_directory.as_ref().unwrap().to_owned(),
             )),
         );

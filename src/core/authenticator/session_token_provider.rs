@@ -11,21 +11,24 @@ use crate::core::{
         authentication_error::AuthenticationError,
         common::{ChallengeResult, SessionPayload},
     },
-    common::{http_client_factory, FreeboxResponse, FreeboxResponseError},
+    common::{
+        http_client_factory::http_client_factory,
+        transport::{FreeboxResponse, FreeboxResponseError},
+    },
 };
 
-use super::{app_token_storage::ApplicationTokenStorage, common::SessionResult};
+use super::{application_token_provider::ApplicationTokenProvider, common::SessionResult};
 
 #[derive(Clone)]
 pub struct SessionTokenProvider<'a> {
     issued_on: Arc<Mutex<DateTime<Utc>>>,
     value: Arc<Mutex<String>>,
-    app_token_storage: Arc<Mutex<&'a Box<dyn ApplicationTokenStorage>>>,
+    app_token_storage: Arc<Mutex<&'a Box<dyn ApplicationTokenProvider>>>,
     api_url: String,
 }
 
 impl<'a> SessionTokenProvider<'a> {
-    pub fn new(app_token_storage: &'a Box<dyn ApplicationTokenStorage>, api_url: String) -> Self {
+    pub fn new(app_token_storage: &'a Box<dyn ApplicationTokenProvider>, api_url: String) -> Self {
         Self {
             issued_on: Arc::new(Mutex::new(
                 Utc.with_ymd_and_hms(01, 01, 01, 00, 00, 01).unwrap(),

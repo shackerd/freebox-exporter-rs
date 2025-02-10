@@ -8,7 +8,7 @@ use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 
 use crate::core::{
-    common::AuthenticatedHttpClientFactory,
+    common::http_client_factory::AuthenticatedHttpClientFactory,
     configuration::{ApiConfiguration, MetricsConfiguration},
 };
 

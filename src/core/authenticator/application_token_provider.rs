@@ -10,19 +10,19 @@ use tokio::{
 
 #[automock]
 #[async_trait]
-pub trait ApplicationTokenStorage: Send + Sync {
+pub trait ApplicationTokenProvider: Send + Sync {
     async fn store(&self, token: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn get(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 #[derive(Clone)]
-pub struct FileStorage {
+pub struct FileSystemProvider {
     path: String,
 }
 
-impl FileStorage {
+impl FileSystemProvider {
     pub fn new(data_dir: String) -> Self {
-        let path = FileStorage::get_token_file_path(data_dir);
+        let path = FileSystemProvider::get_token_file_path(data_dir);
         Self { path }
     }
 
@@ -33,7 +33,7 @@ impl FileStorage {
 }
 
 #[async_trait]
-impl ApplicationTokenStorage for FileStorage {
+impl ApplicationTokenProvider for FileSystemProvider {
     async fn store(&self, token: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let path = Path::new(&self.path);
 

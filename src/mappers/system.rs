@@ -5,7 +5,10 @@ use prometheus_exporter::prometheus::{
 };
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 
 use super::MetricMap;
 

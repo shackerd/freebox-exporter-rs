@@ -2,48 +2,12 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Client,
 };
-use serde::{Deserialize, Serialize};
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::authenticator::SessionTokenProvider;
+use crate::core::authenticator::SessionTokenProvider;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FreeboxResponse<T: Clone> {
-    pub msg: Option<String>,
-    pub success: Option<bool>,
-    pub uid: Option<String>,
-    pub error_code: Option<String>,
-    pub result: Option<T>,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-#[allow(unused)]
-pub struct Permissions {
-    pub connection: Option<bool>,
-    pub settings: Option<bool>,
-    pub contacts: Option<bool>,
-    pub calls: Option<bool>,
-    pub explorer: Option<bool>,
-    pub downloader: Option<bool>,
-    pub parental: Option<bool>,
-    pub pvr: Option<bool>,
-}
-
-impl Default for Permissions {
-    fn default() -> Self {
-        Self {
-            connection: Default::default(),
-            settings: Default::default(),
-            contacts: Default::default(),
-            calls: Default::default(),
-            explorer: Default::default(),
-            downloader: Default::default(),
-            parental: Default::default(),
-            pvr: Default::default(),
-        }
-    }
-}
+const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 
 #[derive(Clone)]
 pub struct AuthenticatedHttpClientFactory<'a> {
@@ -74,7 +38,7 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
         };
 
         headers.append(
-            "X-Fbx-App-Auth",
+            FBX_APP_AUTH_HEADER,
             HeaderValue::from_str(session_token.as_str()).unwrap(),
         );
 
@@ -107,22 +71,3 @@ pub fn http_client_factory() -> Result<Client, ()> {
         .expect("cannot create HTTP Client");
     Ok(client)
 }
-
-#[derive(Debug)]
-pub struct FreeboxResponseError {
-    pub reason: String,
-}
-
-impl FreeboxResponseError {
-    pub fn new(reason: String) -> Self {
-        Self { reason }
-    }
-}
-
-impl Display for FreeboxResponseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.reason)
-    }
-}
-
-impl std::error::Error for FreeboxResponseError {}

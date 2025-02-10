@@ -5,7 +5,10 @@ use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 
 use super::MetricMap;
 

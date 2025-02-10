@@ -5,7 +5,10 @@ use chrono::Duration;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use serde::{Deserialize, Serialize};
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 
 use super::MetricMap;
 
@@ -1027,7 +1030,7 @@ fn get_recent_channel_entries(
 mod tests_deserialize {
     use serde_json::from_str;
 
-    use crate::{core::common::FreeboxResponse, mappers::api_specs_provider::get_specs_data};
+    use crate::mappers::api_specs_provider::get_specs_data;
 
     use super::*;
 
