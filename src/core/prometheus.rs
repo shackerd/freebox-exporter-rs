@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use log::debug;
+use log::{debug, info};
 
 use crate::mappers::Mapper;
 
@@ -23,6 +23,8 @@ impl<'a> Server<'a> {
         debug!("initiating prometheus server");
 
         let addr_raw = format!("0.0.0.0:{}", self.port);
+
+        info!("starting http server on {}", addr_raw);
 
         let addr: SocketAddr = match addr_raw.parse() {
             Err(e) => return Err(Box::new(e)),

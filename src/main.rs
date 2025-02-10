@@ -304,11 +304,9 @@ impl LogLineFilter for IgnoreReqwest {
         record: &log::Record,
         log_line_writer: &dyn filter::LogLineWriter,
     ) -> std::io::Result<()> {
-        if record
-            .module_path()
-            .unwrap_or_default()
-            .starts_with("reqwest")
-        {
+        let path = record.module_path().unwrap_or_default();
+
+        if path.starts_with("reqwest") || path.starts_with("prometheus_exporter") {
             return Ok(());
         }
 
