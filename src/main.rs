@@ -2,7 +2,7 @@ use core::{
     cli::{Cli, Command},
     configuration::get_configuration,
     core::{auto_register_and_serve, register, serve, session_diagnostic},
-    logger::IgnoreReqwest,
+    logger::CustomLogFilter,
 };
 
 use clap::Parser;
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .as_str(),
     )
     .unwrap()
-    .filter(Box::new(IgnoreReqwest))
+    .filter(Box::new(CustomLogFilter))
     .log_to_file(specs)
     .write_mode(flexi_logger::WriteMode::BufferAndFlush)
     .duplicate_to_stdout(flexi_logger::Duplicate::Debug)

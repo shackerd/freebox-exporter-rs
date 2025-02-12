@@ -1,8 +1,8 @@
 use flexi_logger::filter::{self, LogLineFilter};
 
-pub struct IgnoreReqwest;
+pub struct CustomLogFilter;
 
-impl LogLineFilter for IgnoreReqwest {
+impl LogLineFilter for CustomLogFilter {
     fn write(
         &self,
         now: &mut flexi_logger::DeferredNow,
