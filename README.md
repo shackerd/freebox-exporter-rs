@@ -101,7 +101,7 @@ services:
     ports:
       - "9102:9102"
     restart: unless-stopped
-    command: ["/root/freebox-exporter-rs", "-c", "/etc/freebox-exporter-rs/config.toml" ,"serve"]
+    command: ["/root/freebox-exporter-rs", "-c", "/etc/freebox-exporter-rs/config.toml" ,"auto"]
 ```
 
 > [!IMPORTANT]
