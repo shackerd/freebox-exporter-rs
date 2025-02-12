@@ -3,7 +3,10 @@ use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 
 use super::MetricMap;
 
@@ -17,8 +20,8 @@ pub struct LanConfig {
     ip: Option<String>,
 }
 
-pub struct LanMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct LanMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     name_dns_metric: IntGaugeVec,
     name_mdns_metric: IntGaugeVec,
     name_metric: IntGaugeVec,
@@ -27,8 +30,8 @@ pub struct LanMetricMap {
     ip_metric: IntGaugeVec,
 }
 
-impl LanMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+impl<'a> LanMetricMap<'a> {
+    pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         let prfx = format!("{prefix}_lan_config");
         Self {
             factory,
@@ -67,7 +70,7 @@ impl LanMetricMap {
         }
     }
 
-    async fn set_lan_config(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_lan_config(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching lan config");
 
         let body = self
@@ -125,12 +128,12 @@ impl LanMetricMap {
 }
 
 #[async_trait]
-impl MetricMap for LanMetricMap {
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+impl<'a> MetricMap<'a> for LanMetricMap<'a> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = self.set_lan_config().await {
             return Err(e);
         };

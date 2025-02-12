@@ -5,7 +5,10 @@ use prometheus_exporter::prometheus::{
 };
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 
 use super::MetricMap;
 
@@ -65,8 +68,8 @@ pub struct ConnectionFtth {
     sfp_present: Option<bool>,
 }
 
-pub struct ConnectionMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct ConnectionMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     bytes_down_metric: IntGauge,
     bytes_up_metric: IntGauge,
     rate_down_metric: IntGauge,
@@ -102,8 +105,8 @@ pub struct ConnectionMetricMap {
     sfp_present_metric: IntGauge,
 }
 
-impl ConnectionMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+impl<'a> ConnectionMetricMap<'a> {
+    pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         Self {
             factory,
             bytes_down_metric: register_int_gauge!(
@@ -334,7 +337,7 @@ impl ConnectionMetricMap {
         }
     }
 
-    async fn set_connection_ftth(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_connection_ftth(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ftth");
 
         let body = self
@@ -393,7 +396,7 @@ impl ConnectionMetricMap {
         Ok(())
     }
 
-    async fn set_connection_status(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_connection_status(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection status");
         let body = self
             .factory
@@ -460,7 +463,7 @@ impl ConnectionMetricMap {
         Ok(())
     }
 
-    async fn set_connection_conf(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_connection_conf(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection configuration");
 
         let body = self
@@ -517,7 +520,9 @@ impl ConnectionMetricMap {
         Ok(())
     }
 
-    async fn set_connection_ipv6_conf(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_connection_ipv6_conf(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ipv6 configuration");
 
         let body = self
@@ -571,12 +576,12 @@ impl ConnectionMetricMap {
 }
 
 #[async_trait]
-impl MetricMap for ConnectionMetricMap {
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = self.set_connection_status().await {
             return Err(e);
         }

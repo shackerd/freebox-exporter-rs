@@ -5,7 +5,10 @@ use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 
 use super::MetricMap;
 
@@ -57,8 +60,8 @@ pub struct SwitchPortHost {
     hostname: Option<String>,
 }
 
-pub struct SwitchMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct SwitchMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     rx_packets_rate_gauge: IntGaugeVec,
     rx_good_bytes_gauge: IntGaugeVec,
     rx_oversize_packets_gauge: IntGaugeVec,
@@ -94,8 +97,8 @@ pub struct SwitchMetricMap {
     port_mac_list_gauge: IntGaugeVec,
 }
 
-impl SwitchMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+impl<'a> SwitchMetricMap<'a> {
+    pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         let prfx: String = format!("{prefix}_switch");
         let stats_prfx: String = format!("{prfx}_stats");
 
@@ -322,7 +325,9 @@ impl SwitchMetricMap {
         }
     }
 
-    async fn get_ports_status(&self) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error>> {
+    async fn get_ports_status(
+        &self,
+    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching switch ports statuses");
 
         let body = self
@@ -362,7 +367,9 @@ impl SwitchMetricMap {
         Ok(statuses)
     }
 
-    fn handle_malformed_mac_list(res: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn handle_malformed_mac_list(
+        res: &str,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let fixed_results = REG_MAC.replace_all(res, r#""mac_list":[]"#).to_string();
         Ok(fixed_results)
     }
@@ -370,7 +377,7 @@ impl SwitchMetricMap {
     async fn get_port_stats(
         &self,
         port_status: &SwitchPortStatus,
-    ) -> Result<SwitchPortStats, Box<dyn std::error::Error>> {
+    ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching switch ports stats");
 
         let port_id = port_status.id.unwrap_or_default();
@@ -447,7 +454,7 @@ impl SwitchMetricMap {
         self.port_mac_list_gauge.reset();
     }
 
-    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
 
         let port_statuses = match self.get_ports_status().await {
@@ -610,12 +617,12 @@ impl SwitchMetricMap {
 }
 
 #[async_trait]
-impl MetricMap for SwitchMetricMap {
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = self.set_all().await {
             return Err(e);
         }

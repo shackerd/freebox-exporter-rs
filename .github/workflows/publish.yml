@@ -143,12 +143,6 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           args: "--locked --release"
           strip: true
-      - name: mockoon-cli
-        uses: mockoon/cli-action@v2.0.0
-        with:
-            version: latest
-            data-file: src/api-mock.json
-            port: 3001
       - name: Run tests
         uses: houseabsolute/actions-rust-cross@v0
         with:

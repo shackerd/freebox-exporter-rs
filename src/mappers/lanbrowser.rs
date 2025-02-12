@@ -1,5 +1,8 @@
 use super::MetricMap;
-use crate::core::common::{AuthenticatedHttpClientFactory, FreeboxResponse, FreeboxResponseError};
+use crate::core::common::{
+    http_client_factory::AuthenticatedHttpClientFactory,
+    transport::{FreeboxResponse, FreeboxResponseError},
+};
 use async_trait::async_trait;
 use log::{debug, error};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
@@ -48,8 +51,8 @@ pub struct LanHostL3Connectivity {
     // pub last_time_reachable: Option<i64>,
 }
 
-pub struct LanBrowserMetricMap {
-    factory: AuthenticatedHttpClientFactory,
+pub struct LanBrowserMetricMap<'a> {
+    factory: &'a AuthenticatedHttpClientFactory<'a>,
     device_gauge: IntGaugeVec,
     device_l3_connectivity_gauge: IntGaugeVec,
     device_last_activity: IntGaugeVec,
@@ -57,8 +60,8 @@ pub struct LanBrowserMetricMap {
     iface_gauge: IntGaugeVec,
 }
 
-impl LanBrowserMetricMap {
-    pub fn new(factory: AuthenticatedHttpClientFactory, prefix: String) -> Self {
+impl<'a> LanBrowserMetricMap<'a> {
+    pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         let prfx = format!("{prefix}_lan_browser");
 
         Self {
@@ -108,7 +111,7 @@ impl LanBrowserMetricMap {
     async fn get_devices(
         &self,
         interface: &LanBrowserInterface,
-    ) -> Result<Vec<LanHost>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<LanHost>, Box<dyn std::error::Error + Send + Sync>> {
         let iface = interface.name.as_ref().unwrap();
 
         debug!("fetching {} interface devices", iface);
@@ -146,7 +149,9 @@ impl LanBrowserMetricMap {
         }
     }
 
-    async fn get_ifaces(&self) -> Result<Vec<LanBrowserInterface>, Box<dyn std::error::Error>> {
+    async fn get_ifaces(
+        &self,
+    ) -> Result<Vec<LanBrowserInterface>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching ifaces & devices");
 
         let body = self
@@ -187,7 +192,7 @@ impl LanBrowserMetricMap {
         self.iface_gauge.reset();
     }
 
-    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
 
         let ifaces = match self.get_ifaces().await {
@@ -266,23 +271,15 @@ impl LanBrowserMetricMap {
 
         Ok(())
     }
-
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
 }
 
 #[async_trait]
-impl MetricMap for LanBrowserMetricMap {
-    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        match self.init().await {
-            Err(e) => return Err(e),
-            _ => {}
-        };
+impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self.set_all().await {
             Err(e) => return Err(e),
             _ => {}
