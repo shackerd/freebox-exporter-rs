@@ -2,8 +2,6 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Client,
 };
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::core::authenticator::SessionTokenProvider;
 
@@ -12,7 +10,7 @@ const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 #[derive(Clone)]
 pub struct AuthenticatedHttpClientFactory<'a> {
     pub api_url: String,
-    token_provider: Arc<Mutex<SessionTokenProvider<'a>>>,
+    token_provider: SessionTokenProvider<'a>,
 }
 
 impl<'a> AuthenticatedHttpClientFactory<'a> {
@@ -20,7 +18,7 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
     pub fn new(api_url: String, token_provider: SessionTokenProvider<'a>) -> Self {
         Self {
             api_url,
-            token_provider: Arc::new(Mutex::new(token_provider)),
+            token_provider,
         }
     }
 
@@ -30,9 +28,7 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
     pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error + Sync + Send>> {
         let mut headers = HeaderMap::new();
 
-        let provider_guard = self.token_provider.lock().await;
-
-        let session_token = match provider_guard.get().await {
+        let session_token = match self.token_provider.get().await {
             Err(e) => return Err(e),
             Ok(t) => t,
         };
