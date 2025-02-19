@@ -23,7 +23,7 @@ use super::{application_token_provider::ApplicationTokenProvider, common::Sessio
 pub struct SessionTokenProvider<'a> {
     issued_on: Arc<Mutex<DateTime<Utc>>>,
     value: Arc<Mutex<String>>,
-    app_token_storage: Arc<Mutex<&'a Box<dyn ApplicationTokenProvider>>>,
+    app_token_storage: &'a Box<dyn ApplicationTokenProvider>,
     api_url: String,
 }
 
@@ -34,7 +34,7 @@ impl<'a> SessionTokenProvider<'a> {
                 Utc.with_ymd_and_hms(01, 01, 01, 00, 00, 01).unwrap(),
             )),
             value: Arc::new(Mutex::new(String::new())),
-            app_token_storage: Arc::new(Mutex::new(app_token_storage)),
+            app_token_storage,
             api_url,
         }
     }
@@ -65,9 +65,7 @@ impl<'a> SessionTokenProvider<'a> {
     pub async fn login(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         debug!("login in");
 
-        let storage_guard = self.app_token_storage.lock().await;
-
-        let token = storage_guard.get().await;
+        let token = self.app_token_storage.get().await;
 
         let token = token.as_ref().to_owned();
 

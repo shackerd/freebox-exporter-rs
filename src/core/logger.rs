@@ -11,7 +11,9 @@ impl LogLineFilter for CustomLogFilter {
     ) -> std::io::Result<()> {
         let path = record.module_path().unwrap_or_default();
 
-        if path.starts_with("reqwest") || path.starts_with("prometheus_exporter") {
+        if record.level() != log::Level::Debug
+            && (path.starts_with("reqwest") || path.starts_with("prometheus_exporter"))
+        {
             return Ok(());
         }
 
