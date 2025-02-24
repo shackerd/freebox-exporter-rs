@@ -12,7 +12,7 @@ clap = { version = "4.5.30", features = ["derive"] }
 flexi_logger = { version = "0.29.8", features = ["async", "specfile", "compress", "colors"]}
 hmac = { version = "0.12.1", features = ["std"] }
 lazy_static = "1.5.0"
-log = "0.4.22"
+log = "0.4.26"
 openssl = { version = "0.10.71", features = ["vendored"] }
 prometheus_exporter = "0.8.5"
 regex = "1.11.1"
