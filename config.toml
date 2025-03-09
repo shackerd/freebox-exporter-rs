@@ -53,6 +53,6 @@ port = 9102
 #   * "Info"    : Corresponds to the `Info` log level
 #   * "Debug"   : Corresponds to the `Debug` log level
 #   * "Trace"   : Corresponds to the `Trace` log level
-level = "Debug"
+level = "Info"
 # Specify how long application should keep compressed log files, value is in days
 retention = 31
