@@ -1,9 +1,6 @@
-use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use hmac::{Hmac, Mac};
 use log::{debug, error};
 use sha1::Sha1;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 type HmacSha1 = Hmac<Sha1>;
 
 use crate::core::{
@@ -21,51 +18,31 @@ use super::{application_token_provider::ApplicationTokenProvider, common::Sessio
 
 #[derive(Clone)]
 pub struct SessionTokenProvider<'a> {
-    issued_on: Arc<Mutex<DateTime<Utc>>>,
-    value: Arc<Mutex<String>>,
-    app_token_storage: &'a Box<dyn ApplicationTokenProvider>,
+    app_token_provider: &'a dyn ApplicationTokenProvider,
     api_url: String,
 }
 
 impl<'a> SessionTokenProvider<'a> {
-    pub fn new(app_token_storage: &'a Box<dyn ApplicationTokenProvider>, api_url: String) -> Self {
+    pub fn new(app_token_storage: &'a dyn ApplicationTokenProvider, api_url: String) -> Self {
         Self {
-            issued_on: Arc::new(Mutex::new(
-                Utc.with_ymd_and_hms(01, 01, 01, 00, 00, 01).unwrap(),
-            )),
-            value: Arc::new(Mutex::new(String::new())),
-            app_token_storage,
+            app_token_provider: app_token_storage,
             api_url,
         }
     }
 
     pub async fn get(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let duration = Utc::now() - *self.issued_on.lock().await;
+        let result = match self.login().await {
+            Err(e) => return Err(e),
+            Ok(r) => r,
+        };
 
-        if duration > TimeDelta::minutes(30) {
-            let mut issued_on_guard = self.issued_on.lock().await;
-
-            let mut token_guard = self.value.lock().await;
-
-            let result = match self.login().await {
-                Err(e) => return Err(e),
-                Ok(r) => r,
-            };
-
-            *issued_on_guard = Utc::now();
-
-            (*token_guard).clear();
-            (*token_guard).push_str(result.as_str());
-            return Ok(result);
-        }
-
-        Ok((*self.value.lock().await).clone())
+        Ok(result)
     }
 
     pub async fn login(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         debug!("login in");
 
-        let token = self.app_token_storage.get().await;
+        let token = self.app_token_provider.get().await;
 
         let token = token.as_ref().to_owned();
 

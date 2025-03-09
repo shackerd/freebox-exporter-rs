@@ -41,7 +41,7 @@ impl<'a> Mapper<'a> {
         if let Some(e) = conf.connection {
             if e {
                 maps.push(Box::new(ConnectionMetricMap::new(
-                    &factory,
+                    factory,
                     conf.prefix.to_owned().unwrap(),
                 )));
             }
@@ -53,7 +53,7 @@ impl<'a> Mapper<'a> {
         if let Some(e) = conf.system {
             if e {
                 maps.push(Box::new(SystemMetricMap::new(
-                    &factory,
+                    factory,
                     conf.prefix.to_owned().unwrap(),
                 )));
             }
@@ -66,7 +66,7 @@ impl<'a> Mapper<'a> {
         if let Some(e) = conf.lan {
             if e {
                 maps.push(Box::new(LanMetricMap::new(
-                    &factory,
+                    factory,
                     conf.prefix.to_owned().unwrap(),
                 )));
             }
@@ -79,7 +79,7 @@ impl<'a> Mapper<'a> {
                 let mode = api_conf.mode.unwrap_or_default();
                 if mode == "router" {
                     let lan_browser_map =
-                        LanBrowserMetricMap::new(&factory, conf.prefix.to_owned().unwrap());
+                        LanBrowserMetricMap::new(factory, conf.prefix.to_owned().unwrap());
                     maps.push(Box::new(lan_browser_map));
                 } else {
                     warn!("lan_browser is incompatible with this freebox mode ({}), the option has been disabled", mode);
@@ -92,7 +92,7 @@ impl<'a> Mapper<'a> {
         if let Some(e) = conf.switch {
             if e {
                 maps.push(Box::new(SwitchMetricMap::new(
-                    &factory,
+                    factory,
                     conf.prefix.to_owned().unwrap(),
                 )));
             }
@@ -105,7 +105,7 @@ impl<'a> Mapper<'a> {
         if let Some(e) = conf.wifi {
             if e {
                 let wifi_map = wifi::WifiMetricMap::new(
-                    &factory,
+                    factory,
                     conf.prefix.to_owned().unwrap(),
                     Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
                 );
@@ -118,7 +118,7 @@ impl<'a> Mapper<'a> {
         if let Some(e) = conf.dhcp {
             if e {
                 maps.push(Box::new(dhcp::DhcpMetricMap::new(
-                    &factory,
+                    factory,
                     conf.prefix.to_owned().unwrap(),
                 )));
             }

@@ -3,10 +3,11 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use reqwest::Client;
 use serde::Deserialize;
 
 use crate::core::common::{
-    http_client_factory::AuthenticatedHttpClientFactory,
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 
@@ -70,6 +71,7 @@ pub struct ConnectionFtth {
 
 pub struct ConnectionMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
+    managed_client: Option<ManagedHttpClient>,
     bytes_down_metric: IntGauge,
     bytes_up_metric: IntGauge,
     rate_down_metric: IntGauge,
@@ -109,6 +111,7 @@ impl<'a> ConnectionMetricMap<'a> {
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         Self {
             factory,
+            managed_client: None,
             bytes_down_metric: register_int_gauge!(
                 format!("{prefix}_connection_bytes_down"),
                 format!("{prefix}_connection_bytes_down")
@@ -337,12 +340,45 @@ impl<'a> ConnectionMetricMap<'a> {
         }
     }
 
-    async fn set_connection_ftth(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_managed_client(
+        &mut self,
+    ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+        if self.managed_client.as_ref().is_none() {
+            debug!("creating managed client");
+
+            let res = self.factory.create_managed_client().await;
+
+            if res.is_err() {
+                debug!("cannot create managed client");
+
+                return Err(res.err().unwrap());
+            }
+
+            self.managed_client = Some(res.unwrap());
+        }
+
+        let client = self.managed_client.as_ref().clone().unwrap();
+        let res = client.get();
+
+        if res.is_ok() {
+            return Ok(res.unwrap());
+        } else {
+            debug!("renewing managed client");
+
+            let client = self.factory.create_managed_client().await;
+            self.managed_client = Some(client.unwrap());
+
+            return self.managed_client.as_ref().unwrap().get();
+        }
+    }
+
+    async fn set_connection_ftth(
+        &mut self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ftth");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/connection/ftth", self.factory.api_url))
@@ -396,11 +432,12 @@ impl<'a> ConnectionMetricMap<'a> {
         Ok(())
     }
 
-    async fn set_connection_status(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_connection_status(
+        &mut self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection status");
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/connection", self.factory.api_url))
@@ -463,12 +500,13 @@ impl<'a> ConnectionMetricMap<'a> {
         Ok(())
     }
 
-    async fn set_connection_conf(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_connection_conf(
+        &mut self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection configuration");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/connection/config", self.factory.api_url))
@@ -521,13 +559,12 @@ impl<'a> ConnectionMetricMap<'a> {
     }
 
     async fn set_connection_ipv6_conf(
-        &self,
+        &mut self,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ipv6 configuration");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/connection/ipv6/config", self.factory.api_url))

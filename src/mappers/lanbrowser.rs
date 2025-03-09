@@ -1,11 +1,12 @@
 use super::MetricMap;
 use crate::core::common::{
-    http_client_factory::AuthenticatedHttpClientFactory,
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 use async_trait::async_trait;
 use log::{debug, error};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use reqwest::Client;
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -53,6 +54,7 @@ pub struct LanHostL3Connectivity {
 
 pub struct LanBrowserMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
+    managed_client: Option<ManagedHttpClient>,
     device_gauge: IntGaugeVec,
     device_l3_connectivity_gauge: IntGaugeVec,
     device_last_activity: IntGaugeVec,
@@ -66,6 +68,7 @@ impl<'a> LanBrowserMetricMap<'a> {
 
         Self {
             factory,
+            managed_client: None,
             device_gauge: register_int_gauge_vec!(
                 format!("{prfx}_device"),
                 "device, 1 for active",
@@ -109,7 +112,7 @@ impl<'a> LanBrowserMetricMap<'a> {
     }
 
     async fn get_devices(
-        &self,
+        &mut self,
         interface: &LanBrowserInterface,
     ) -> Result<Vec<LanHost>, Box<dyn std::error::Error + Send + Sync>> {
         let iface = interface.name.as_ref().unwrap();
@@ -117,8 +120,7 @@ impl<'a> LanBrowserMetricMap<'a> {
         debug!("fetching {} interface devices", iface);
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/lan/browser/{}", self.factory.api_url, iface))
@@ -149,14 +151,45 @@ impl<'a> LanBrowserMetricMap<'a> {
         }
     }
 
+    async fn get_managed_client(
+        &mut self,
+    ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+        if self.managed_client.as_ref().is_none() {
+            debug!("creating managed client");
+
+            let res = self.factory.create_managed_client().await;
+
+            if res.is_err() {
+                debug!("cannot create managed client");
+
+                return Err(res.err().unwrap());
+            }
+
+            self.managed_client = Some(res.unwrap());
+        }
+
+        let client = self.managed_client.as_ref().clone().unwrap();
+        let res = client.get();
+
+        if res.is_ok() {
+            return Ok(res.unwrap());
+        } else {
+            debug!("renewing managed client");
+
+            let client = self.factory.create_managed_client().await;
+            self.managed_client = Some(client.unwrap());
+
+            return self.managed_client.as_ref().unwrap().get();
+        }
+    }
+
     async fn get_ifaces(
-        &self,
+        &mut self,
     ) -> Result<Vec<LanBrowserInterface>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching ifaces & devices");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/lan/browser/interfaces", self.factory.api_url))
@@ -192,7 +225,7 @@ impl<'a> LanBrowserMetricMap<'a> {
         self.iface_gauge.reset();
     }
 
-    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
 
         let ifaces = match self.get_ifaces().await {

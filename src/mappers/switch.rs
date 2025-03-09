@@ -3,10 +3,11 @@ use lazy_static::lazy_static;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use regex::Regex;
+use reqwest::Client;
 use serde::Deserialize;
 
 use crate::core::common::{
-    http_client_factory::AuthenticatedHttpClientFactory,
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 
@@ -62,6 +63,7 @@ pub struct SwitchPortHost {
 
 pub struct SwitchMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
+    managed_client: Option<ManagedHttpClient>,
     rx_packets_rate_gauge: IntGaugeVec,
     rx_good_bytes_gauge: IntGaugeVec,
     rx_oversize_packets_gauge: IntGaugeVec,
@@ -104,6 +106,7 @@ impl<'a> SwitchMetricMap<'a> {
 
         Self {
             factory,
+            managed_client: None,
             rx_packets_rate_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_packets_rate"),
                 "rx packet rate",
@@ -325,14 +328,45 @@ impl<'a> SwitchMetricMap<'a> {
         }
     }
 
+    async fn get_managed_client(
+        &mut self,
+    ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+        if self.managed_client.as_ref().is_none() {
+            debug!("creating managed client");
+
+            let res = self.factory.create_managed_client().await;
+
+            if res.is_err() {
+                debug!("cannot create managed client");
+
+                return Err(res.err().unwrap());
+            }
+
+            self.managed_client = Some(res.unwrap());
+        }
+
+        let client = self.managed_client.as_ref().clone().unwrap();
+        let res = client.get();
+
+        if res.is_ok() {
+            return Ok(res.unwrap());
+        } else {
+            debug!("renewing managed client");
+
+            let client = self.factory.create_managed_client().await;
+            self.managed_client = Some(client.unwrap());
+
+            return self.managed_client.as_ref().unwrap().get();
+        }
+    }
+
     async fn get_ports_status(
-        &self,
+        &mut self,
     ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching switch ports statuses");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/switch/status/", self.factory.api_url))
@@ -375,7 +409,7 @@ impl<'a> SwitchMetricMap<'a> {
     }
 
     async fn get_port_stats(
-        &self,
+        &mut self,
         port_status: &SwitchPortStatus,
     ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching switch ports stats");
@@ -383,8 +417,7 @@ impl<'a> SwitchMetricMap<'a> {
         let port_id = port_status.id.unwrap_or_default();
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!(
@@ -454,7 +487,7 @@ impl<'a> SwitchMetricMap<'a> {
         self.port_mac_list_gauge.reset();
     }
 
-    async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
 
         let port_statuses = match self.get_ports_status().await {

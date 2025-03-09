@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use reqwest::Client;
 use serde::Deserialize;
 
 use crate::core::common::{
-    http_client_factory::AuthenticatedHttpClientFactory,
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 
@@ -22,6 +23,7 @@ pub struct LanConfig {
 
 pub struct LanMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
+    managed_client: Option<ManagedHttpClient>,
     name_dns_metric: IntGaugeVec,
     name_mdns_metric: IntGaugeVec,
     name_metric: IntGaugeVec,
@@ -35,6 +37,7 @@ impl<'a> LanMetricMap<'a> {
         let prfx = format!("{prefix}_lan_config");
         Self {
             factory,
+            managed_client: None,
             name_dns_metric: register_int_gauge_vec!(
                 format!("{prfx}_name_dns"),
                 format!("{prfx}_name_dns"),
@@ -70,12 +73,43 @@ impl<'a> LanMetricMap<'a> {
         }
     }
 
-    async fn set_lan_config(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_managed_client(
+        &mut self,
+    ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+        if self.managed_client.as_ref().is_none() {
+            debug!("creating managed client");
+
+            let res = self.factory.create_managed_client().await;
+
+            if res.is_err() {
+                debug!("cannot create managed client");
+
+                return Err(res.err().unwrap());
+            }
+
+            self.managed_client = Some(res.unwrap());
+        }
+
+        let client = self.managed_client.as_ref().clone().unwrap();
+        let res = client.get();
+
+        if res.is_ok() {
+            return Ok(res.unwrap());
+        } else {
+            debug!("renewing managed client");
+
+            let client = self.factory.create_managed_client().await;
+            self.managed_client = Some(client.unwrap());
+
+            return self.managed_client.as_ref().unwrap().get();
+        }
+    }
+
+    async fn set_lan_config(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching lan config");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/lan/config", self.factory.api_url))
