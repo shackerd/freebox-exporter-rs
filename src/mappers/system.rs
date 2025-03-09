@@ -3,10 +3,11 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use reqwest::Client;
 use serde::Deserialize;
 
 use crate::core::common::{
-    http_client_factory::AuthenticatedHttpClientFactory,
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 
@@ -31,6 +32,7 @@ pub struct SystemConfig {
 
 pub struct SystemMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
+    managed_client: Option<ManagedHttpClient>,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
     temp_cpub_metric: IntGauge,
@@ -50,6 +52,7 @@ impl<'a> SystemMetricMap<'a> {
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         Self {
             factory,
+            managed_client: None,
             mac_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_mac"),
                 format!("{prefix}_system_mac"),
@@ -131,12 +134,43 @@ impl<'a> SystemMetricMap<'a> {
         }
     }
 
-    async fn set_system_config(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_managed_client(
+        &mut self,
+    ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+        if self.managed_client.as_ref().is_none() {
+            debug!("creating managed client");
+
+            let res = self.factory.create_managed_client().await;
+
+            if res.is_err() {
+                debug!("cannot create managed client");
+
+                return Err(res.err().unwrap());
+            }
+
+            self.managed_client = Some(res.unwrap());
+        }
+
+        let client = self.managed_client.as_ref().clone().unwrap();
+        let res = client.get();
+
+        if res.is_ok() {
+            return Ok(res.unwrap());
+        } else {
+            debug!("renewing managed client");
+
+            let client = self.factory.create_managed_client().await;
+            self.managed_client = Some(client.unwrap());
+
+            return self.managed_client.as_ref().unwrap().get();
+        }
+    }
+
+    async fn set_system_config(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching system config");
 
         let body = self
-            .factory
-            .create_client()
+            .get_managed_client()
             .await
             .unwrap()
             .get(format!("{}v4/system", self.factory.api_url))

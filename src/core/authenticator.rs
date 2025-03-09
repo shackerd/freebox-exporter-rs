@@ -75,7 +75,7 @@ impl Authenticator {
     ) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error + Send + Sync>> {
         debug!("login in");
 
-        let provider = SessionTokenProvider::new(&self.token_store, self.api_url.clone());
+        let provider = SessionTokenProvider::new(self.token_store.as_ref(), self.api_url.clone());
 
         match provider.login().await {
             Ok(_) => Ok(AuthenticatedHttpClientFactory::new(
@@ -235,7 +235,7 @@ impl Authenticator {
         &self,
         show_token: bool,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let provider = SessionTokenProvider::new(&self.token_store, self.api_url.clone());
+        let provider = SessionTokenProvider::new(self.token_store.as_ref(), self.api_url.clone());
         let token_result = provider.login().await;
 
         if token_result.is_ok() && show_token {

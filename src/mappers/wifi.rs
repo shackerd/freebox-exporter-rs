@@ -2,11 +2,13 @@ use std::usize;
 
 use async_trait::async_trait;
 use chrono::Duration;
+use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::core::common::{
-    http_client_factory::AuthenticatedHttpClientFactory,
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 
@@ -140,6 +142,7 @@ pub struct ChannelUsage {
 
 pub struct WifiMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
+    managed_client: Option<ManagedHttpClient>,
     history_ttl: Duration,
     busy_percent_gauge: IntGaugeVec,
     tx_percent_gauge: IntGaugeVec,
@@ -180,6 +183,7 @@ impl<'a> WifiMetricMap<'a> {
         let prfx: String = format!("{prefix}_wifi");
         Self {
             factory,
+            managed_client: None,
             history_ttl,
             busy_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_busy_percent"),
@@ -405,11 +409,43 @@ impl<'a> WifiMetricMap<'a> {
         }
     }
 
+    async fn get_managed_client(
+        &mut self,
+    ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+        if self.managed_client.as_ref().is_none() {
+            debug!("creating managed client");
+
+            let res = self.factory.create_managed_client().await;
+
+            if res.is_err() {
+                debug!("cannot create managed client");
+
+                return Err(res.err().unwrap());
+            }
+
+            self.managed_client = Some(res.unwrap());
+        }
+
+        let client = self.managed_client.as_ref().clone().unwrap();
+        let res = client.get();
+
+        if res.is_ok() {
+            return Ok(res.unwrap());
+        } else {
+            debug!("renewing managed client");
+
+            let client = self.factory.create_managed_client().await;
+            self.managed_client = Some(client.unwrap());
+
+            return self.managed_client.as_ref().unwrap().get();
+        }
+    }
+
     async fn set_channel_survey_history_gauges(
-        &self,
+        &mut self,
         ap: &AccessPoint,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let client = self.factory.create_client().await?;
+        let client = self.get_managed_client().await?;
         let ts = chrono::offset::Local::now().timestamp();
         let root_url = &self.factory.api_url;
         let ap_id = ap.id.as_ref().unwrap().to_string();
@@ -481,10 +517,10 @@ impl<'a> WifiMetricMap<'a> {
     }
 
     async fn get_stations(
-        &self,
+        &mut self,
         ap: &AccessPoint,
     ) -> Result<Vec<Station>, Box<dyn std::error::Error + Send + Sync>> {
-        let client = self.factory.create_client().await?;
+        let client = self.get_managed_client().await?;
 
         let res = client
             .get(format!(
@@ -521,10 +557,10 @@ impl<'a> WifiMetricMap<'a> {
     }
 
     async fn get_channel_usage(
-        &self,
+        &mut self,
         ap: &AccessPoint,
     ) -> Result<Vec<ChannelUsage>, Box<dyn std::error::Error + Send + Sync>> {
-        let client = self.factory.create_client().await?;
+        let client = self.get_managed_client().await?;
 
         let res = client
             .get(format!(
@@ -564,10 +600,10 @@ impl<'a> WifiMetricMap<'a> {
     }
 
     async fn get_neighbors_access_points(
-        &self,
+        &mut self,
         ap: &AccessPoint,
     ) -> Result<Vec<NeighborsAccessPoint>, Box<dyn std::error::Error + Send + Sync>> {
-        let client = self.factory.create_client().await?;
+        let client = self.get_managed_client().await?;
 
         let res = client
             .get(format!(
@@ -608,9 +644,9 @@ impl<'a> WifiMetricMap<'a> {
     }
 
     async fn get_access_point(
-        &self,
+        &mut self,
     ) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error + Send + Sync>> {
-        let client = self.factory.create_client().await?;
+        let client = self.get_managed_client().await?;
 
         let res = client
             .get(format!("{}v4/wifi/ap", self.factory.api_url))
@@ -903,7 +939,7 @@ impl<'a> WifiMetricMap<'a> {
         Ok(())
     }
 
-    pub async fn set_all(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
         let aps = self.get_access_point().await;
         if let Err(e) = aps {

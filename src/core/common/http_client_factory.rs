@@ -1,3 +1,7 @@
+use std::{env, time::Duration};
+
+use chrono::{DateTime, TimeDelta, Utc};
+use log::debug;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Client,
@@ -11,7 +15,9 @@ const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 pub struct AuthenticatedHttpClientFactory<'a> {
     pub api_url: String,
     token_provider: SessionTokenProvider<'a>,
+    pub expiration: TimeDelta,
 }
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 impl<'a> AuthenticatedHttpClientFactory<'a> {
     /// Create a new factory with the API URL and the session token provider.
@@ -19,13 +25,30 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
         Self {
             api_url,
             token_provider,
+            expiration: TimeDelta::minutes(30),
         }
     }
 
-    /// Create a new HTTP client with the session token.
+    /// Creates a new managed HTTP client with the necessary headers and configurations.
     ///
-    /// Remark: Session token is automatically fetched.
-    pub async fn create_client(&self) -> Result<Client, Box<dyn std::error::Error + Sync + Send>> {
+    /// # Returns
+    ///
+    /// A `Result` containing a `ManagedHttpClient` on success, or a boxed error on failure.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the session token cannot be retrieved from the token provider.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let factory = AuthenticatedHttpClientFactory::new(api_url, token_provider);
+    /// let client = factory.create_managed_client().await?;
+    /// ```
+    pub async fn create_managed_client(
+        &self,
+    ) -> Result<ManagedHttpClient, Box<dyn std::error::Error + Sync + Send>> {
+        debug!("creating managed http client");
         let mut headers = HeaderMap::new();
 
         let session_token = match self.token_provider.get().await {
@@ -41,9 +64,12 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
         let client = reqwest::ClientBuilder::new()
             .danger_accept_invalid_certs(true)
             .default_headers(headers)
+            .tcp_keepalive(Duration::from_secs(self.expiration.num_seconds() as u64))
+            .user_agent(APP_USER_AGENT)
             .build()
             .expect("cannot create HTTP Client");
-        Ok(client)
+
+        Ok(ManagedHttpClient::new(client, self.expiration))
     }
 }
 
@@ -61,9 +87,56 @@ internal_error 	Internal error
  */
 
 pub fn http_client_factory() -> Result<Client, ()> {
+    debug!("creating HTTP client");
+
     let client = reqwest::ClientBuilder::new()
         .danger_accept_invalid_certs(true)
         .build()
         .expect("cannot create HTTP Client");
     Ok(client)
 }
+#[derive(Clone)]
+pub struct ManagedHttpClient {
+    client: Client,
+    expiry: DateTime<Utc>, // 30 minutes
+}
+
+impl ManagedHttpClient {
+    pub fn new(client: Client, timeout: TimeDelta) -> Self {
+        let expiry = Utc::now().checked_add_signed(timeout).unwrap();
+        Self { client, expiry }
+    }
+
+    pub fn get(&self) -> Result<Client, Box<dyn std::error::Error + Sync + Send>> {
+        if Utc::now() > self.expiry {
+            return Err(Box::new(ManagedHttpClientError::new(
+                "HTTP Client expired".to_string(),
+            )));
+        }
+        Ok(self.client.clone())
+    }
+}
+
+pub struct ManagedHttpClientError {
+    error: String,
+}
+
+impl ManagedHttpClientError {
+    pub fn new(error: String) -> Self {
+        Self { error }
+    }
+}
+
+impl std::fmt::Display for ManagedHttpClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "ManagedHttpClientError: {}", self.error)
+    }
+}
+
+impl std::fmt::Debug for ManagedHttpClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "ManagedHttpClientError: {}", self.error)
+    }
+}
+
+impl std::error::Error for ManagedHttpClientError {}
