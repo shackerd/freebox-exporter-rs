@@ -1,0 +1,3 @@
+[submodule "includes/prometheus_exporter"]
+	path = includes/prometheus_exporter
+	url = git@github.com:shackerd/prometheus_exporter.git
