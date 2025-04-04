@@ -1,7 +1,7 @@
 use core::{
     cli::{Cli, Command},
     configuration::get_configuration,
-    core::{auto_register_and_serve, register, serve, session_diagnostic},
+    core::{auto_register_and_serve, dry_run, register, serve, session_diagnostic},
     logger::CustomLogFilter,
 };
 
@@ -11,6 +11,7 @@ use log::{error, info};
 use std::str::FromStr;
 mod core;
 mod mappers;
+mod diagnostics;
 const DEFAULT_CONF_FILE: &str = "config.toml";
 const DEFAULT_LOG_LEVEL: &str = "Info";
 
@@ -95,6 +96,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
 
             if let Err(e) = auto_register_and_serve(&conf, interval, serve_port).await {
+                error!("{e:#?}");
+            }
+        }
+        Command::DryRun { output_path } => {
+
+            let default_path = "output.json".to_string();
+
+            let output_path = output_path.as_ref().unwrap_or_else(|| &default_path);
+            if let Err(e) = dry_run(&conf, &output_path).await {
                 error!("{e:#?}");
             }
         }

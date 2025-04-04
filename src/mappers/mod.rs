@@ -7,10 +7,10 @@ use log::{error, warn};
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 
-use crate::core::{
+use crate::{core::{
     common::http_client_factory::AuthenticatedHttpClientFactory,
     configuration::sections::{ApiConfiguration, MetricsConfiguration},
-};
+}, diagnostics::DryRunnable};
 
 pub mod connection;
 pub mod dhcp;
@@ -21,7 +21,7 @@ pub mod system;
 pub mod wifi;
 
 #[async_trait]
-pub trait MetricMap<'a> {
+pub trait MetricMap<'a>: DryRunnable {
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
@@ -127,6 +127,11 @@ impl<'a> Mapper<'a> {
         }
 
         Self { maps }
+    }
+
+    pub fn as_dry_runnable(&mut self) -> Vec<&mut dyn crate::diagnostics::DryRunnable> {
+        let v = self.maps.iter_mut().map(|map| map.coerce());
+        v.collect()
     }
 
     pub async fn init_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

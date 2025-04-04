@@ -6,10 +6,10 @@ use prometheus_exporter::prometheus::{
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::core::common::{
+use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-};
+}, diagnostics::DryRunnable};
 
 use super::MetricMap;
 
@@ -246,5 +246,22 @@ impl<'a> MetricMap<'a> for SystemMetricMap<'a> {
             _ => {}
         };
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for SystemMetricMap<'_> {
+    fn get_name(&self) -> Result<String,Box<dyn std::error::Error> >  {
+        Ok("system".to_string())
+    }
+
+
+    async fn dry_run(&mut self) -> Result<String,Box<dyn std::error::Error>>{
+        
+        Ok("\"system result\"".to_string())
+    }
+
+    fn coerce(&mut self) ->  &mut dyn DryRunnable {
+        self
     }
 }

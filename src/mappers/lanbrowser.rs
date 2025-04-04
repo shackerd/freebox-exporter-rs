@@ -1,8 +1,8 @@
 use super::MetricMap;
-use crate::core::common::{
+use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-};
+}, diagnostics::DryRunnable};
 use async_trait::async_trait;
 use log::{debug, error};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
@@ -318,5 +318,22 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
             _ => {}
         };
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for LanBrowserMetricMap<'_> {
+    fn get_name(&self) -> Result<String,Box<dyn std::error::Error> >  {
+        Ok("lan_browser".to_string())
+    }
+
+
+    async fn dry_run(&mut self) -> Result<String,Box<dyn std::error::Error>>{
+        
+        Ok("\"lan_browser result\"".to_string())
+    }
+
+    fn coerce(&mut self) ->  &mut dyn DryRunnable {
+        self
     }
 }

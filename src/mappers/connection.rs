@@ -6,10 +6,10 @@ use prometheus_exporter::prometheus::{
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::core::common::{
+use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-};
+}, diagnostics::DryRunnable};
 
 use super::MetricMap;
 
@@ -632,5 +632,22 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
             return Err(e);
         }
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for ConnectionMetricMap<'_> {
+    fn get_name(&self) -> Result<String,Box<dyn std::error::Error> >  {
+        Ok("connection".to_string())
+    }
+
+
+    async fn dry_run(&mut self) -> Result<String,Box<dyn std::error::Error>>{
+        
+        Ok("\"connection result\"".to_string())
+    }
+
+    fn coerce(&mut self) ->  &mut dyn DryRunnable {
+        self
     }
 }

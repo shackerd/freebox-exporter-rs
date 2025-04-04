@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 use crate::core::common::http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient};
 use crate::core::common::transport::FreeboxResponse;
+use crate::diagnostics::DryRunnable;
 use crate::mappers::MetricMap;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -344,6 +345,23 @@ impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Initialize any necessary state or metrics
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for DhcpMetricMap<'_> {
+    fn get_name(&self) -> Result<String,Box<dyn std::error::Error> >  {
+        Ok("dhcp".to_string())
+    }
+
+
+    async fn dry_run(&mut self) -> Result<String,Box<dyn std::error::Error>>{
+        
+        Ok("\"dhcp result\"".to_string())
+    }
+
+    fn coerce(&mut self) ->  &mut dyn DryRunnable {
+        self
     }
 }
 
