@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-}, diagnostics::DryRunnable};
+}, diagnostics::{DryRunOutputWriter, DryRunnable}};
 
 use super::MetricMap;
 
@@ -706,11 +706,11 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
 #[async_trait]
 impl DryRunnable for SwitchMetricMap<'_> {
 
-    fn get_name(&self) -> Result<String,Box<dyn std::error::Error> >  {
+    fn get_name(&self) -> Result<String,Box<dyn std::error::Error + Send + Sync>>  {
         Ok("switch".to_string())
     }
 
-    async fn dry_run(&mut self) -> Result<String,Box<dyn std::error::Error>>{
+    async fn dry_run(&mut self, writer: &mut dyn DryRunOutputWriter) -> Result<(),Box<dyn std::error::Error + Send + Sync>>{
         
         let statuses = self.get_ports_status_json().await;
 
@@ -722,12 +722,7 @@ impl DryRunnable for SwitchMetricMap<'_> {
 
         let statuses = statuses.unwrap();
 
-        let mut result = String::new();
-        result.push_str("{");
-        result.push_str("\"status\":");        
-        result.push_str(&statuses);
-        result.push_str(",");
-        result.push_str("\"stats\":[");
+        let _ = writer.push("switch", "status", &statuses);
         
         let port_statuses = match self.get_ports_status(&statuses).await {
             Err(e) => return Err(e),
@@ -737,25 +732,30 @@ impl DryRunnable for SwitchMetricMap<'_> {
         let mut i = 0;
         let len = port_statuses.len();
 
+        let _ = writer.push("switch", "stats", "[");
+
         for port_status in port_statuses {
             let body_stats = self.get_port_stats_json(&port_status)
                 .await
                 .unwrap();
 
-            result.push_str(body_stats.as_str());
+            if body_stats == "" {
+                continue;
+            }
 
-            i += 1;
+            let _ = writer.push("switch", "stats", &body_stats);
+
+            i += 1;            
             
             if i < len {
-                result.push_str(",");
+                let _ = writer.push("switch", "stats", ",");
             }
         }
-        result.push_str("]");
 
-        result.push_str("}");
+        let _ = writer.push("switch", "stats", "]");
 
         
-        Ok(result)
+        Ok(())
     }
 
     fn coerce(&mut self) ->  &mut dyn DryRunnable {

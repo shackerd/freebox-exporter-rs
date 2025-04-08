@@ -1,3 +1,4 @@
+use std::error::Error;
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
@@ -6,7 +7,7 @@ use serde::Deserialize;
 
 use crate::core::common::http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient};
 use crate::core::common::transport::FreeboxResponse;
-use crate::diagnostics::DryRunnable;
+use crate::diagnostics::{DryRunOutputWriter, DryRunnable};
 use crate::mappers::MetricMap;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -350,17 +351,15 @@ impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
 
 #[async_trait]
 impl DryRunnable for DhcpMetricMap<'_> {
-    fn get_name(&self) -> Result<String,Box<dyn std::error::Error> >  {
+    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
         Ok("dhcp".to_string())
     }
 
-
-    async fn dry_run(&mut self) -> Result<String,Box<dyn std::error::Error>>{
-        
-        Ok("\"dhcp result\"".to_string())
+    async fn dry_run(&mut self, _writer: &mut dyn DryRunOutputWriter) -> Result<(), Box<dyn Error + Send + Sync>> {
+        Ok(())
     }
 
-    fn coerce(&mut self) ->  &mut dyn DryRunnable {
+    fn coerce(&mut self) -> &mut dyn DryRunnable {
         self
     }
 }
