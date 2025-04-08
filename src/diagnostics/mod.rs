@@ -5,7 +5,7 @@ use log::info;
 
 #[async_trait]
 pub trait DryRunOutputWriter: Send + Sync {
-    fn initialiaze(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     fn push(&mut self, container: &str, section: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     fn flush(&mut self, container: &str, is_last: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     fn finalize(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -53,7 +53,7 @@ impl <'a> JsonFileOutputWriter<'a> {
 }
 
 impl <'a> DryRunOutputWriter for JsonFileOutputWriter<'a> {
-    fn initialiaze(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         self.ensure_output_writable()?;
 
@@ -152,7 +152,7 @@ impl <'a> DryRunner<'a> {
             self.output_path,
         );
 
-        writer.initialiaze()?;
+        writer.initialize()?;
 
         let len = self.runnables.len();
         let mut i = 0;
