@@ -130,7 +130,7 @@ impl<'a> Mapper<'a> {
     }
 
     pub fn as_dry_runnable(&mut self) -> Vec<&mut dyn DryRunnable> {
-        let v = self.maps.iter_mut().map(|map| map.coerce());
+        let v = self.maps.iter_mut().map(|map| map.as_dry_runnable());
         v.collect()
     }
 

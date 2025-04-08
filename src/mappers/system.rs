@@ -260,7 +260,7 @@ impl DryRunnable for SystemMetricMap<'_> {
         Ok(())
     }
 
-    fn coerce(&mut self) -> &mut dyn DryRunnable {
+    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
         self
     }
 }

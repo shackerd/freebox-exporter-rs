@@ -15,7 +15,7 @@ pub trait DryRunOutputWriter: Send + Sync {
 pub trait DryRunnable: Send + Sync {
     fn get_name(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
     async fn dry_run(&mut self, writer: &mut dyn DryRunOutputWriter) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    fn coerce(&mut self) -> &mut dyn DryRunnable;
+    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable;
 }
 
 pub struct JsonFileOutputWriter<'a> {
