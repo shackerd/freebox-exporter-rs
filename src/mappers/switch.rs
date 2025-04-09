@@ -735,9 +735,15 @@ impl DryRunnable for SwitchMetricMap<'_> {
         let _ = writer.push("switch", "stats", "[");
 
         for port_status in port_statuses {
-            let body_stats = self.get_port_stats_json(&port_status)
-                .await
-                .unwrap();
+            let body_stats = self.get_port_stats_json(&port_status).await;
+            
+            if body_stats.is_err() {
+                return Err(Box::new(FreeboxResponseError::new(
+                    "v4/switch/port/{}/stats failed".to_string(),
+                )));
+            }
+
+            let body_stats = body_stats.unwrap();
 
             if body_stats == "" {
                 continue;
