@@ -12,7 +12,7 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 
 ## Grafana board
 
-You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957) the board for the exporter, also source file is located [here](./src/grafana-board.json)
+You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957) the board for the exporter, also source file is located [here](./grafana-board.json)
 
 ![board-1](./doc/board.png)
 
@@ -69,7 +69,8 @@ Commands:
   register            registers the application
   serve               starts the application
   session-diagnostic  runs a diagnostic on the session
-  revoke
+  revoke              revokes the application token
+  dry-run             runs a dry run of the application and outputs the result to a file
   help                Print this message or the help of the given subcommand(s)
 
 Options:

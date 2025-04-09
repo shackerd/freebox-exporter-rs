@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::usize;
 
 use async_trait::async_trait;
@@ -7,11 +8,11 @@ use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::core::common::{
+use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-};
-
+}, diagnostics::DryRunnable};
+use crate::diagnostics::DryRunOutputWriter;
 use super::MetricMap;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -997,6 +998,21 @@ impl<'a> MetricMap<'a> for WifiMetricMap<'a> {
         }
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for WifiMetricMap<'_> {
+    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
+        Ok("wifi".to_string())
+    }
+
+    async fn dry_run(&mut self, _writer: &mut dyn DryRunOutputWriter) -> Result<(), Box<dyn Error + Send + Sync>> {
+        Ok(())
+    }
+
+    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
+        self
     }
 }
 

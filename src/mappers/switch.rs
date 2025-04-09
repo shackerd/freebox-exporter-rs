@@ -6,10 +6,10 @@ use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::core::common::{
+use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-};
+}, diagnostics::{DryRunOutputWriter, DryRunnable}};
 
 use super::MetricMap;
 
@@ -360,9 +360,9 @@ impl<'a> SwitchMetricMap<'a> {
         }
     }
 
-    async fn get_ports_status(
+    async fn get_ports_status_json(
         &mut self,
-    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching switch ports statuses");
 
         let body = self
@@ -374,6 +374,14 @@ impl<'a> SwitchMetricMap<'a> {
             .await?
             .text()
             .await?;
+
+        Ok(body)
+    }
+
+    async fn get_ports_status(
+        &mut self,
+        body: &str
+    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {      
 
         let fixed_body = SwitchMetricMap::handle_malformed_mac_list(&body)?;
 
@@ -408,10 +416,10 @@ impl<'a> SwitchMetricMap<'a> {
         Ok(fixed_results)
     }
 
-    async fn get_port_stats(
+    async fn get_port_stats_json(
         &mut self,
         port_status: &SwitchPortStatus,
-    ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching switch ports stats");
 
         let port_id = port_status.id.unwrap_or_default();
@@ -429,7 +437,16 @@ impl<'a> SwitchMetricMap<'a> {
             .text()
             .await?;
 
-        let res = match serde_json::from_str::<FreeboxResponse<SwitchPortStats>>(&body) {
+        Ok(body)
+    }
+
+    async fn get_port_stats(
+        &mut self,
+        body: &str, 
+        port_id: &i16,
+    ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
+
+        let res = match serde_json::from_str::<FreeboxResponse<SwitchPortStats>>(body) {
             Err(e) => return Err(Box::new(e)),
             Ok(r) => r,
         };
@@ -490,13 +507,35 @@ impl<'a> SwitchMetricMap<'a> {
     async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
 
-        let port_statuses = match self.get_ports_status().await {
+        let body_status = self.get_ports_status_json().await;
+
+        if body_status.is_err() {
+            return Err(Box::new(FreeboxResponseError::new(
+                "v4/switch/status/ failed".to_string(),
+            )));
+        }
+
+        let body_status = body_status.unwrap(); 
+
+        let port_statuses = match self.get_ports_status(&body_status).await {
             Err(e) => return Err(e),
             Ok(r) => r,
         };
 
         for port_status in port_statuses {
-            let stats = match self.get_port_stats(&port_status).await {
+            
+            let body_stats = self.get_port_stats_json(&port_status)
+                .await;
+            
+            if body_stats.is_err() {
+                return Err(Box::new(FreeboxResponseError::new(
+                    "v4/switch/port/{}/stats failed".to_string(),
+                )));
+            }
+
+            let body_stats = body_stats.unwrap();
+
+            let stats = match self.get_port_stats(&body_stats, port_status.id.as_ref().unwrap()).await {
                 Err(e) => return Err(e),
                 Ok(r) => r,
             };
@@ -661,6 +700,72 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
         }
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for SwitchMetricMap<'_> {
+
+    fn get_name(&self) -> Result<String,Box<dyn std::error::Error + Send + Sync>>  {
+        Ok("switch".to_string())
+    }
+
+    async fn dry_run(&mut self, writer: &mut dyn DryRunOutputWriter) -> Result<(),Box<dyn std::error::Error + Send + Sync>>{
+        
+        let statuses = self.get_ports_status_json().await;
+
+        if statuses.is_err() {
+            return Err(Box::new(FreeboxResponseError::new(
+                "v4/switch/status/ failed".to_string(),
+            )));
+        }
+
+        let statuses = statuses.unwrap();
+
+        let _ = writer.push("switch", "status", &statuses);
+        
+        let port_statuses = match self.get_ports_status(&statuses).await {
+            Err(e) => return Err(e),
+            Ok(r) => r,
+        };
+
+        let mut i = 0;
+        let len = port_statuses.len();
+
+        let _ = writer.push("switch", "stats", "[");
+
+        for port_status in port_statuses {
+            let body_stats = self.get_port_stats_json(&port_status).await;
+            
+            if body_stats.is_err() {
+                return Err(Box::new(FreeboxResponseError::new(
+                    "v4/switch/port/{}/stats failed".to_string(),
+                )));
+            }
+
+            let body_stats = body_stats.unwrap();
+
+            if body_stats == "" {
+                continue;
+            }
+
+            let _ = writer.push("switch", "stats", &body_stats);
+
+            i += 1;            
+            
+            if i < len {
+                let _ = writer.push("switch", "stats", ",");
+            }
+        }
+
+        let _ = writer.push("switch", "stats", "]");
+
+        
+        Ok(())
+    }
+
+    fn as_dry_runnable(&mut self) ->  &mut dyn DryRunnable {
+        self
     }
 }
 

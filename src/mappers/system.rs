@@ -1,3 +1,4 @@
+use std::error::Error;
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{
@@ -6,11 +7,11 @@ use prometheus_exporter::prometheus::{
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::core::common::{
+use crate::{core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-};
-
+}, diagnostics::DryRunnable};
+use crate::diagnostics::DryRunOutputWriter;
 use super::MetricMap;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -246,5 +247,20 @@ impl<'a> MetricMap<'a> for SystemMetricMap<'a> {
             _ => {}
         };
         Ok(())
+    }
+}
+
+#[async_trait]
+impl DryRunnable for SystemMetricMap<'_> {
+    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
+        Ok("system".to_string())
+    }
+
+    async fn dry_run(&mut self, _writer: &mut dyn DryRunOutputWriter) -> Result<(), Box<dyn Error + Send + Sync>> {
+        Ok(())
+    }
+
+    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
+        self
     }
 }
