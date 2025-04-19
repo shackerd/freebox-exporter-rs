@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: freebox-exporter-rs
+  namespace: monitoring
+spec:
+  serviceName: "freebox-exporter-rs"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: freebox-exporter-rs
+  template:
+    metadata:
+      labels:
+        app: freebox-exporter-rs
+    spec:      
+      volumes:
+      - name: freebox-exporter-rs-config
+        configMap:
+          name: freebox-exporter-rs-config
+          items:
+            - key: config.toml
+              path: config.toml
+      containers:
+      - name: freebox-exporter-rs
+        image: shackerd/freebox-exporter-rs:latest
+        ports:
+        - containerPort: 9100
+          name: http      
+          protocol: TCP        
+        volumeMounts:
+        - name: freebox-exporter-rs-data
+          mountPath: /var/log/freebox-exporter-rs                  
+        - name: freebox-exporter-rs-config
+          mountPath: /conf
+        resources:
+          requests:
+            cpu: "20m"
+            memory: "55M"
+          limits:
+            cpu: "200m"
+            memory: "256M"
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9100
+          initialDelaySeconds: 10
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9100
+          initialDelaySeconds: 10
+          timeoutSeconds: 10
+        startupProbe:
+          httpGet:
+            path: /metrics
+            port: 9100
+          initialDelaySeconds: 10
+          timeoutSeconds: 10
+        command:
+          - "/root/freebox-exporter-rs"
+        args: ["-c", "/conf/config.toml" ,"auto"]
+  volumeClaimTemplates:
+  - metadata:
+      name: freebox-exporter-rs-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: "longhorn" # you might want to change this to your own storage class
