@@ -42,6 +42,8 @@ data:
     wifi = true
     # Exposes dhcp
     dhcp = true
+    # Exposes system
+    system = true
     # Sets metrics prefix, it cannot be empty
     # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
     prefix = "fbx_exporter"
