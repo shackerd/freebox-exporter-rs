@@ -112,20 +112,6 @@ services:
 
 ``` toml
 [api]
-# Acceptable values: "router" or "bridge"
-# These values will determine whether use discovery or not, see: https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496
-# * discovery on:
-#   * Traffic will be using host like xxxxxxxx.fbxos.fr
-#   * FQDN resolves to your public IP address.
-#   * However, you do not need to activate remote_access from local network to get API working.
-# * discovery off:
-#   * Traffic will be using host mafreebox.freebox.fr
-#   * FQDN resolves to a public IP address (not yours), which allows you to reach your freebox API even if it's set to bridge mode.
-# Remark:
-#   * If the application is set in "bridge" mode, it works even when Freebox is set to "router" mode but some functionalities will be disabled
-#   * If the application is set in "router" mode, it does not work when Freebox is set to "bridge" mode
-mode = "bridge"
-
 # Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
 # This does not affect prometheus scrap agents, application will use cached values between calls
 # Remark:
