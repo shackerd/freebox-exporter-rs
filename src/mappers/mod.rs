@@ -8,8 +8,7 @@ use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 
 use crate::{core::{
-    common::http_client_factory::AuthenticatedHttpClientFactory,
-    configuration::sections::{ApiConfiguration, MetricsConfiguration},
+    capabilities::Capabilities, common::http_client_factory::AuthenticatedHttpClientFactory, configuration::sections::{ApiConfiguration, CapabilitiesConfiguration}
 }, diagnostics::DryRunnable};
 
 pub mod connection;
@@ -33,13 +32,15 @@ pub struct Mapper<'a> {
 impl<'a> Mapper<'a> {
     pub fn new(
         factory: &'a AuthenticatedHttpClientFactory<'a>,
-        conf: MetricsConfiguration,
+        conf: CapabilitiesConfiguration,
+        caps: Capabilities,
         api_conf: ApiConfiguration,
     ) -> Self {
         let mut maps: Vec<Box<dyn MetricMap<'a> + 'a>> = vec![];
 
         if let Some(e) = conf.connection {
-            if e {
+
+            if e {                
                 maps.push(Box::new(ConnectionMetricMap::new(
                     factory,
                     conf.prefix.to_owned().unwrap(),
@@ -74,15 +75,17 @@ impl<'a> Mapper<'a> {
             warn!("LAN metrics are disabled by default, missing entry in the configuration file");
         }
 
+        let network_mode = caps.network_mode.unwrap_or_default();
+
         if let Some(e) = conf.lan_browser {
             if e {
-                let mode = api_conf.mode.unwrap_or_default();
-                if mode == "router" {
+                if !caps.lan_browser.unwrap_or(false) {
+                    warn!("lan_browser is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
+                }
+                else {
                     let lan_browser_map =
                         LanBrowserMetricMap::new(factory, conf.prefix.to_owned().unwrap());
                     maps.push(Box::new(lan_browser_map));
-                } else {
-                    warn!("lan_browser is incompatible with this freebox mode ({}), the option has been disabled", mode);
                 }
             }
         } else {
@@ -91,10 +94,15 @@ impl<'a> Mapper<'a> {
 
         if let Some(e) = conf.switch {
             if e {
-                maps.push(Box::new(SwitchMetricMap::new(
-                    factory,
-                    conf.prefix.to_owned().unwrap(),
-                )));
+                if !caps.switch.unwrap_or(false) {
+                    warn!("switch is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
+                }
+                else {
+                    maps.push(Box::new(SwitchMetricMap::new(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                    )));
+                }
             }
         } else {
             warn!(
@@ -104,12 +112,17 @@ impl<'a> Mapper<'a> {
 
         if let Some(e) = conf.wifi {
             if e {
-                let wifi_map = wifi::WifiMetricMap::new(
-                    factory,
-                    conf.prefix.to_owned().unwrap(),
-                    Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
-                );
-                maps.push(Box::new(wifi_map));
+                if !caps.wifi.unwrap_or(false) {
+                    warn!("wifi is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
+                }
+                else {
+                    let wifi_map = wifi::WifiMetricMap::new(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                        Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
+                    );
+                    maps.push(Box::new(wifi_map));
+                }
             }
         } else {
             warn!("Wifi metrics are disabled by default, missing entry in the configuration file");
@@ -117,10 +130,15 @@ impl<'a> Mapper<'a> {
 
         if let Some(e) = conf.dhcp {
             if e {
-                maps.push(Box::new(dhcp::DhcpMetricMap::new(
-                    factory,
-                    conf.prefix.to_owned().unwrap(),
-                )));
+                if !caps.dhcp.unwrap_or(false) {
+                    warn!("dhcp is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
+                }
+                else {
+                    maps.push(Box::new(dhcp::DhcpMetricMap::new(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                    )));
+                }
             }
         } else {
             warn!("DHCP metrics are disabled by default, missing entry in the configuration file");

@@ -1,4 +1,4 @@
-use sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, MetricsConfiguration};
+use sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration};
 use serde::Deserialize;
 use std::{
     fs::{self},
@@ -11,7 +11,7 @@ pub mod tests;
 #[derive(Deserialize, Clone, Debug)]
 pub struct Configuration {
     pub api: ApiConfiguration,
-    pub metrics: MetricsConfiguration,
+    pub metrics: CapabilitiesConfiguration,
     pub core: CoreConfiguration,
     pub log: LogConfiguration,
 }
@@ -50,7 +50,7 @@ impl Configuration {
 
 pub async fn get_configuration(
     file_path: String,
-) -> Result<Configuration, Box<dyn std::error::Error>> {
+) -> Result<Configuration, Box<dyn std::error::Error + Send + Sync>> {
     let path = Path::new(&file_path);
 
     if !path.exists() {

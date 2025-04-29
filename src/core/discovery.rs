@@ -62,7 +62,7 @@ pub async fn get_api_url(
     Ok(url)
 }
 
-pub fn get_static_api_url() -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_static_api_url() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!("https://{DEFAULT_FBX_HOST}/api/").to_string();
     Ok(url)
 }
