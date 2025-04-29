@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, info};
 use serde::Deserialize;
 use super::common::{http_client_factory::AuthenticatedHttpClientFactory, transport::{FreeboxResponse, FreeboxResponseError}};
 
@@ -33,7 +33,10 @@ impl <'a> CapabilitiesAgent<'a> {
         let lan_config = res.result.ok_or_else(|| {
             Box::new(FreeboxResponseError::new("Missing LAN config".to_string()))
         })?;
+        
         let is_router = lan_config.mode.as_deref().unwrap_or("").eq_ignore_ascii_case("router");
+
+        info!("detected freebox network mode: {}", lan_config.mode.as_deref().unwrap_or("unknown"));
 
         Ok(Capabilities {
             connection: Some(true),
