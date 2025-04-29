@@ -9,7 +9,7 @@ mod test {
 
     use crate::core::configuration::{
         get_configuration,
-        sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, MetricsConfiguration},
+        sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration},
         Configuration,
     };
 
@@ -25,10 +25,6 @@ mod test {
             .expect("cannot create sample configuration file");
         let content =
 "[api]
-# acceptable values: \"router\" or \"bridge\"
-# this option will determine whether use discovery or not see: https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496
-mode = \"bridge\"
-
 # interval in seconds
 refresh = 5
 
@@ -70,7 +66,6 @@ retention = 31";
             .await
             .expect("cannot cleanup sample configuration file");
 
-        assert_eq!("bridge", conf.api.mode.unwrap());
         assert_eq!(5, conf.api.refresh.unwrap());
 
         assert_eq!(true, conf.metrics.connection.unwrap());
@@ -91,7 +86,6 @@ retention = 31";
     fn assert_data_dir_permissions_tests() {
         let conf = Configuration {
             api: ApiConfiguration {
-                mode: None,
                 refresh: None,
             },
             core: CoreConfiguration {
@@ -102,7 +96,7 @@ retention = 31";
                 level: None,
                 retention: None,
             },
-            metrics: MetricsConfiguration {
+            metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
                 prefix: None,
@@ -115,8 +109,7 @@ retention = 31";
         };
 
         let conf2 = Configuration {
-            api: ApiConfiguration {
-                mode: None,
+            api: ApiConfiguration {                
                 refresh: None,
             },
             core: CoreConfiguration {
@@ -127,7 +120,7 @@ retention = 31";
                 level: None,
                 retention: None,
             },
-            metrics: MetricsConfiguration {
+            metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
                 prefix: None,
@@ -141,7 +134,6 @@ retention = 31";
 
         let conf3 = Configuration {
             api: ApiConfiguration {
-                mode: None,
                 refresh: None,
             },
             core: CoreConfiguration {
@@ -152,7 +144,7 @@ retention = 31";
                 level: None,
                 retention: None,
             },
-            metrics: MetricsConfiguration {
+            metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
                 prefix: None,
@@ -173,7 +165,6 @@ retention = 31";
     fn assert_metrics_prefix_is_not_empty_tests() {
         let conf = Configuration {
             api: ApiConfiguration {
-                mode: None,
                 refresh: None,
             },
             core: CoreConfiguration {
@@ -184,7 +175,7 @@ retention = 31";
                 level: None,
                 retention: None,
             },
-            metrics: MetricsConfiguration {
+            metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
                 prefix: None,
@@ -198,7 +189,6 @@ retention = 31";
 
         let conf2 = Configuration {
             api: ApiConfiguration {
-                mode: None,
                 refresh: None,
             },
             core: CoreConfiguration {
@@ -209,7 +199,7 @@ retention = 31";
                 level: None,
                 retention: None,
             },
-            metrics: MetricsConfiguration {
+            metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
                 prefix: Some(" ".to_string()),
@@ -223,7 +213,6 @@ retention = 31";
 
         let conf3 = Configuration {
             api: ApiConfiguration {
-                mode: None,
                 refresh: None,
             },
             core: CoreConfiguration {
@@ -234,7 +223,7 @@ retention = 31";
                 level: None,
                 retention: None,
             },
-            metrics: MetricsConfiguration {
+            metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
                 prefix: Some("fbx_exporter".to_string()),

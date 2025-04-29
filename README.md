@@ -21,7 +21,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 
 ## Features
 
-* Freebox metrics exposition
+* Adaptative Freebox metrics exposition (detects network mode, see: [related issue](https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496))
 * Metrics caching & background update
 * Customizable data directory
 * Customizable metrics prefix
@@ -112,20 +112,6 @@ services:
 
 ``` toml
 [api]
-# Acceptable values: "router" or "bridge"
-# These values will determine whether use discovery or not, see: https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496
-# * discovery on:
-#   * Traffic will be using host like xxxxxxxx.fbxos.fr
-#   * FQDN resolves to your public IP address.
-#   * However, you do not need to activate remote_access from local network to get API working.
-# * discovery off:
-#   * Traffic will be using host mafreebox.freebox.fr
-#   * FQDN resolves to a public IP address (not yours), which allows you to reach your freebox API even if it's set to bridge mode.
-# Remark:
-#   * If the application is set in "bridge" mode, it works even when Freebox is set to "router" mode but some functionalities will be disabled
-#   * If the application is set in "router" mode, it does not work when Freebox is set to "bridge" mode
-mode = "bridge"
-
 # Refresh wait interval in seconds, application will send requests to the freebox host on each refresh iteration
 # This does not affect prometheus scrap agents, application will use cached values between calls
 # Remark:
@@ -136,15 +122,15 @@ refresh = 5
 [metrics]
 # Exposes connection
 connection = true
-# Exposes lan, this option may not work in bridge_mode
+# Exposes lan
 lan = true
-# Exposes lan browser, this option does not work in bridge_mode
+# Exposes lan browser, this option will be disabled if freebox is in bridge_mode
 lan_browser = true
-# Exposes switch, this option may not work properly in bridge_mode
+# Exposes switch, this option will be disabled if freebox is in bridge_mode
 switch = true
-# Exposes wifi
+# Exposes wifi, this option will be disabled if freebox is in bridge_mode
 wifi = true
-# Exposes dhcp
+# Exposes dhcp, this option will be disabled if freebox is in bridge_mode
 dhcp = true
 # Exposes system
 system = true

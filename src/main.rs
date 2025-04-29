@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .configuration_file
         .unwrap_or(DEFAULT_CONF_FILE.to_string());
 
-    let conf = get_configuration(conf_path.to_string()).await.unwrap();
+    let conf = get_configuration(conf_path.to_string()).await?;
 
     let specs = FileSpec::default().directory(conf.core.data_directory.clone().unwrap());
 
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .rotate(
         flexi_logger::Criterion::Age(flexi_logger::Age::Day),
         flexi_logger::Naming::TimestampsDirect,
-        flexi_logger::Cleanup::KeepCompressedFiles(conf.log.retention.unwrap_or_else(|| 31)),
+        flexi_logger::Cleanup::KeepCompressedFiles(conf.log.retention.unwrap_or(31)),
     )
     .format_for_files(flexi_logger::detailed_format)
     .format_for_stdout(flexi_logger::detailed_format)
@@ -64,50 +64,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         version = env!("CARGO_PKG_VERSION")
     );
 
-    match &cli.command {
+    let result = match &cli.command {
         Command::Register { pooling_interval } => {
-            let interval = pooling_interval.unwrap_or_else(|| 6);
-
-            if let Err(e) = register(conf, interval).await {
-                error!("{e:#?}")
-            }
+            let interval = pooling_interval.unwrap_or(6);
+            register(conf, interval).await
         }
         Command::Serve { port } => {
             let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
-
-            if let Err(e) = serve(conf, serve_port).await {
-                error!("{e:#?}")
-            }
+            serve(conf, serve_port).await
         }
-
         Command::Revoke => {
             todo!()
         }
         Command::SessionDiagnostic { show_token } => {
-            if let Err(e) = session_diagnostic(conf, show_token.unwrap_or_else(|| false)).await {
-                error!("{e:#?}");
-            }
+            session_diagnostic(conf, show_token.unwrap_or(false)).await
         }
         Command::Auto {
             pooling_interval,
             port,
         } => {
-            let interval = pooling_interval.unwrap_or_else(|| 6);
+            let interval = pooling_interval.unwrap_or(6);
             let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
-
-            if let Err(e) = auto_register_and_serve(&conf, interval, serve_port).await {
-                error!("{e:#?}");
-            }
+            auto_register_and_serve(&conf, interval, serve_port).await
         }
         Command::DryRun { output_path } => {
-
             let default_path = "output.json".to_string();
-
-            let output_path = output_path.as_ref().unwrap_or_else(|| &default_path);
-            if let Err(e) = dry_run(&conf, &output_path).await {
-                error!("{e:#?}");
-            }
+            let output_path = output_path.as_ref().unwrap_or(&default_path);
+            dry_run(&conf, output_path).await
         }
+    };
+
+    if let Err(e) = result {
+        error!("{e:#?}");
     }
 
     // force flush before exit

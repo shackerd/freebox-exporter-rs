@@ -8,12 +8,11 @@ pub struct CoreConfiguration {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct ApiConfiguration {
-    pub mode: Option<String>,
     pub refresh: Option<u64>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct MetricsConfiguration {
+pub struct CapabilitiesConfiguration {
     pub connection: Option<bool>,
     pub system: Option<bool>,
     pub lan: Option<bool>,
