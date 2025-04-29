@@ -21,7 +21,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
 
 ## Features
 
-* Freebox metrics exposition
+* Adaptative Freebox metrics exposition (detects network mode, see: [related issue](https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496))
 * Metrics caching & background update
 * Customizable data directory
 * Customizable metrics prefix
