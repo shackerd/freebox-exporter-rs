@@ -122,15 +122,15 @@ refresh = 5
 [metrics]
 # Exposes connection
 connection = true
-# Exposes lan, this option may not work in bridge_mode
+# Exposes lan
 lan = true
-# Exposes lan browser, this option does not work in bridge_mode
+# Exposes lan browser, this option will be disabled if freebox is in bridge_mode
 lan_browser = true
-# Exposes switch, this option may not work properly in bridge_mode
+# Exposes switch, this option will be disabled if freebox is in bridge_mode
 switch = true
-# Exposes wifi
+# Exposes wifi, this option will be disabled if freebox is in bridge_mode
 wifi = true
-# Exposes dhcp
+# Exposes dhcp, this option will be disabled if freebox is in bridge_mode
 dhcp = true
 # Exposes system
 system = true
