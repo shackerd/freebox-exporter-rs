@@ -1,0 +1,44 @@
+{
+    "success": true,
+    "result": {
+        "status": {
+            "status": "showtime",
+            "protocol": "adsl2plus_a",
+            "uptime": 5017,
+            "modulation": "adsl"
+        },
+        "down": {
+            "es": 43,
+            "phyr": true,
+            "attn": 0,
+            "snr": 7,
+            "nitro": true,
+            "rate": 28031,
+            "hec": 0,
+            "crc": 0,
+            "rxmt_uncorr": 0,
+            "rxmt_corr": 0,
+            "ses": 43,
+            "fec": 0,
+            "maxrate": 30636,
+            "rxmt": 0
+        },
+        "up": {
+            "es": 0,
+            "phyr": false,
+            "attn": 23,
+            "snr": 15,
+            "nitro": true,
+            "rate": 1022,
+            "hec": 0,
+            "crc": 0,
+            "rxmt_uncorr": 0,
+            "rxmt_corr": 0,
+            "ses": 0,
+            "fec": 0,
+            "maxrate": 1022,
+            "rxmt": 0
+        }
+    }
+
+}

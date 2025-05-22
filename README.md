@@ -5,19 +5,16 @@
 [![discord](https://img.shields.io/badge/discord-join_chat-green)](
 https://discord.gg/QfV2D2KZ)
 
-Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually in work in progress. New contributors are welcome! Please join our [Matrix room](https://matrix.to/#/#freebox-exporter-rs:matrix.org) and say *"hey!"*
+Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheus! This project is actually in work in progress. New contributors are welcome!
 
 > [!IMPORTANT]
-> **Disclaimer:** This project is unofficial and is **not affiliated with Free S.A.S. ISP nor Iliad Group**
+> **Disclaimer:** This project is unofficial and is **not affiliated in any way with Free S.A.S. ISP nor Iliad Group**
 
 ## Grafana board
 
 You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957) the board for the exporter, also source file is located [here](./grafana-board.json)
 
 ![board-1](./doc/board.png)
-
-
-You will find [here](https://grafana.com/grafana/dashboards/21637) the original Grafana board for the exporter, thanks go to [@ottobaer](https://github.com/ottobaer)!
 
 ## Features
 
@@ -40,7 +37,7 @@ You will find [here](https://grafana.com/grafana/dashboards/21637) the original 
     * &#9989; Status: **100%**
     * &#9989; Configuration: **100%**
     * &#9989; Configuration IPV6: **100%**
-    * &#10060; xDSL: 0%
+    * &#9989; xDSL: **100%**
     * &#9989; FFTH: **100%**
     * &#10060; DynDNS: 0%
   * &#9989; Lan: **100%**
@@ -163,23 +160,22 @@ retention = 31
 ### Clone project
 
 ``` bash
-git clone https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-exporter-rs
+git clone --recurse-submodules https://github.com/shackerd/freebox-exporter-rs.git && cd freebox-exporter-rs
 ```
 
-### Run debug configuration, assuming application is registered on Freebox host
+### Run
 
 ``` bash
-cargo run serve
+cargo run auto
 ```
+
+The `auto` command will prompt the user to consent the application if needed, otherwise it will **serve** the metrics on http.
+
+* See the `serve` command if you want to only serve the metrics.
+* See the `register` command if you want to only register the application.
 
 > [!TIP]
-> You can change output log level by specifying verbosity, such as `cargo run -- -v Debug serve`
-
-### Register application if application is not registered on Freebox host
-
-``` bash
-cargo run register
-```
+> You can change output log level by specifying verbosity, such as `cargo run -- -v Debug auto`
 
 ### Running tests
 
@@ -203,7 +199,9 @@ curl http://localhost:9102/metrics
 
 ## Support this project
 
-If you want to help :heart:, you can contribute, give feedbacks or you can still [buy me a :coffee:](https://buymeacoffee.com/shackerd) or leave a :star:!
+You like this project? Don't forget to leave a :star:!
+
+If you want to help :heart:, you can contribute, give feedbacks or you can still [buy me a :coffee:](https://ko-fi.com/shackrd), i like coffee ☕.
 
 ## Useful links
 
