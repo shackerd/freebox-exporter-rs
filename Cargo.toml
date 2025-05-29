@@ -13,7 +13,7 @@ flexi_logger = { version = "0.30.1", features = ["async", "specfile", "compress"
 hmac = { version = "0.12.1", features = ["std"] }
 lazy_static = "1.5.0"
 log = "0.4.22"
-openssl = { version = "0.10.71", features = ["vendored"] }
+openssl = { version = "0.10.73", features = ["vendored"] }
 regex = "1.11.1"
 reqwest = { version = "0.12.14", features = ["json"] }
 serde = {version = "1.0.219", features = ["derive"] }
