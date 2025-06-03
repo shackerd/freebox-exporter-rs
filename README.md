@@ -38,7 +38,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
     * &#9989; Configuration: **100%**
     * &#9989; Configuration IPV6: **100%**
     * &#9989; xDSL: **100%**
-    * &#9989; FFTH: **100%**
+    * &#9989; FTTH: **100%**
     * &#10060; DynDNS: 0%
   * &#9989; Lan: **100%**
   * &#9989; Lan Browser: **100%**
