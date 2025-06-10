@@ -99,6 +99,8 @@ impl ApplicationTokenProvider for FileSystemProvider {
             Ok(s) => s,
         };
 
-        Ok(token)
+        let trimmed_token = token.trim().to_string();
+
+        Ok(trimmed_token)
     }
 }
