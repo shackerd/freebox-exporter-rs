@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.84"
 chrono = "0.4.39"
-clap = { version = "4.5.38", features = ["derive"] }
+clap = { version = "4.5.40", features = ["derive"] }
 flexi_logger = { version = "0.30.1", features = ["async", "specfile", "compress", "colors"]}
 hmac = { version = "0.12.1", features = ["std"] }
 lazy_static = "1.5.0"
