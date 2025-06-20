@@ -32,4 +32,4 @@ hostname = "0.4.0"
 prometheus_exporter = { version = "0.8.5", path = "includes/prometheus_exporter" }
 
 [dev-dependencies]
-wiremock = "0.6.2"
+wiremock = "0.6.4"
