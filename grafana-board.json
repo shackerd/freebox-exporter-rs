@@ -5970,7 +5970,7 @@
       },
       {
         "current": {},
-        "label": "DataSource",
+        "label": "Data Source",
         "name": "DS_PROMETHEUS",
         "options": [],
         "query": "prometheus",
