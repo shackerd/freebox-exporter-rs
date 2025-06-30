@@ -18,7 +18,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
 
 ## Features
 
-* Adaptative Freebox metrics exposition (detects network mode, see: [related issue](https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496))
+* Adaptive Freebox metrics exposition (detects network mode, see: [related issue](https://github.com/shackerd/freebox-exporter-rs/issues/2#issuecomment-2234856496))
 * Metrics caching & background update
 * Customizable data directory
 * Customizable metrics prefix
@@ -26,6 +26,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
 * Compressed log files
 * Customizable/CLI overridable log verbosity
 * CLI overridable configuration file path
+* Freebox API certificate validation
 
 ## API Implementation
 
