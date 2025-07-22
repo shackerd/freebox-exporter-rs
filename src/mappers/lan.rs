@@ -1,16 +1,19 @@
-use std::error::Error;
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::Deserialize;
+use std::error::Error;
 
-use crate::{core::common::{
-    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
-}, diagnostics::DryRunnable};
-use crate::diagnostics::DryRunOutputWriter;
 use super::MetricMap;
+use crate::diagnostics::DryRunOutputWriter;
+use crate::{
+    core::common::{
+        http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
+        transport::{FreeboxResponse, FreeboxResponseError},
+    },
+    diagnostics::DryRunnable,
+};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct LanConfig {
@@ -160,6 +163,15 @@ impl<'a> LanMetricMap<'a> {
 
         Ok(())
     }
+
+    fn reset_all(&mut self) {
+        self.name_dns_metric.reset();
+        self.name_mdns_metric.reset();
+        self.name_metric.reset();
+        self.mode_metric.reset();
+        self.name_netbios_metric.reset();
+        self.ip_metric.reset();
+    }
 }
 
 #[async_trait]
@@ -169,6 +181,8 @@ impl<'a> MetricMap<'a> for LanMetricMap<'a> {
     }
 
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.reset_all();
+
         if let Err(e) = self.set_lan_config().await {
             return Err(e);
         };
@@ -182,7 +196,10 @@ impl DryRunnable for LanMetricMap<'_> {
         Ok("lan".to_string())
     }
 
-    async fn dry_run(&mut self, _writer: &mut dyn DryRunOutputWriter) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn dry_run(
+        &mut self,
+        _writer: &mut dyn DryRunOutputWriter,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         Ok(())
     }
 
