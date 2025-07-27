@@ -1,6 +1,10 @@
 use log::info;
 
-use crate::{core::{capabilities::CapabilitiesAgent, discovery}, diagnostics, mappers::Mapper};
+use crate::{
+    core::{authenticator::Authenticator, capabilities::CapabilitiesAgent, discovery},
+    diagnostics,
+    mappers::Mapper,
+};
 
 use super::{
     authenticator::{self, application_token_provider::FileSystemProvider},
@@ -42,7 +46,22 @@ pub async fn auto_register_and_serve(
     interval: u64,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let api_url = get_api_url().await?;
+    let agnostic_auth = create_network_agnostic_authenticator(conf).await?;
+
+    let res = agnostic_auth.is_registered().await;
+
+    if let Err(e) = res {
+        return Err(e);
+    }
+
+    if !res.unwrap_or(false) {
+        info!("application is not registered, registering now");
+        agnostic_auth.register(interval).await?;
+    }
+
+    info!("application is registered");
+
+    let api_url = get_api_url(&agnostic_auth).await?;
 
     let authenticator = authenticator::Authenticator::new(
         api_url.clone(),
@@ -51,17 +70,16 @@ pub async fn auto_register_and_serve(
         )),
     );
 
-    if !authenticator.is_registered().await.unwrap_or(false) {
-        authenticator.register(interval).await?;
-    } else {
-        info!("application is already registered, logging in");
-    }
-
     let factory = authenticator.login().await?;
     let cap_agent = CapabilitiesAgent::new(&factory);
     let capabilities = cap_agent.load().await?;
 
-    let mapper = Mapper::new(&factory, conf.metrics.clone(), capabilities, conf.api.clone());
+    let mapper = Mapper::new(
+        &factory,
+        conf.metrics.clone(),
+        capabilities,
+        conf.api.clone(),
+    );
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
 
     server.run().await
@@ -69,11 +87,16 @@ pub async fn auto_register_and_serve(
 
 /// ### Get the API URL
 /// This function will get the API URL from the Freebox API
-pub async fn get_api_url() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let api_url: String = match discovery::get_api_url(discovery::DEFAULT_FBX_HOST, 443, true).await {
-        Err(_) => return discovery::get_static_api_url(),
+pub async fn get_api_url(
+    authenticator: &Authenticator,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let factory = match authenticator.login().await {
+        Err(e) => return Err(e),
         Ok(r) => r,
     };
+
+    let api_url = discovery::get_url(&factory).await?;
+
     info!("using api url: {api_url}");
 
     Ok(api_url)
@@ -99,13 +122,23 @@ pub async fn register(
     conf: Configuration,
     interval: u64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let res = get_api_url().await;
+    let agnostic_auth = create_network_agnostic_authenticator(&conf).await?;
+
+    let res = agnostic_auth.is_registered().await;
 
     if let Err(e) = res {
         return Err(e);
     }
 
-    let api_url = res?;
+    if !res.unwrap_or(false) {
+        info!("application is not registered, registering now");
+        agnostic_auth.register(interval).await?;
+        info!("application is registered");
+    } else {
+        info!("application is already registered, skipping registration");
+    }
+
+    let api_url = get_api_url(&agnostic_auth).await?;
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
@@ -142,13 +175,23 @@ pub async fn serve(
     conf: Configuration,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let res = get_api_url().await;
+    let agnostic_auth = create_network_agnostic_authenticator(&conf).await?;
+
+    let res = agnostic_auth.is_registered().await;
 
     if let Err(e) = res {
         return Err(e);
     }
 
-    let api_url = res?;
+    if !res.unwrap_or(false) {
+        info!("application is not registered, exiting now");
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Application is not registered, please register it first",
+        )));
+    }
+
+    let api_url = get_api_url(&agnostic_auth).await?;
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
@@ -171,10 +214,28 @@ pub async fn serve(
 
     let capabilities = capabilities.unwrap();
 
-    let mapper = Mapper::new(&factory, conf.to_owned().metrics, capabilities, conf.to_owned().api);
+    let mapper = Mapper::new(
+        &factory,
+        conf.to_owned().metrics,
+        capabilities,
+        conf.to_owned().api,
+    );
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
     server.run().await
+}
+
+async fn create_network_agnostic_authenticator(
+    conf: &Configuration,
+) -> Result<authenticator::Authenticator, Box<dyn std::error::Error + Send + Sync>> {
+    let api_url = format!("https://{}/api/", discovery::DEFAULT_FBX_HOST).to_string();
+
+    Ok(authenticator::Authenticator::new(
+        api_url,
+        Box::new(FileSystemProvider::new(
+            conf.core.data_directory.as_ref().unwrap().to_owned(),
+        )),
+    ))
 }
 
 /// ### Session diagnostic
@@ -203,7 +264,23 @@ pub async fn session_diagnostic(
     conf: Configuration,
     show_token: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if let Ok(api_url) = get_api_url().await {
+    let agnostic_auth = create_network_agnostic_authenticator(&conf).await?;
+
+    let res = agnostic_auth.is_registered().await;
+
+    if let Err(e) = res {
+        return Err(e);
+    }
+
+    if !res.unwrap_or(false) {
+        info!("application is not registered, exiting now");
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Application is not registered, please register it first",
+        )));
+    }
+
+    if let Ok(api_url) = get_api_url(&agnostic_auth).await {
         let authenticator = authenticator::Authenticator::new(
             api_url.to_owned(),
             Box::new(FileSystemProvider::new(
@@ -213,12 +290,10 @@ pub async fn session_diagnostic(
 
         authenticator.diagnostic(show_token).await?;
     } else {
-        return Err(Box::new(
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Unable to get api url",
-            ),
-        ));
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Unable to get api url",
+        )));
     }
 
     Ok(())
@@ -251,13 +326,23 @@ pub async fn dry_run(
     conf: &Configuration,
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let res = get_api_url().await;
+    let agnostic_auth = create_network_agnostic_authenticator(&conf).await?;
+
+    let res = agnostic_auth.is_registered().await;
 
     if let Err(e) = res {
         return Err(e);
     }
 
-    let api_url = res?;
+    if !res.unwrap_or(false) {
+        info!("application is not registered, exiting now");
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Application is not registered, please register it first",
+        )));
+    }
+
+    let api_url = get_api_url(&agnostic_auth).await?;
 
     let authenticator = authenticator::Authenticator::new(
         api_url.to_owned(),
@@ -280,10 +365,15 @@ pub async fn dry_run(
 
     let capabilities = capabilities.unwrap();
 
-    let mut mapper = Mapper::new(&factory, conf.to_owned().metrics, capabilities, conf.to_owned().api);
+    let mut mapper = Mapper::new(
+        &factory,
+        conf.to_owned().metrics,
+        capabilities,
+        conf.to_owned().api,
+    );
 
     let mut runner = diagnostics::DryRunner::new(mapper.as_dry_runnable(), output_path);
-    
+
     if let Err(e) = runner.run().await {
         return Err(e);
     }

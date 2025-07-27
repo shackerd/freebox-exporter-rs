@@ -17,12 +17,12 @@ use crate::{
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct LanConfig {
-    name_dns: Option<String>,
-    name_mdns: Option<String>,
-    name: Option<String>,
-    mode: Option<String>,
-    name_netbios: Option<String>,
-    ip: Option<String>,
+    pub name_dns: Option<String>,
+    pub name_mdns: Option<String>,
+    pub name: Option<String>,
+    pub mode: Option<String>,
+    pub name_netbios: Option<String>,
+    pub ip: Option<String>,
 }
 
 pub struct LanMetricMap<'a> {
