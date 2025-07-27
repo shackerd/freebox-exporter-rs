@@ -15,7 +15,7 @@ lan = true
 lan_browser = true
 # Exposes switch, this option will be disabled if freebox is in bridge_mode
 switch = true
-# Exposes wifi, this option will be disabled if freebox is in bridge_mode
+# Exposes wifi, this option will be disabled if freebox is in bridge_mode or device is disabled on the host
 wifi = true
 # Exposes dhcp, this option will be disabled if freebox is in bridge_mode
 dhcp = true
