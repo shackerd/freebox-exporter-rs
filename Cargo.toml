@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.84"
 chrono = "0.4.39"
-clap = { version = "4.5.41", features = ["derive"] }
+clap = { version = "4.5.42", features = ["derive"] }
 flexi_logger = { version = "0.31.2", features = [
     "async",
     "specfile",
