@@ -26,7 +26,7 @@ serde_json = "1.0.143"
 sha1 = "0.10.6"
 time = "0.3.43"
 tokio = { version = "1.47.1", features = ["full"] }
-toml = "0.9.5"
+toml = "0.9.6"
 mockall = "0.13.1"
 hostname = "0.4.0"
 prometheus_exporter = { version = "0.8.5", path = "includes/prometheus_exporter" }
