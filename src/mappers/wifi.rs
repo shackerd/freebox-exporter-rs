@@ -15,6 +15,7 @@ use crate::{
         transport::{FreeboxResponse, FreeboxResponseError},
     },
     diagnostics::DryRunnable,
+    mappers::wifi::models::WifiConfig,
 };
 
 use super::MetricMap;
@@ -437,7 +438,7 @@ impl<'a> WifiMetricMap<'a> {
         }
     }
 
-    async fn get_access_point(
+    async fn get_access_points(
         &mut self,
     ) -> Result<Vec<AccessPoint>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching access points");
@@ -713,9 +714,78 @@ impl<'a> WifiMetricMap<'a> {
         Ok(())
     }
 
+    async fn get_wifi_config(
+        &mut self,
+    ) -> Result<WifiConfig, Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.get_managed_client().await?;
+        let response = client
+            .get(format!("{}v4/wifi/config", self.factory.api_url))
+            .send()
+            .await?
+            .json::<FreeboxResponse<WifiConfig>>()
+            .await?;
+
+        if response.success.unwrap_or(false) {
+            Ok(response.result.unwrap())
+        } else {
+            Err(Box::new(FreeboxResponseError::new(
+                response.msg.unwrap_or_default(),
+            )))
+        }
+    }
+
+    async fn get_access_point_fallback(
+        &mut self,
+        phy_id: &i16,
+    ) -> Result<AccessPoint, Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.get_managed_client().await?;
+        let response = client
+            .get(format!("{}v4/wifi/ap/{}", self.factory.api_url, phy_id))
+            .send()
+            .await?
+            .json::<FreeboxResponse<AccessPoint>>()
+            .await?;
+
+        if response.success.unwrap_or(false) {
+            Ok(response.result.unwrap())
+        } else {
+            Err(Box::new(FreeboxResponseError::new(
+                response.msg.unwrap_or_default(),
+            )))
+        }
+    }
+
     pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
-        let aps = self.get_access_point().await?;
+        let aps = self.get_access_points().await?;
+
+        let aps = match aps.len() {
+            0 => {
+                info!("no access points found in /wifi/ap endpoint, fallbacking to /wifi/config");
+                let config = self.get_wifi_config().await?;
+                if config.expected_phys.is_none() {
+                    info!("no expected_phys found in /wifi/config endpoint, wifi might be disabled on freebox or no device connected");
+                    return Ok(());
+                }
+
+                let phys = config.expected_phys.unwrap();
+                let mut aps: Vec<AccessPoint> = Vec::with_capacity(phys.len());
+                for phy in phys.iter() {
+                    let id = phy.phy_id.unwrap_or(-1);
+                    if let Ok(ap) = self.get_access_point_fallback(&id).await {
+                        debug!("found access point {} from phy_id {}", ap.name.as_deref().unwrap_or("unknown"), id);
+                        aps.push(ap);
+                    }
+                }
+                debug!("{} access points found", aps.len());
+                aps
+            }
+            _ => {
+                debug!("{} access points found", aps.len());
+                aps
+            }
+        };
+
         for ap in aps.iter() {
             self.set_channel_survey_history_gauges(&ap).await?;
 
