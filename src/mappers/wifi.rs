@@ -734,7 +734,7 @@ impl<'a> WifiMetricMap<'a> {
         }
     }
 
-    async fn get_access_point_fallback(
+    async fn get_access_point(
         &mut self,
         phy_id: &i16,
     ) -> Result<AccessPoint, Box<dyn std::error::Error + Send + Sync>> {
@@ -772,7 +772,7 @@ impl<'a> WifiMetricMap<'a> {
                 let mut aps: Vec<AccessPoint> = Vec::with_capacity(phys.len());
                 for phy in phys.iter() {
                     let id = phy.phy_id.unwrap_or(-1);
-                    if let Ok(ap) = self.get_access_point_fallback(&id).await {
+                    if let Ok(ap) = self.get_access_point(&id).await {
                         debug!("found access point {} from phy_id {}", ap.name.as_deref().unwrap_or("unknown"), id);
                         aps.push(ap);
                     }
