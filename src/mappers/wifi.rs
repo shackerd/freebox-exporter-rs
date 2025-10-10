@@ -771,9 +771,13 @@ impl<'a> WifiMetricMap<'a> {
                 let phys = config.expected_phys.unwrap();
                 let mut aps: Vec<AccessPoint> = Vec::with_capacity(phys.len());
                 for phy in phys.iter() {
-                    let id = phy.phy_id.unwrap_or(-1);
+                    let id = phy.phy_id.unwrap();
                     if let Ok(ap) = self.get_access_point(&id).await {
-                        debug!("found access point {} from phy_id {}", ap.name.as_deref().unwrap_or("unknown"), id);
+                        debug!(
+                            "found access point {} from phy_id {}",
+                            ap.name.as_deref().unwrap_or("unknown"),
+                            id
+                        );
                         aps.push(ap);
                     }
                 }
