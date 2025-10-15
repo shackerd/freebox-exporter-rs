@@ -3,7 +3,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WifiConfig {
     pub enabled: Option<bool>,
+    pub power_saving: Option<bool>,
+    pub expected_phys: Option<Vec<ExpectedPhy>>,
     pub mac_filter_state: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExpectedPhy {
+    pub band: Option<String>,
+    pub phy_id: Option<i16>,
+    pub detected: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

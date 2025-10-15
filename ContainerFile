@@ -1,5 +1,5 @@
 # Stage 1: Build stage
-FROM rust:alpine as builder
+FROM rust:alpine AS builder
 
 # Install necessary dependencies
 RUN apk add --no-cache musl-dev openssl-dev perl make gcc
