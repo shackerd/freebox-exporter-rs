@@ -45,6 +45,7 @@ jobs:
       - name: 📦 Build and push AMD64 image
         run: |
           docker buildx build \
+            -f ContainerFile \
             --platform linux/amd64 \
             --target final-amd64 \
             --push \
@@ -78,6 +79,7 @@ jobs:
       - name: 📦 Build and push ARM64 image
         run: |
           docker buildx build \
+            -f ContainerFile \
             --platform linux/arm64 \
             --target final-arm64 \
             --push \
@@ -111,6 +113,7 @@ jobs:
       - name: 📦 Build and push ARMv7 image
         run: |
           docker buildx build \
+            -f ContainerFile \
             --platform linux/arm/v7 \
             --target final-armv7 \
             --push \
