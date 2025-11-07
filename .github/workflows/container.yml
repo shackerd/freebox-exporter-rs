@@ -3,6 +3,11 @@ name: 🚀 Build and Publish Docker Images
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (default: latest)'
+        required: true
+        default: 'latest'
 
 permissions:
   packages: write
@@ -49,7 +54,7 @@ jobs:
             --platform linux/amd64 \
             --target final-amd64 \
             --push \
-            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:amd64 \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:{{ github.event.inputs.tag }}-amd64 \
             .
         env:
           DOCKER_BUILDKIT: 1
@@ -83,7 +88,7 @@ jobs:
             --platform linux/arm64 \
             --target final-arm64 \
             --push \
-            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:arm64 \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:{{ github.event.inputs.tag }}-arm64 \
             .
         env:
           DOCKER_BUILDKIT: 1
@@ -117,7 +122,7 @@ jobs:
             --platform linux/arm/v7 \
             --target final-armv7 \
             --push \
-            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:armv7 \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:{{ github.event.inputs.tag }}-armv7 \
             .
         env:
           DOCKER_BUILDKIT: 1
