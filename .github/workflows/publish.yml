@@ -147,7 +147,7 @@ jobs:
           context: .
           push: ${{ startsWith(github.ref, 'refs/tags/v') }}
           # tags: ghcr.io/shackerd/freebox-exporter-rs:latest,ghcr.io/shackerd/freebox-exporter-rs:${{ github.ref_name }}
-          tags: ghcr.io/shackerd/freebox-exporter-rs:gha-test-${{ github.ref }}
+          tags: ghcr.io/shackerd/freebox-exporter-rs:gha-test-${{ github.sha }}
           file: ./Containerfile
           platforms: linux/amd64,linux/arm64,linux/arm/v7
         # if: matrix.toolchain == 'stable' && startsWith(github.ref, 'refs/tags/v')
