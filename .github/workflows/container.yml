@@ -1,0 +1,139 @@
+# inspired by: https://github.com/Zaphkiel-Ivanovna/freebox-exporter-rs/blob/main/.github/workflows/docker.yml
+name: 🚀 Build and Publish Docker Images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      repository: ${{ steps.lower-repo.outputs.repository }}
+    steps:
+      - name: 🔄 Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - id: lower-repo
+        name: 🔤 Convert repository name to lowercase
+        run: echo "repository=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+  build-amd64:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: 🛠️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: 📦 Build and push AMD64 image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --target final-amd64 \
+            --push \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:amd64 \
+            .
+        env:
+          DOCKER_BUILDKIT: 1
+
+  build-arm64:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: 🛠️ Set up QEMU for ARM emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: 🛠️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: 📦 Build and push ARM64 image
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --target final-arm64 \
+            --push \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:arm64 \
+            .
+        env:
+          DOCKER_BUILDKIT: 1
+
+  build-armv7:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: 🛠️ Set up QEMU for ARM emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: 🛠️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: 📦 Build and push ARMv7 image
+        run: |
+          docker buildx build \
+            --platform linux/arm/v7 \
+            --target final-armv7 \
+            --push \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:armv7 \
+            .
+        env:
+          DOCKER_BUILDKIT: 1
+
+  manifest:
+    needs: [build-and-push, build-amd64, build-arm64, build-armv7]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: 🏗️ Create and push multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${{ needs.build-and-push.outputs.repository }}:latest \
+            ghcr.io/${{ needs.build-and-push.outputs.repository }}:amd64 \
+            ghcr.io/${{ needs.build-and-push.outputs.repository }}:arm64 \
+            ghcr.io/${{ needs.build-and-push.outputs.repository }}:armv7
