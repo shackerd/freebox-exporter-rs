@@ -67,21 +67,24 @@ RUN cargo +nightly build --release --target arm-unknown-linux-musleabihf
 
 FROM alpine:latest AS final-amd64
 RUN apk add --no-cache ca-certificates
-COPY --from=builder-amd64 /usr/src/freebox-exporter-rs/target/x86_64-unknown-linux-musl/release/freebox-exporter-rs /freebox-exporter-rs
+COPY --from=builder-amd64 /usr/src/freebox-exporter-rs/target/x86_64-unknown-linux-musl/release/freebox-exporter-rs /usr/bin/freebox-exporter-rs
 COPY config.toml /etc/freebox-exporter-rs/config.toml
+RUN ln -s /usr/bin/freebox-exporter-rs /root/freebox-exporter-rs
 EXPOSE 9102
-CMD ["/freebox-exporter-rs"]
+CMD ["/usr/bin/freebox-exporter-rs"]
 
 FROM alpine:latest AS final-arm64
 RUN apk add --no-cache ca-certificates
-COPY --from=builder-arm64 /usr/src/freebox-exporter-rs/target/aarch64-unknown-linux-musl/release/freebox-exporter-rs /freebox-exporter-rs
+COPY --from=builder-arm64 /usr/src/freebox-exporter-rs/target/aarch64-unknown-linux-musl/release/freebox-exporter-rs /usr/bin/freebox-exporter-rs
 COPY config.toml /etc/freebox-exporter-rs/config.toml
+RUN ln -s /usr/bin/freebox-exporter-rs /root/freebox-exporter-rs
 EXPOSE 9102
-CMD ["/freebox-exporter-rs"]
+CMD ["/usr/bin/freebox-exporter-rs"]
 
 FROM alpine:latest AS final-armv7
 RUN apk add --no-cache ca-certificates
-COPY --from=builder-armv7 /usr/src/freebox-exporter-rs/target/arm-unknown-linux-musleabihf/release/freebox-exporter-rs /freebox-exporter-rs
+COPY --from=builder-armv7 /usr/src/freebox-exporter-rs/target/arm-unknown-linux-musleabihf/release/freebox-exporter-rs /usr/bin/freebox-exporter-rs
 COPY config.toml /etc/freebox-exporter-rs/config.toml
+RUN ln -s /usr/bin/freebox-exporter-rs /root/freebox-exporter-rs
 EXPOSE 9102
-CMD ["/freebox-exporter-rs"]
+CMD ["/usr/bin/freebox-exporter-rs"]

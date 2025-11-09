@@ -83,7 +83,7 @@ Options:
 Running with docker
 
 ``` bash
-docker pull docker.io/shackerd/freebox-exporter-rs:latest
+docker pull ghcr.io/shackerd/freebox-exporter-rs:latest
 ```
 
 ``` yaml
@@ -91,7 +91,7 @@ version: '3.8'
 
 services:
   freebox-exporter:
-    image: docker.io/shackerd/freebox-exporter-rs:latest
+    image: ghcr.io/shackerd/freebox-exporter-rs:latest
     container_name: freebox-exporter
     volumes:
       - ./config:/etc/freebox-exporter-rs
@@ -99,7 +99,7 @@ services:
     ports:
       - "9102:9102"
     restart: unless-stopped
-    command: ["/root/freebox-exporter-rs", "-c", "/etc/freebox-exporter-rs/config.toml" ,"auto"]
+    command: ["/usr/bin/freebox-exporter-rs", "-c", "/etc/freebox-exporter-rs/config.toml" ,"auto"]
 ```
 
 > [!IMPORTANT]
