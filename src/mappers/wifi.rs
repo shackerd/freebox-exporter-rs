@@ -337,19 +337,19 @@ impl<'a> WifiMetricMap<'a> {
         let avg_history = calculate_avg_channel_survey_history(&recent);
 
         self.busy_percent_gauge
-            .with_label_values(&[&ap_id, &ap_name, &band])
+            .with_label_values(&[&ap_id, &ap_name.to_string(), &band])
             .set(avg_history.busy_percent.unwrap_or(0) as i64);
 
         self.tx_percent_gauge
-            .with_label_values(&[&ap_id, &ap_name, &band])
+            .with_label_values(&[&ap_id, &ap_name.to_string(), &band])
             .set(avg_history.tx_percent.unwrap_or(0) as i64);
 
         self.rx_bss_percent
-            .with_label_values(&[&ap_id, &ap_name, &band])
+            .with_label_values(&[&ap_id, &ap_name.to_string(), &band])
             .set(avg_history.rx_bss_percent.unwrap_or(0) as i64);
 
         self.rx_percent_gauge
-            .with_label_values(&[&ap_id, &ap_name, &band])
+            .with_label_values(&[&ap_id, &ap_name.to_string(), &band])
             .set(avg_history.rx_percent.unwrap_or(0) as i64);
 
         Ok(())
