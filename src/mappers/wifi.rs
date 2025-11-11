@@ -15,7 +15,7 @@ use crate::{
         transport::{FreeboxResponse, FreeboxResponseError},
     },
     diagnostics::DryRunnable,
-    mappers::wifi::models::WifiConfig,
+    mappers::wifi::models::{L2Ident, L3Connectivities, WifiConfig},
 };
 
 use super::MetricMap;
@@ -447,7 +447,7 @@ impl<'a> WifiMetricMap<'a> {
         let res = client
             .get(format!("{}v4/wifi/ap", self.factory.api_url))
             .send()
-            .await?
+            .await? 
             .json::<FreeboxResponse<Vec<AccessPoint>>>()
             .await?;
 
@@ -465,11 +465,43 @@ impl<'a> WifiMetricMap<'a> {
         stations: &[Station],
         ap: &AccessPoint,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+
         for station in stations.iter() {
+
             let last_rx = station.last_rx.as_ref().unwrap();
             let last_tx = station.last_tx.as_ref().unwrap();
             let flags = station.flags.as_ref().unwrap();
-            let host = station.host.as_ref().unwrap();
+
+            let host = match station.host.as_ref() {
+                Some(h) => h,
+                None => {
+                    info!("no host information found for station {}", station.mac.as_ref().unwrap());
+
+                    let l3connectivities = 
+                        L3Connectivities { 
+                            addr: Some("unknown".to_string()), 
+                            af: Some("unknown".to_string()), 
+                            last_time_reachable: Some(0), 
+                            last_activity: Some(0), 
+                            active: Some(true), 
+                            reachable: Some(true)
+                        };
+                    
+                    let l2ident = Some(L2Ident { id: Some("unknown".to_string()), r#type: Some("unknown".to_string()) });
+                    let empty_host = models::Host {
+                        active: Some(true),
+                        last_activity: Some(0),
+                        last_time_reachable: Some(0),
+                        vendor_name: Some("unknown".to_string()),
+                        primary_name: Some("unknown".to_string()),
+                        l3connectivities: Some(vec![l3connectivities]),
+                        l2ident,
+                        names: Some(vec![]),
+                        primary_name_manual: Some(false),
+                    };
+                    empty_host.as_any_ref()
+                }
+            };
 
             let mut l3s = host.l3connectivities.as_ref().unwrap().to_vec();
             l3s.sort_by(|a, b| {
@@ -482,13 +514,6 @@ impl<'a> WifiMetricMap<'a> {
                 .iter()
                 .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
                 .next();
-
-            if let None = l3 {
-                return Err(Box::new(FreeboxResponseError::new(format!(
-                    "no ipv4 address found for station {}",
-                    station.mac.as_ref().unwrap()
-                ))));
-            }
 
             let l3 = l3.unwrap(); // take the most recent entry
             let mac = station.mac.to_owned().unwrap_or("unknown".to_string());
