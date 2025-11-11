@@ -473,7 +473,7 @@ impl<'a> WifiMetricMap<'a> {
             let flags = station.flags.as_ref().unwrap();
 
             let host = match station.host.as_ref() {
-                Some(h) => h,
+                Some(h) => h.clone(),
                 None => {
                     info!("no host information found for station {}", station.mac.as_ref().unwrap());
 
@@ -499,7 +499,7 @@ impl<'a> WifiMetricMap<'a> {
                         names: Some(vec![]),
                         primary_name_manual: Some(false),
                     };
-                    empty_host.as_any_ref()
+                    empty_host
                 }
             };
 
