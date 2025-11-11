@@ -480,7 +480,7 @@ impl<'a> WifiMetricMap<'a> {
                     let l3connectivities = 
                         L3Connectivities { 
                             addr: Some("unknown".to_string()), 
-                            af: Some("unknown".to_string()), 
+                            af: Some("ipv4".to_string()), 
                             last_time_reachable: Some(0), 
                             last_activity: Some(0), 
                             active: Some(true), 
@@ -514,8 +514,14 @@ impl<'a> WifiMetricMap<'a> {
                 .iter()
                 .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
                 .next();
+            
+            if l3.is_none() {
+                return Err(Box::new(FreeboxResponseError::new(
+                    format!("no ipv4 connectivity found for station {}", station.mac.as_ref().unwrap()),
+                )));
+            }
 
-            let l3 = l3.unwrap(); // take the most recent entry
+            let l3 = l3.unwrap(); // take the most recent entry 
             let mac = station.mac.to_owned().unwrap_or("unknown".to_string());
             let rx_bitrate = last_rx.bitrate.unwrap_or(0);
             let rx_mcs = last_rx.mcs.unwrap_or(0);
