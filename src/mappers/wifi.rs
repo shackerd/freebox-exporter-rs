@@ -1,4 +1,4 @@
-use std::error::Error;
+
 use std::usize;
 
 use async_trait::async_trait;
@@ -14,12 +14,11 @@ use crate::{
         http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
         transport::{FreeboxResponse, FreeboxResponseError},
     },
-    diagnostics::DryRunnable,
     mappers::wifi::models::WifiConfig,
 };
 
 use super::MetricMap;
-use crate::diagnostics::DryRunOutputWriter;
+
 
 pub mod models;
 pub mod unittests;
@@ -818,20 +817,4 @@ impl<'a> MetricMap<'a> for WifiMetricMap<'a> {
     }
 }
 
-#[async_trait]
-impl DryRunnable for WifiMetricMap<'_> {
-    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
-        Ok("wifi".to_string())
-    }
 
-    async fn dry_run(
-        &mut self,
-        _writer: &mut dyn DryRunOutputWriter,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        Ok(())
-    }
-
-    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
-        self
-    }
-}

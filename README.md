@@ -67,13 +67,12 @@ Commands:
   register            registers the application
   serve               starts the application
   session-diagnostic  runs a diagnostic on the session
-  revoke              revokes the application token
-  dry-run             runs a dry run of the application and outputs the result to a file
+  revoke              
   help                Print this message or the help of the given subcommand(s)
 
 Options:
-  -c, --configuration-file <CONFIGURATION_FILE>
-  -v, --verbosity <VERBOSITY>
+  -c, --configuration-file <CONFIGURATION_FILE>  
+  -v, --verbosity <VERBOSITY>                    
   -h, --help                                     Print help
   -V, --version                                  Print version
 ```

@@ -1,7 +1,7 @@
 use core::{
     cli::{Cli, Command},
     configuration::get_configuration,
-    core::{auto_register_and_serve, dry_run, register, serve, session_diagnostic},
+    core::{auto_register_and_serve, register, serve, session_diagnostic},
     logger::CustomLogFilter,
 };
 
@@ -86,11 +86,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let interval = pooling_interval.unwrap_or(6);
             let serve_port = port.unwrap_or_else(|| conf.core.port.unwrap());
             auto_register_and_serve(&conf, interval, serve_port).await
-        }
-        Command::DryRun { output_path } => {
-            let default_path = "output.json".to_string();
-            let output_path = output_path.as_ref().unwrap_or(&default_path);
-            dry_run(&conf, output_path).await
         }
     };
 

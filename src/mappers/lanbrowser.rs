@@ -1,15 +1,14 @@
-use std::error::Error;
+
 use super::MetricMap;
-use crate::{core::common::{
+use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{FreeboxResponse, FreeboxResponseError},
-}, diagnostics::DryRunnable};
+};
 use async_trait::async_trait;
 use log::{debug, error};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::Deserialize;
-use crate::diagnostics::DryRunOutputWriter;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct LanBrowserInterface {
@@ -323,17 +322,3 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
     }
 }
 
-#[async_trait]
-impl DryRunnable for LanBrowserMetricMap<'_> {
-    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
-        Ok("lan_browser".to_string())
-    }
-
-    async fn dry_run(&mut self, _writer: &mut dyn DryRunOutputWriter) -> Result<(), Box<dyn Error + Send + Sync>> {
-        Ok(())
-    }
-
-    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
-        self
-    }
-}

@@ -72,7 +72,7 @@ impl Authenticator {
 
     pub async fn login(
         &self,
-    ) -> Result<AuthenticatedHttpClientFactory, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<AuthenticatedHttpClientFactory<'_>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("login in");
 
         let provider = SessionTokenProvider::new(self.token_store.as_ref(), self.api_url.clone());

@@ -3,16 +3,14 @@ use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::Deserialize;
-use std::error::Error;
+
 
 use super::MetricMap;
-use crate::diagnostics::DryRunOutputWriter;
 use crate::{
     core::common::{
         http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
         transport::{FreeboxResponse, FreeboxResponseError},
     },
-    diagnostics::DryRunnable,
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -190,20 +188,4 @@ impl<'a> MetricMap<'a> for LanMetricMap<'a> {
     }
 }
 
-#[async_trait]
-impl DryRunnable for LanMetricMap<'_> {
-    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
-        Ok("lan".to_string())
-    }
 
-    async fn dry_run(
-        &mut self,
-        _writer: &mut dyn DryRunOutputWriter,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        Ok(())
-    }
-
-    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
-        self
-    }
-}

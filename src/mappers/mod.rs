@@ -13,7 +13,6 @@ use crate::{
         common::http_client_factory::AuthenticatedHttpClientFactory,
         configuration::sections::{ApiConfiguration, CapabilitiesConfiguration},
     },
-    diagnostics::DryRunnable,
 };
 
 pub mod connection;
@@ -25,7 +24,7 @@ pub mod system;
 pub mod wifi;
 
 #[async_trait]
-pub trait MetricMap<'a>: DryRunnable {
+pub trait MetricMap<'a> {
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
@@ -147,10 +146,7 @@ impl<'a> Mapper<'a> {
         Self { maps }
     }
 
-    pub fn as_dry_runnable(&mut self) -> Vec<&mut dyn DryRunnable> {
-        let v = self.maps.iter_mut().map(|map| map.as_dry_runnable());
-        v.collect()
-    }
+
 
     pub async fn init_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for map in self.maps.iter_mut() {
