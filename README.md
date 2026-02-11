@@ -231,83 +231,16 @@ If you changed port in `conf.toml`, update the command line below.
 curl http://localhost:9102/metrics
 ```
 
-## Troubleshooting & Bug Reporting
+## Troubleshooting
 
-If you encounter issues with the exporter, the following diagnostic commands will help you investigate and report bugs effectively.
+Having issues? Check our comprehensive [troubleshooting guide](TROUBLESHOOTING.md) which includes:
 
-### Getting Diagnostic Information
+- Session diagnostic commands
+- Raw API data collection for bug reports
+- Common issues and solutions
+- Advanced debugging techniques
 
-The exporter provides a built-in session diagnostic command that can help identify authentication and API connectivity issues:
-
-```bash
-# Get session diagnostic information
-./freebox-exporter-rs session-diagnostic true
-```
-
-This command will output session token information and verify your authentication with the Freebox API.
-
-### Collecting Raw API Data for Bug Reports
-
-When reporting bugs, especially those related to missing metrics or parsing errors, it's extremely helpful to include the raw JSON data from your Freebox. This allows developers to reproduce the exact issue with your hardware configuration.
-
-**Steps to collect diagnostic data:**
-
-1. **Get your session token:**
-   ```bash
-   TOKEN=$(./freebox-exporter-rs session-diagnostic true | awk -F': ' '/^SESSION_TOKEN:/ {print $2}')
-   ```
-
-2. **Collect raw API data for the problematic endpoint:**
-   ```bash
-   # For system-related issues (CPU, temperature, etc.)
-   curl -ks -H "X-Fbx-App-Auth: $TOKEN" https://mafreebox.freebox.fr/api/v4/system | jq . > system_data.json
-   
-   # For WiFi-related issues
-   curl -ks -H "X-Fbx-App-Auth: $TOKEN" https://mafreebox.freebox.fr/api/v2/wifi/ap/0/stations | jq . > wifi_data.json
-   
-   # For connection-related issues
-   curl -ks -H "X-Fbx-App-Auth: $TOKEN" https://mafreebox.freebox.fr/api/v4/connection | jq . > connection_data.json
-   
-   # For DHCP-related issues
-   curl -ks -H "X-Fbx-App-Auth: $TOKEN" https://mafreebox.freebox.fr/api/v2/dhcp/dynamic_lease | jq . > dhcp_data.json
-   ```
-
-3. **Anonymize sensitive data before sharing:**
-   - Replace real MAC addresses with `XX:XX:XX:XX:XX:XX`
-   - Replace serial numbers with `FBXXXXXXXXXXXXXXX`
-   - Replace IP addresses with `192.168.1.XXX`
-   - Replace device names/hostnames with generic names
-
-4. **Include in your bug report:**
-   - Your Freebox model (Generation 8, Ultra, etc.)
-   - Firmware version from the JSON data
-   - The anonymized JSON file(s)
-   - Exact error message or unexpected behavior
-   - Relevant log output with verbosity enabled
-
-### Common Issues
-
-**Authentication failures:**
-- Ensure the Freebox allows LAN API access (Settings → Network → API)
-- Check if the application is properly registered: `./freebox-exporter-rs register`
-
-**Missing metrics:**
-- Verify the endpoint is enabled in your `config.toml`
-- Check if your Freebox model supports the specific API endpoint
-- Include raw JSON data when reporting missing metrics
-
-**Performance issues:**
-- Adjust the `refresh` interval in `config.toml` (default: 5 seconds)
-- Monitor Freebox API rate limiting
-
-### Need Help?
-
-- **Bug reports:** [GitHub Issues](https://github.com/shackerd/freebox-exporter-rs/issues) with diagnostic data
-- **Questions:** [Matrix chat](https://matrix.to/#/#freebox-exporter-rs:matrix.org) or [Discord](https://discord.gg/QfV2D2KZ)
-- **Feature requests:** [GitHub Discussions](https://github.com/shackerd/freebox-exporter-rs/discussions)
-
-> [!TIP]
-> Including raw JSON data with your bug reports significantly speeds up issue resolution, as developers can reproduce the exact scenario with your hardware configuration.
+For bug reports, please include diagnostic data as described in the troubleshooting guide.
 
 ## License
 
