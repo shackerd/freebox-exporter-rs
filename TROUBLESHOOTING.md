@@ -111,6 +111,28 @@ Verify your configuration file syntax:
 ./freebox-exporter-rs -c config.toml --help
 ```
 
+### Configuration Migration
+
+**Upgrading from v0.0.22 or earlier?** 
+
+If you're using an older configuration file, you may see errors about missing configuration sections. The exporter now supports WiFi policy configuration for handling unresolved hostnames.
+
+**For existing users:** Your old configuration will continue to work automatically! The exporter provides sensible defaults for any missing configuration options.
+
+**To add the new WiFi policy options** (optional), add this section to your `config.toml`:
+
+```toml
+[policies]
+# How to handle WiFi stations with unresolved hostnames
+unresolved_station_hostnames = "ignore"  
+# Options: "ignore" (default) or "relabel"
+```
+
+- **`ignore`**: Skip stations without complete host information (recommended)
+- **`relabel`**: Include all stations, using "unresolved" for missing data
+
+**No action required** - the exporter defaults to `"ignore"` mode for maximum compatibility.
+
 ### Network Troubleshooting
 
 If the exporter cannot reach your Freebox:

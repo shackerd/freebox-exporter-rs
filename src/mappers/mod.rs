@@ -39,7 +39,7 @@ impl<'a> Mapper<'a> {
         conf: CapabilitiesConfiguration,
         caps: Capabilities,
         api_conf: ApiConfiguration,
-        policies: PoliciesConfiguration,
+        policies: Option<PoliciesConfiguration>,
     ) -> Self {
         let mut maps: Vec<Box<dyn MetricMap<'a> + 'a>> = vec![];
 
@@ -117,11 +117,17 @@ impl<'a> Mapper<'a> {
                 if !caps.wifi.unwrap_or(false) {
                     warn!("wifi is either disabled on the host or has been explicitly enabled with an incompatible network mode ({}). The option has been automatically disabled", network_mode);
                 } else {
+                    // Provide default policies if none specified
+                    let default_policies = PoliciesConfiguration {
+                        unresolved_station_hostnames: Some("ignore".to_string()),
+                    };
+                    let wifi_policies = policies.as_ref().unwrap_or(&default_policies);
+                    
                     let wifi_map = wifi::WifiMetricMap::new(
                         factory,
                         conf.prefix.to_owned().unwrap(),
                         Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
-                        &policies,
+                        wifi_policies,
                     );
                     maps.push(Box::new(wifi_map));
                 }

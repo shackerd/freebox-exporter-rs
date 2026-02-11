@@ -110,9 +110,9 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
             },
-            policies: PoliciesConfiguration {
+            policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
-            },
+            }),
         };
 
         let conf2 = Configuration {
@@ -137,9 +137,9 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
             },
-            policies: PoliciesConfiguration {
+            policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
-            },
+            }),
         };
 
         let conf3 = Configuration {
@@ -164,9 +164,9 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
             },
-            policies: PoliciesConfiguration {
+            policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
-            },
+            }),
         };
 
         assert_eq!(true, conf.assert_data_dir_permissions().is_err());
@@ -198,9 +198,9 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
             },
-            policies: PoliciesConfiguration {
+            policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
-            },
+            }),
         };
 
         let conf2 = Configuration {
@@ -225,9 +225,9 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
             },
-            policies: PoliciesConfiguration {
+            policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
-            },
+            }),
         };
 
         let conf3 = Configuration {
@@ -252,9 +252,9 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
             },
-            policies: PoliciesConfiguration {
+            policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
-            },
+            }),
         };
 
         assert_eq!(Err(()), conf.assert_metrics_prefix_is_not_empty());

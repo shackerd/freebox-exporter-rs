@@ -16,7 +16,7 @@ pub struct Configuration {
     pub metrics: CapabilitiesConfiguration,
     pub core: CoreConfiguration,
     pub log: LogConfiguration,
-    pub policies: PoliciesConfiguration,
+    pub policies: Option<PoliciesConfiguration>,
 }
 
 impl Configuration {
