@@ -78,6 +78,7 @@ pub async fn auto_register_and_serve(
         conf.metrics.clone(),
         capabilities,
         conf.api.clone(),
+        conf.policies.clone(),
     );
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
 
@@ -218,6 +219,7 @@ pub async fn serve(
         conf.to_owned().metrics,
         capabilities,
         conf.to_owned().api,
+        conf.to_owned().policies,
     );
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 

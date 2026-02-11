@@ -25,6 +25,12 @@ system = true
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"
 
+[policies]
+unresolved_station_hostnames = "ignore"
+# Acceptable values :
+#   * "ignore" : ignore unresolved hostnames in lan browser metrics
+#   * "relabel" : set hostname label to "unresolved" 
+
 [core]
 # Specify where to store data for exporter such as APP_TOKEN, logs, etc.
 data_directory = "."

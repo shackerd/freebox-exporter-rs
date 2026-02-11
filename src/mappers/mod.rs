@@ -11,7 +11,7 @@ use crate::{
     core::{
         capabilities::Capabilities,
         common::http_client_factory::AuthenticatedHttpClientFactory,
-        configuration::sections::{ApiConfiguration, CapabilitiesConfiguration},
+        configuration::sections::{ApiConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
     },
 };
 
@@ -39,6 +39,7 @@ impl<'a> Mapper<'a> {
         conf: CapabilitiesConfiguration,
         caps: Capabilities,
         api_conf: ApiConfiguration,
+        policies: PoliciesConfiguration,
     ) -> Self {
         let mut maps: Vec<Box<dyn MetricMap<'a> + 'a>> = vec![];
 
@@ -120,6 +121,7 @@ impl<'a> Mapper<'a> {
                         factory,
                         conf.prefix.to_owned().unwrap(),
                         Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
+                        &policies,
                     );
                     maps.push(Box::new(wifi_map));
                 }

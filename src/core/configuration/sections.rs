@@ -12,6 +12,12 @@ pub struct ApiConfiguration {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+pub struct PoliciesConfiguration {
+    pub unresolved_station_hostnames: Option<String>,
+}
+
+
+#[derive(Deserialize, Clone, Debug)]
 pub struct CapabilitiesConfiguration {
     pub connection: Option<bool>,
     pub system: Option<bool>,

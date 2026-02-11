@@ -10,9 +10,12 @@ use reqwest::Client;
 use utils::{calculate_avg_channel_survey_history, get_recent_channel_entries};
 
 use crate::{
-    core::common::{
-        http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-        transport::{FreeboxResponse, FreeboxResponseError},
+    core::{
+        common::{
+            http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
+            transport::{FreeboxResponse, FreeboxResponseError},
+        },
+        configuration::sections::PoliciesConfiguration,
     },
     mappers::wifi::models::WifiConfig,
 };
@@ -28,6 +31,7 @@ pub struct WifiMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
     managed_client: Option<ManagedHttpClient>,
     history_ttl: Duration,
+    unresolved_hostname_policy: String,
     busy_percent_gauge: IntGaugeVec,
     tx_percent_gauge: IntGaugeVec,
     rx_percent_gauge: IntGaugeVec,
@@ -62,12 +66,19 @@ impl<'a> WifiMetricMap<'a> {
         factory: &'a AuthenticatedHttpClientFactory<'a>,
         prefix: String,
         history_ttl: Duration,
+        policies: &PoliciesConfiguration,
     ) -> Self {
         let prfx: String = format!("{prefix}_wifi");
+        let unresolved_hostname_policy = policies
+            .unresolved_station_hostnames
+            .clone()
+            .unwrap_or_else(|| "ignore".to_string());
+        
         Self {
             factory,
             managed_client: None,
             history_ttl,
+            unresolved_hostname_policy,
             busy_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_busy_percent"),
                 format!("{prfx}_busy_percent"),
@@ -465,167 +476,344 @@ impl<'a> WifiMetricMap<'a> {
         ap: &AccessPoint,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for station in stations.iter() {
-            let last_rx = station.last_rx.as_ref().unwrap();
-            let last_tx = station.last_tx.as_ref().unwrap();
-            let flags = station.flags.as_ref().unwrap();
-            let host = station.host.as_ref().unwrap();
+            match self.unresolved_hostname_policy.as_str() {
+                "ignore" => {
+                    // Skip station if essential fields are missing
+                    let Some(last_rx) = station.last_rx.as_ref() else { continue };
+                    let Some(last_tx) = station.last_tx.as_ref() else { continue };
+                    let Some(flags) = station.flags.as_ref() else { continue };
+                    let Some(host) = station.host.as_ref() else { continue };
 
-            let mut l3s = host.l3connectivities.as_ref().unwrap().to_vec();
-            l3s.sort_by(|a, b| {
-                b.last_time_reachable
-                    .unwrap()
-                    .cmp(&a.last_time_reachable.unwrap())
-            });
+                    let Some(l3connectivities) = host.l3connectivities.as_ref() else { continue };
+                    let mut l3s = l3connectivities.to_vec();
+                    l3s.sort_by(|a, b| {
+                        b.last_time_reachable
+                            .unwrap_or(0)
+                            .cmp(&a.last_time_reachable.unwrap_or(0))
+                    });
 
-            let l3 = l3s
-                .iter()
-                .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
-                .next();
+                    let l3 = l3s
+                        .iter()
+                        .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
+                        .next();
 
-            if let None = l3 {
-                return Err(Box::new(FreeboxResponseError::new(format!(
-                    "no ipv4 address found for station {}",
-                    station.mac.as_ref().unwrap()
-                ))));
+                    let Some(l3) = l3 else { continue }; // Skip this station if no IPv4 connectivity found
+
+                    // Normal path with all data available
+                    self.set_station_metrics_with_data(station, host, ap, l3, last_rx, last_tx, flags).await;
+                }
+                "relabel" | _ => {
+                    // In relabel mode, we process all stations and use default values for missing fields
+                    match (station.last_rx.as_ref(), station.last_tx.as_ref(), station.flags.as_ref(), station.host.as_ref()) {
+                        (Some(last_rx), Some(last_tx), Some(flags), Some(host)) => {
+                            // We have all the required data, try to get l3 connectivity
+                            match host.l3connectivities.as_ref() {
+                                Some(l3connectivities) => {
+                                    let mut l3s = l3connectivities.to_vec();
+                                    l3s.sort_by(|a, b| {
+                                        b.last_time_reachable
+                                            .unwrap_or(0)
+                                            .cmp(&a.last_time_reachable.unwrap_or(0))
+                                    });
+
+                                    let l3 = l3s
+                                        .iter()
+                                        .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
+                                        .next();
+
+                                    match l3 {
+                                        Some(l3) => {
+                                            // Full data path
+                                            self.set_station_metrics_with_data(station, host, ap, l3, last_rx, last_tx, flags).await;
+                                        }
+                                        None => {
+                                            // No IPv4 connectivity, use default values
+                                            self.set_station_metrics_with_defaults(station, host, ap, None).await;
+                                        }
+                                    }
+                                }
+                                None => {
+                                    // No l3connectivities, use default values  
+                                    self.set_station_metrics_with_defaults(station, host, ap, None).await;
+                                }
+                            }
+                        }
+                        _ => {
+                            // Missing some essential fields, but still try to process with host if available
+                            if let Some(host) = station.host.as_ref() {
+                                self.set_station_metrics_with_defaults(station, host, ap, None).await;
+                            } else {
+                                // No host at all, skip this station even in relabel mode
+                                continue;
+                            }
+                        }
+                    }
+                }
             }
-
-            let l3 = l3.unwrap(); // take the most recent entry
-            let mac = station.mac.to_owned().unwrap_or("unknown".to_string());
-            let rx_bitrate = last_rx.bitrate.unwrap_or(0);
-            let rx_mcs = last_rx.mcs.unwrap_or(0);
-            let rx_shortgi = last_rx.shortgi.unwrap_or_default();
-            let rx_vht_mcs = last_rx.vht_mcs.unwrap_or(0);
-            let rx_width = last_rx.width.to_owned().unwrap_or("unknown".to_string());
-            let rx_bytes = station.rx_bytes.unwrap_or(0);
-            let rx_rate = station.rx_rate.unwrap_or(0);
-            let tx_bitrate = last_tx.bitrate.unwrap_or(0);
-            let tx_mcs = last_tx.mcs.unwrap_or(0);
-            let tx_shortgi = last_tx.shortgi.unwrap_or_default();
-            let tx_vht_mcs = last_tx.vht_mcs.unwrap_or(0);
-            let tx_width = last_tx.to_owned().width.unwrap_or("unknown".to_string());
-            let tx_bytes = station.tx_bytes.unwrap_or(0);
-            let tx_rate = station.tx_rate.unwrap_or(0);
-            let signal = station.signal.unwrap_or(i8::MIN);
-            let inactive = station.inactive.unwrap_or(i64::MIN);
-            let state = station.state.to_owned().unwrap_or("unknown".to_string());
-            let vht = flags.vht.unwrap_or_default();
-            let legacy = flags.legacy.unwrap_or_default();
-            let authorized = flags.authorized.unwrap_or_default();
-            let ht = flags.ht.unwrap_or_default();
-            let active = host.to_owned().active.unwrap_or_default();
-            let last_activity = host.to_owned().last_activity.unwrap_or(i64::MIN);
-            let last_time_reachable = host.to_owned().last_time_reachable.unwrap_or(i64::MIN);
-            let vendor_name = host.to_owned().vendor_name.unwrap_or("unknown".to_string());
-            let primary_name = host
-                .to_owned()
-                .primary_name
-                .unwrap_or("unknown".to_string());
-            let addr = l3.addr.to_owned().unwrap_or("unknown".to_string());
-            let ap_name = ap.name.to_owned().unwrap_or("unknown".to_string());
-            let ap_id = ap.id.to_owned().map_or(i8::MIN, |i| i as i8).to_string();
-            let band = ap
-                .config
-                .as_ref()
-                .unwrap()
-                .band
-                .to_owned()
-                .unwrap_or("unknown".to_string());
-
-            self.station_active_gauge
-                .with_label_values(&[&primary_name, &ap_name, &band, &ap_id, &mac, &vendor_name])
-                .set(active.into());
-
-            self.station_rx_bitrate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_bitrate as i64);
-
-            self.station_rx_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_mcs as i64);
-
-            self.station_rx_shortgi_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_shortgi.into());
-
-            self.station_rx_vht_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_vht_mcs as i64);
-
-            self.station_rx_width_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_width.parse::<i64>().unwrap_or(0));
-
-            self.station_rx_bytes_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_bytes as i64);
-
-            self.station_rx_rate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(rx_rate as i64);
-
-            self.station_tx_bitrate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_bitrate as i64);
-
-            self.station_tx_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_mcs as i64);
-
-            self.station_tx_shortgi_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_shortgi.into());
-
-            self.station_tx_vht_mcs_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_vht_mcs as i64);
-
-            self.station_tx_width_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_width.parse::<i64>().unwrap_or(0));
-
-            self.station_tx_bytes_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_bytes as i64);
-
-            self.station_tx_rate_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(tx_rate as i64);
-
-            self.station_signal_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(signal as i64);
-
-            self.station_inactive_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(inactive);
-
-            self.station_state_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac, &state])
-                .set(1);
-
-            self.station_flags_gauge.with_label_values(&[
-                &primary_name,
-                &addr,
-                &ap_name,
-                &band,
-                &ap_id,
-                &mac,
-                &vht.to_string(),
-                &legacy.to_string(),
-                &authorized.to_string(),
-                &ht.to_string(),
-            ]);
-
-            self.station_last_activity_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(last_activity);
-
-            self.station_last_time_reachable_gauge
-                .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-                .set(last_time_reachable);
         }
 
         Ok(())
+    }
+    async fn set_station_metrics_with_data(
+        &self,
+        station: &Station,
+        host: &models::Host,
+        ap: &AccessPoint,
+        l3: &models::L3Connectivities,
+        last_rx: &models::LastRxTx,
+        last_tx: &models::LastRxTx,
+        flags: &models::Flags,
+    ) {
+        let mac = station.mac.to_owned().unwrap_or("unknown".to_string());
+        let rx_bitrate = last_rx.bitrate.unwrap_or(0);
+        let rx_mcs = last_rx.mcs.unwrap_or(0);
+        let rx_shortgi = last_rx.shortgi.unwrap_or_default();
+        let rx_vht_mcs = last_rx.vht_mcs.unwrap_or(0);
+        let rx_width = last_rx.width.to_owned().unwrap_or("unknown".to_string());
+        let rx_bytes = station.rx_bytes.unwrap_or(0);
+        let rx_rate = station.rx_rate.unwrap_or(0);
+        let tx_bitrate = last_tx.bitrate.unwrap_or(0);
+        let tx_mcs = last_tx.mcs.unwrap_or(0);
+        let tx_shortgi = last_tx.shortgi.unwrap_or_default();
+        let tx_vht_mcs = last_tx.vht_mcs.unwrap_or(0);
+        let tx_width = last_tx.to_owned().width.unwrap_or("unknown".to_string());
+        let tx_bytes = station.tx_bytes.unwrap_or(0);
+        let tx_rate = station.tx_rate.unwrap_or(0);
+        let signal = station.signal.unwrap_or(i8::MIN);
+        let inactive = station.inactive.unwrap_or(i64::MIN);
+        let state = station.state.to_owned().unwrap_or("unknown".to_string());
+        let vht = flags.vht.unwrap_or_default();
+        let legacy = flags.legacy.unwrap_or_default();
+        let authorized = flags.authorized.unwrap_or_default();
+        let ht = flags.ht.unwrap_or_default();
+        let active = host.to_owned().active.unwrap_or_default();
+        let last_activity = host.to_owned().last_activity.unwrap_or(i64::MIN);
+        let last_time_reachable = host.to_owned().last_time_reachable.unwrap_or(i64::MIN);
+        let vendor_name = host.to_owned().vendor_name.unwrap_or("unknown".to_string());
+        let primary_name = host
+            .to_owned()
+            .primary_name
+            .unwrap_or("unknown".to_string());
+        let addr = l3.addr.to_owned().unwrap_or("unknown".to_string());
+        let ap_name = ap.name.to_owned().unwrap_or("unknown".to_string());
+        let ap_id = ap.id.to_owned().map_or(i8::MIN, |i| i as i8).to_string();
+        let band = ap
+            .config
+            .as_ref()
+            .unwrap()
+            .band
+            .to_owned()
+            .unwrap_or("unknown".to_string());
+
+        self.station_active_gauge
+            .with_label_values(&[&primary_name, &ap_name, &band, &ap_id, &mac, &vendor_name])
+            .set(active.into());
+
+        self.station_rx_bitrate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_bitrate as i64);
+
+        self.station_rx_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_mcs as i64);
+
+        self.station_rx_shortgi_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_shortgi.into());
+
+        self.station_rx_vht_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_vht_mcs as i64);
+
+        self.station_rx_width_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_width.parse::<i64>().unwrap_or(0));
+
+        self.station_rx_bytes_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_bytes as i64);
+
+        self.station_rx_rate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(rx_rate as i64);
+
+        self.station_tx_bitrate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_bitrate as i64);
+
+        self.station_tx_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_mcs as i64);
+
+        self.station_tx_shortgi_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_shortgi.into());
+
+        self.station_tx_vht_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_vht_mcs as i64);
+
+        self.station_tx_width_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_width.parse::<i64>().unwrap_or(0));
+
+        self.station_tx_bytes_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_bytes as i64);
+
+        self.station_tx_rate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(tx_rate as i64);
+
+        self.station_signal_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(signal as i64);
+
+        self.station_inactive_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(inactive);
+
+        self.station_state_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac, &state])
+            .set(1);
+
+        self.station_flags_gauge.with_label_values(&[
+            &primary_name,
+            &addr,
+            &ap_name,
+            &band,
+            &ap_id,
+            &mac,
+            &vht.to_string(),
+            &legacy.to_string(),
+            &authorized.to_string(),
+            &ht.to_string(),
+        ]);
+
+        self.station_last_activity_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(last_activity);
+
+        self.station_last_time_reachable_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(last_time_reachable);
+    }
+
+    async fn set_station_metrics_with_defaults(
+        &self,
+        station: &Station,
+        host: &models::Host,
+        ap: &AccessPoint,
+        _l3: Option<&models::L3Connectivities>,
+    ) {
+        let mac = station.mac.to_owned().unwrap_or("unknown".to_string());
+        let primary_name = "unresolved".to_string(); // Use "unresolved" as default hostname
+        let addr = "unresolved".to_string(); // Use "unresolved" as default IP
+        let ap_name = ap.name.to_owned().unwrap_or("unknown".to_string());
+        let ap_id = ap.id.to_owned().map_or(i8::MIN, |i| i as i8).to_string();
+        let band = ap
+            .config
+            .as_ref()
+            .unwrap()
+            .band
+            .to_owned()
+            .unwrap_or("unknown".to_string());
+        let vendor_name = host.to_owned().vendor_name.unwrap_or("unresolved".to_string());
+
+        // Set metrics with default/unresolved values
+        self.station_active_gauge
+            .with_label_values(&[&primary_name, &ap_name, &band, &ap_id, &mac, &vendor_name])
+            .set(0); // Default inactive for unresolved hosts
+
+        self.station_rx_bitrate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_rx_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_rx_shortgi_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_rx_vht_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_rx_width_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_rx_bytes_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(station.rx_bytes.unwrap_or(0) as i64);
+
+        self.station_rx_rate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(station.rx_rate.unwrap_or(0) as i64);
+
+        self.station_tx_bitrate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_tx_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_tx_shortgi_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_tx_vht_mcs_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_tx_width_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(0);
+
+        self.station_tx_bytes_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(station.tx_bytes.unwrap_or(0) as i64);
+
+        self.station_tx_rate_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(station.tx_rate.unwrap_or(0) as i64);
+
+        self.station_signal_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(station.signal.unwrap_or(i8::MIN) as i64);
+
+        self.station_inactive_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(station.inactive.unwrap_or(i64::MIN));
+
+        self.station_state_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac, &station.state.to_owned().unwrap_or("unknown".to_string())])
+            .set(1);
+
+        // Set flags with default values (all false for unresolved stations)
+        self.station_flags_gauge.with_label_values(&[
+            &primary_name,
+            &addr,
+            &ap_name,
+            &band,
+            &ap_id,
+            &mac,
+            "false", // vht
+            "false", // legacy
+            "false", // authorized
+            "false", // ht
+        ]);
+
+        self.station_last_activity_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(host.to_owned().last_activity.unwrap_or(i64::MIN));
+
+        self.station_last_time_reachable_gauge
+            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
+            .set(host.to_owned().last_time_reachable.unwrap_or(i64::MIN));
     }
 
     pub fn reset_all(&self) {

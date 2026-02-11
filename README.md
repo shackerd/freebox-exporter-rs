@@ -27,6 +27,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
 * Customizable/CLI overridable log verbosity
 * CLI overridable configuration file path
 * Freebox API certificate validation
+* Configurable handling of WiFi stations with unresolved hostnames
 
 ## API Implementation
 
@@ -75,6 +76,36 @@ Options:
   -v, --verbosity <VERBOSITY>                    
   -h, --help                                     Print help
   -V, --version                                  Print version
+```
+
+## WiFi Station Hostname Resolution
+
+The exporter handles WiFi stations that may have incomplete hostname/IP information from the Freebox API. This can occur when:
+
+- Station is connected at Layer 2 but has no Layer 3 connectivity
+- DHCP lease has expired
+- Device is in sleep mode
+- Host information is temporarily unavailable
+
+You can control how these stations are handled via the `[policies]` section in your configuration:
+
+### Policy Options
+
+**`ignore` (recommended)**
+- Skips stations without complete host information
+- Prevents potential crashes and ensures stable operation
+- Only shows stations with fully resolved hostnames and IP addresses
+
+**`relabel`**
+- Includes all detected stations in metrics
+- Uses "unresolved" as hostname/IP for stations with missing data
+- Provides complete visibility of all connected devices
+- Useful for troubleshooting and monitoring all WiFi activity
+
+Example configuration:
+```toml
+[policies]
+unresolved_station_hostnames = "ignore"  # or "relabel"
 ```
 
 ## Running project
@@ -134,6 +165,13 @@ system = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"
+
+[policies]
+# Specify how to handle WiFi stations with unresolved hostnames (missing host data from Freebox API)
+unresolved_station_hostnames = "ignore"
+# Acceptable values :
+#   * "ignore"  : Skip stations without host data (recommended for stability)
+#   * "relabel" : Include stations with "unresolved" labels for missing host information
 
 [core]
 # Specify where to store data for exporter such as APP_TOKEN, logs, etc.
