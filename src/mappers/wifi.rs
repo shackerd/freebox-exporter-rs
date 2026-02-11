@@ -3,7 +3,7 @@ use std::usize;
 
 use async_trait::async_trait;
 use chrono::Duration;
-use log::{debug, info};
+use log::debug;
 use models::{AccessPoint, ChannelSurveyHistory, ChannelUsage, NeighborsAccessPoint, Station};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
@@ -334,7 +334,7 @@ impl<'a> WifiMetricMap<'a> {
         }
 
         if res.result.is_none() {
-            info!("channel survey history is empty, wifi might be disabled on freebox");
+            debug!("channel survey history is empty, skipping channel survey metrics");
             return Ok(());
         }
 
@@ -948,10 +948,10 @@ impl<'a> WifiMetricMap<'a> {
 
         let aps = match aps.len() {
             0 => {
-                info!("no access points found in /wifi/ap endpoint, fallbacking to /wifi/config");
+                debug!("no access points found in /wifi/ap endpoint, trying /wifi/config fallback");
                 let config = self.get_wifi_config().await?;
                 if config.expected_phys.is_none() {
-                    info!("no expected_phys found in /wifi/config endpoint, wifi might be disabled on freebox or no device connected");
+                    debug!("no expected_phys found in /wifi/config endpoint, skipping WiFi metrics");
                     return Ok(());
                 }
 
