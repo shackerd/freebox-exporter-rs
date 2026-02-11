@@ -1,13 +1,26 @@
 # inspired by: https://github.com/Zaphkiel-Ivanovna/freebox-exporter-rs/blob/main/.github/workflows/docker.yml
 name: 🚀 Build and Publish Docker Images
 
+# Container Tagging Strategy:
+# - Release tags (v1.2.3): Published as 'latest' AND versioned tag (v1.2.3)
+# - Main branch: Published as 'latest' (manual dispatch) or custom tag
+# - Development branches: Published as 'dev-<branch-name>' or 'dev-<branch-name>-<custom>'
+# - NEVER publish development builds as 'latest' to prevent production issues
+
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish (default: latest)'
-        required: true
-        default: 'latest'
+        description: 'Tag to publish (default: auto-detected from branch)'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'main'
+      - 'release/*'
+      - 'hotfix/*'
 
 permissions:
   packages: write
@@ -18,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repository: ${{ steps.lower-repo.outputs.repository }}
+      final_tag: ${{ steps.determine-tag.outputs.final_tag }}
+      versioned_tag: ${{ steps.determine-tag.outputs.versioned_tag }}
     steps:
       - name: 🔄 Checkout repository
         uses: actions/checkout@v3
@@ -27,6 +42,51 @@ jobs:
       - id: lower-repo
         name: 🔤 Convert repository name to lowercase
         run: echo "repository=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - id: determine-tag
+        name: 🏷️ Determine appropriate tag for container
+        run: |
+          # Determine the final tag based on the trigger event and branch
+          
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" =~ ^refs/tags/v ]]; then
+            # Tag push (e.g., v1.2.3) -> use the tag version as latest
+            TAG_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/tags\///')
+            FINAL_TAG="latest"
+            VERSIONED_TAG="$TAG_NAME"
+            
+            echo "final_tag=$FINAL_TAG" >> $GITHUB_OUTPUT
+            echo "versioned_tag=$VERSIONED_TAG" >> $GITHUB_OUTPUT
+            echo "🏷️ Release tag detected: $TAG_NAME, publishing as 'latest' and '$VERSIONED_TAG'"
+            
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # Main branch push or manual dispatch from main
+            INPUT_TAG="${{ github.event.inputs.tag }}"
+            if [[ -z "$INPUT_TAG" ]]; then
+              FINAL_TAG="latest"
+            else
+              FINAL_TAG="$INPUT_TAG"
+            fi
+            
+            echo "final_tag=$FINAL_TAG" >> $GITHUB_OUTPUT
+            echo "🏷️ Main branch: publishing as '$FINAL_TAG'"
+            
+          else
+            # Development/feature branches or manual dispatch from dev branch
+            BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
+            BRANCH_SAFE=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            
+            INPUT_TAG="${{ github.event.inputs.tag }}"
+            if [[ -z "$INPUT_TAG" ]] || [[ "$INPUT_TAG" == "latest" ]]; then
+              # Auto or 'latest' for dev branch -> use branch-based tag
+              FINAL_TAG="dev-$BRANCH_SAFE"
+            else
+              # Custom tag for dev branch -> prefix with branch
+              FINAL_TAG="dev-$BRANCH_SAFE-$INPUT_TAG"
+            fi
+            
+            echo "final_tag=$FINAL_TAG" >> $GITHUB_OUTPUT
+            echo "🏷️ Development branch '$BRANCH_NAME': publishing as '$FINAL_TAG'"
+          fi
 
   build-amd64:
     needs: build-and-push
@@ -54,7 +114,7 @@ jobs:
             --platform linux/amd64 \
             --target final-amd64 \
             --push \
-            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ github.event.inputs.tag }}-amd64 \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-amd64 \
             .
         env:
           DOCKER_BUILDKIT: 1
@@ -88,7 +148,7 @@ jobs:
             --platform linux/arm64 \
             --target final-arm64 \
             --push \
-            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ github.event.inputs.tag }}-arm64 \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-arm64 \
             .
         env:
           DOCKER_BUILDKIT: 1
@@ -122,7 +182,7 @@ jobs:
             --platform linux/arm/v7 \
             --target final-armv7 \
             --push \
-            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ github.event.inputs.tag }}-armv7 \
+            --tag ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-armv7 \
             .
         env:
           DOCKER_BUILDKIT: 1
@@ -140,8 +200,19 @@ jobs:
 
       - name: 🏗️ Create and push multi-arch manifest
         run: |
+          # Create the main manifest
           docker buildx imagetools create \
-            -t ghcr.io/${{ needs.build-and-push.outputs.repository }}:latest \
-            ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ github.event.inputs.tag }}-amd64 \
-            ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ github.event.inputs.tag }}-arm64 \
-            ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ github.event.inputs.tag }}-armv7
+            -t ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }} \
+            ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-amd64 \
+            ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-arm64 \
+            ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-armv7
+          
+          # If this is a release tag, also create a versioned manifest
+          if [[ -n "${{ needs.build-and-push.outputs.versioned_tag }}" ]]; then
+            echo "📦 Creating versioned manifest: ${{ needs.build-and-push.outputs.versioned_tag }}"
+            docker buildx imagetools create \
+              -t ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.versioned_tag }} \
+              ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-amd64 \
+              ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-arm64 \
+              ghcr.io/${{ needs.build-and-push.outputs.repository }}:${{ needs.build-and-push.outputs.final_tag }}-armv7
+          fi
