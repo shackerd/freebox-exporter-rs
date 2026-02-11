@@ -2,25 +2,23 @@
 name: 🚀 Build and Publish Docker Images
 
 # Container Tagging Strategy:
-# - Release tags (v1.2.3): Published as 'latest' AND versioned tag (v1.2.3)
-# - Main branch: Published as 'latest' (manual dispatch) or custom tag
+# - Release tags (v1.2.3): Published as 'latest' AND versioned tag (v1.2.3) [ONLY SOURCE OF LATEST]
+# - Main branch: Manual dispatch only with custom tags (e.g., 'nightly', 'main-build')
 # - Development branches: Published as 'dev-<branch-name>' or 'dev-<branch-name>-<custom>'
 # - NEVER publish development builds as 'latest' to prevent production issues
+# - NEVER auto-publish 'latest' from main branch pushes (only from official releases)
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish (default: auto-detected from branch)'
-        required: false
+        description: 'Tag to publish (required for manual builds, e.g., nightly, main-build, beta)'
+        required: true
         default: ''
   push:
     tags:
       - 'v*'
-    branches:
-      - 'main'
-      - 'release/*'
-      - 'hotfix/*'
+    # Removed automatic main branch publishing - only manual dispatch allowed
 
 permissions:
   packages: write
@@ -49,7 +47,7 @@ jobs:
           # Determine the final tag based on the trigger event and branch
           
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" =~ ^refs/tags/v ]]; then
-            # Tag push (e.g., v1.2.3) -> use the tag version as latest
+            # Release tag push (e.g., v1.2.3) -> ONLY source of 'latest'
             TAG_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/tags\///')
             FINAL_TAG="latest"
             VERSIONED_TAG="$TAG_NAME"
@@ -59,28 +57,37 @@ jobs:
             echo "🏷️ Release tag detected: $TAG_NAME, publishing as 'latest' and '$VERSIONED_TAG'"
             
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            # Main branch push or manual dispatch from main
+            # Main branch manual dispatch - NEVER auto-publish as latest
             INPUT_TAG="${{ github.event.inputs.tag }}"
             if [[ -z "$INPUT_TAG" ]]; then
-              FINAL_TAG="latest"
+              echo "❌ ERROR: Manual builds from main branch require a specific tag (e.g., 'nightly', 'main-build')"
+              exit 1
+            elif [[ "$INPUT_TAG" == "latest" ]]; then
+              echo "❌ ERROR: 'latest' tag can only be published from official release tags (v1.2.3)"
+              echo "   Use a descriptive tag like 'nightly', 'main-build', or 'candidate' instead"
+              exit 1
             else
               FINAL_TAG="$INPUT_TAG"
             fi
             
             echo "final_tag=$FINAL_TAG" >> $GITHUB_OUTPUT
-            echo "🏷️ Main branch: publishing as '$FINAL_TAG'"
+            echo "🏷️ Main branch manual build: publishing as '$FINAL_TAG'"
             
           else
-            # Development/feature branches or manual dispatch from dev branch
+            # Development/feature branches
             BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
             BRANCH_SAFE=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9._-]/-/g')
             
             INPUT_TAG="${{ github.event.inputs.tag }}"
-            if [[ -z "$INPUT_TAG" ]] || [[ "$INPUT_TAG" == "latest" ]]; then
-              # Auto or 'latest' for dev branch -> use branch-based tag
+            if [[ -z "$INPUT_TAG" ]]; then
+              # Auto tag for dev branch
+              FINAL_TAG="dev-$BRANCH_SAFE"
+            elif [[ "$INPUT_TAG" == "latest" ]]; then
+              echo "❌ ERROR: 'latest' tag cannot be used from development branches"
+              echo "   Development branch '$BRANCH_NAME' will use 'dev-$BRANCH_SAFE' instead"
               FINAL_TAG="dev-$BRANCH_SAFE"
             else
-              # Custom tag for dev branch -> prefix with branch
+              # Custom tag for dev branch with prefix
               FINAL_TAG="dev-$BRANCH_SAFE-$INPUT_TAG"
             fi
             
