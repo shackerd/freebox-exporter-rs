@@ -9,7 +9,7 @@ mod test {
 
     use crate::core::configuration::{
         get_configuration,
-        sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration},
+        sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
         Configuration,
     };
 
@@ -40,9 +40,13 @@ prefix = \"fbx\"
 [core]
 data_directory = \".\"
 port = 9102
+
 [log]
 level = \"Info\"
-retention = 31";
+retention = 31
+
+[policies]
+unresolved_station_hostnames = \"ignore\"";
 
         file.write_all(content.as_bytes())
             .await
@@ -106,6 +110,9 @@ retention = 31";
                 wifi: None,
                 dhcp: None,
             },
+            policies: Some(PoliciesConfiguration {
+                unresolved_station_hostnames: None,
+            }),
         };
 
         let conf2 = Configuration {
@@ -130,6 +137,9 @@ retention = 31";
                 wifi: None,
                 dhcp: None,
             },
+            policies: Some(PoliciesConfiguration {
+                unresolved_station_hostnames: None,
+            }),
         };
 
         let conf3 = Configuration {
@@ -154,6 +164,9 @@ retention = 31";
                 wifi: None,
                 dhcp: None,
             },
+            policies: Some(PoliciesConfiguration {
+                unresolved_station_hostnames: None,
+            }),
         };
 
         assert_eq!(true, conf.assert_data_dir_permissions().is_err());
@@ -185,6 +198,9 @@ retention = 31";
                 wifi: None,
                 dhcp: None,
             },
+            policies: Some(PoliciesConfiguration {
+                unresolved_station_hostnames: None,
+            }),
         };
 
         let conf2 = Configuration {
@@ -209,6 +225,9 @@ retention = 31";
                 wifi: None,
                 dhcp: None,
             },
+            policies: Some(PoliciesConfiguration {
+                unresolved_station_hostnames: None,
+            }),
         };
 
         let conf3 = Configuration {
@@ -233,6 +252,9 @@ retention = 31";
                 wifi: None,
                 dhcp: None,
             },
+            policies: Some(PoliciesConfiguration {
+                unresolved_station_hostnames: None,
+            }),
         };
 
         assert_eq!(Err(()), conf.assert_metrics_prefix_is_not_empty());

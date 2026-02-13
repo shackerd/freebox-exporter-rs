@@ -6,6 +6,8 @@ use std::{
 };
 use tokio::{fs::File, io::AsyncReadExt};
 
+use crate::core::configuration::sections::PoliciesConfiguration;
+
 pub mod sections;
 pub mod tests;
 #[derive(Deserialize, Clone, Debug)]
@@ -14,6 +16,7 @@ pub struct Configuration {
     pub metrics: CapabilitiesConfiguration,
     pub core: CoreConfiguration,
     pub log: LogConfiguration,
+    pub policies: Option<PoliciesConfiguration>,
 }
 
 impl Configuration {

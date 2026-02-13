@@ -142,12 +142,12 @@
                         "phy_rx_rate": 130,
                         "ssid": "SSID",
                         "standard": "n",
-                        "bssid": "8C:97:EA:F2:88:E0",
+                        "bssid": "XX:XX:XX:XX:XX:XX",
                         "phy_tx_rate": 433,
                         "signal": -69
                     },
                     "rx_rate": 0,
-                    "mac": "70:FC:8F:A0:47:4E"
+                    "mac": "XX:XX:XX:XX:XX:XX"
                 },
                 "default_name": "Device-2",
                 "first_activity": 1736681524,

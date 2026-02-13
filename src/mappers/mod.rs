@@ -11,9 +11,8 @@ use crate::{
     core::{
         capabilities::Capabilities,
         common::http_client_factory::AuthenticatedHttpClientFactory,
-        configuration::sections::{ApiConfiguration, CapabilitiesConfiguration},
+        configuration::sections::{ApiConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
     },
-    diagnostics::DryRunnable,
 };
 
 pub mod connection;
@@ -25,7 +24,7 @@ pub mod system;
 pub mod wifi;
 
 #[async_trait]
-pub trait MetricMap<'a>: DryRunnable {
+pub trait MetricMap<'a> {
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
@@ -40,6 +39,7 @@ impl<'a> Mapper<'a> {
         conf: CapabilitiesConfiguration,
         caps: Capabilities,
         api_conf: ApiConfiguration,
+        policies: Option<PoliciesConfiguration>,
     ) -> Self {
         let mut maps: Vec<Box<dyn MetricMap<'a> + 'a>> = vec![];
 
@@ -117,10 +117,17 @@ impl<'a> Mapper<'a> {
                 if !caps.wifi.unwrap_or(false) {
                     warn!("wifi is either disabled on the host or has been explicitly enabled with an incompatible network mode ({}). The option has been automatically disabled", network_mode);
                 } else {
+                    // Provide default policies if none specified
+                    let default_policies = PoliciesConfiguration {
+                        unresolved_station_hostnames: Some("ignore".to_string()),
+                    };
+                    let wifi_policies = policies.as_ref().unwrap_or(&default_policies);
+                    
                     let wifi_map = wifi::WifiMetricMap::new(
                         factory,
                         conf.prefix.to_owned().unwrap(),
                         Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
+                        wifi_policies,
                     );
                     maps.push(Box::new(wifi_map));
                 }
@@ -147,10 +154,7 @@ impl<'a> Mapper<'a> {
         Self { maps }
     }
 
-    pub fn as_dry_runnable(&mut self) -> Vec<&mut dyn DryRunnable> {
-        let v = self.maps.iter_mut().map(|map| map.as_dry_runnable());
-        v.collect()
-    }
+
 
     pub async fn init_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for map in self.maps.iter_mut() {

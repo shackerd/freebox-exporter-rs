@@ -8,16 +8,14 @@ use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
 use reqwest::Client;
-use std::error::Error;
+
 
 use super::MetricMap;
-use crate::diagnostics::DryRunOutputWriter;
 use crate::{
     core::common::{
         http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
         transport::{FreeboxResponse, FreeboxResponseError},
     },
-    diagnostics::DryRunnable,
 };
 mod models;
 mod unittests;
@@ -912,20 +910,4 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
     }
 }
 
-#[async_trait]
-impl DryRunnable for ConnectionMetricMap<'_> {
-    fn get_name(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
-        Ok("connection".to_string())
-    }
 
-    async fn dry_run(
-        &mut self,
-        _writer: &mut dyn DryRunOutputWriter,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        Ok(())
-    }
-
-    fn as_dry_runnable(&mut self) -> &mut dyn DryRunnable {
-        self
-    }
-}

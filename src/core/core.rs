@@ -2,7 +2,6 @@ use log::info;
 
 use crate::{
     core::{authenticator::Authenticator, capabilities::CapabilitiesAgent, discovery},
-    diagnostics,
     mappers::Mapper,
 };
 
@@ -79,6 +78,7 @@ pub async fn auto_register_and_serve(
         conf.metrics.clone(),
         capabilities,
         conf.api.clone(),
+        conf.policies.clone(),
     );
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
 
@@ -219,6 +219,7 @@ pub async fn serve(
         conf.to_owned().metrics,
         capabilities,
         conf.to_owned().api,
+        conf.to_owned().policies,
     );
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
 
@@ -295,90 +296,6 @@ pub async fn session_diagnostic(
             "Unable to get api url",
         )));
     }
-
-    Ok(())
-}
-
-/// ### Dry run
-/// This function will run the dry run
-/// ## Arguments
-/// * `conf` - The configuration object
-/// * `output_path` - The path to the output file
-/// ## Returns
-/// * `Result<(), Box<dyn std::error::Error + Send + Sync>>` - The result of the operation
-/// ## Errors
-/// * `Box<dyn std::error::Error + Send + Sync>` - If there is an error during the operation
-/// ## Example
-/// ```
-/// let conf = Configuration::new();
-/// let output_path = "output.txt";
-/// let result = dry_run(&conf, output_path).await;
-/// assert_eq!(result, Ok(()));
-/// ```
-/// ## Notes
-/// * This function will run the dry run
-/// * It will return an error if there is an error during the operation
-/// * It will return Ok(()) if the operation is successful
-/// * It will return an error if the application is not registered
-/// * It will write the output to the specified file
-/// * It will return an error if there is an error during the operation
-pub async fn dry_run(
-    conf: &Configuration,
-    output_path: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let agnostic_auth = create_network_agnostic_authenticator(&conf).await?;
-
-    let res = agnostic_auth.is_registered().await;
-
-    if let Err(e) = res {
-        return Err(e);
-    }
-
-    if !res.unwrap_or(false) {
-        info!("application is not registered, exiting now");
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Application is not registered, please register it first",
-        )));
-    }
-
-    let api_url = get_api_url(&agnostic_auth).await?;
-
-    let authenticator = authenticator::Authenticator::new(
-        api_url.to_owned(),
-        Box::new(FileSystemProvider::new(
-            conf.core.data_directory.as_ref().unwrap().to_owned(),
-        )),
-    );
-
-    let factory = match authenticator.login().await {
-        Err(e) => return Err(e),
-        Ok(r) => r,
-    };
-
-    let cap_agent = CapabilitiesAgent::new(&factory);
-
-    let capabilities = cap_agent.load().await;
-    if let Err(e) = capabilities {
-        return Err(e);
-    }
-
-    let capabilities = capabilities.unwrap();
-
-    let mut mapper = Mapper::new(
-        &factory,
-        conf.to_owned().metrics,
-        capabilities,
-        conf.to_owned().api,
-    );
-
-    let mut runner = diagnostics::DryRunner::new(mapper.as_dry_runnable(), output_path);
-
-    if let Err(e) = runner.run().await {
-        return Err(e);
-    }
-
-    info!("dry run completed successfully");
 
     Ok(())
 }

@@ -36,8 +36,4 @@ pub enum Command {
         show_token: Option<bool>,
     },
     Revoke,
-    DryRun{
-        /// the path to the output file
-        output_path: Option<String>,
-    },
 }

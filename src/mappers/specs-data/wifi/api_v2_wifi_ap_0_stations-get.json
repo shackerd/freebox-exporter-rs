@@ -2,7 +2,7 @@
     "success": true,
     "result": [
         {
-            "mac": "d0:23:db:36:15:aa",
+            "mac": "XX:XX:XX:XX:XX:AA",
             "last_rx": {
                 "bitrate": 110,
                 "mcs": -1,
@@ -18,8 +18,8 @@
                 "vht_mcs": -1,
                 "width": "20"
             },
-            "id": "00:24:D4:AC:DC:88-d0:23:db:36:15:aa",
-            "bssid": "00:24:D4:AC:DC:88",
+            "id": "XX:XX:XX:XX:XX:XX-XX:XX:XX:XX:XX:AA",
+            "bssid": "XX:XX:XX:XX:XX:XX",
             "flags": {
                 "vht": false,
                 "legacy": false,
@@ -30,11 +30,11 @@
             "host":
             {
                 "l2ident": {
-                    "id": "d0:23:db:36:15:aa",
+                    "id": "XX:XX:XX:XX:XX:AA",
                     "type": "mac_address"
                 },
                 "active": true,
-                "id": "wifi-d0:23:db:36:15:aa",
+                "id": "wifi-XX:XX:XX:XX:XX:AA",
                 "last_time_reachable": 1360699498,
                 "persistent": true,
                 "names": [
@@ -68,7 +68,7 @@
             "signal": -28
         },
         {
-            "mac": "ff:ff:ff:ff:ff:ff",
+            "mac": "XX:XX:XX:XX:XX:FF",
             "last_rx": {
                 "bitrate": 110,
                 "mcs": -1,
@@ -84,8 +84,8 @@
                 "vht_mcs": -1,
                 "width": "20"
             },
-            "id": "00:24:D4:AC:DC:88-ff:ff:ff:ff:ff:ff",
-            "bssid": "00:24:D4:AC:DC:88",
+            "id": "XX:XX:XX:XX:XX:XX-XX:XX:XX:XX:XX:FF",
+            "bssid": "XX:XX:XX:XX:XX:XX",
             "flags": {
                 "vht": false,
                 "legacy": false,
@@ -96,11 +96,11 @@
             "host":
             {
                 "l2ident": {
-                    "id": "ff:ff:ff:ff:ff:ff",
+                    "id": "XX:XX:XX:XX:XX:FF",
                     "type": "mac_address"
                 },
                 "active": true,
-                "id": "wifi-ff:ff:ff:ff:ff:ff",
+                "id": "wifi-XX:XX:XX:XX:XX:FF",
                 "last_time_reachable": 1360669498,
                 "persistent": true,
                 "names": [
