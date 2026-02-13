@@ -121,7 +121,7 @@ version: '3.8'
 
 services:
   freebox-exporter:
-    image: ghcr.io/shackerd/freebox-exporter-rs:latest
+    image: ghcr.io/shackerd/freebox-exporter-rs:latest-amd64
     container_name: freebox-exporter
     volumes:
       - ./config:/etc/freebox-exporter-rs
