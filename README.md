@@ -49,6 +49,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
   * &#9989; Switch: **100%**
   * &#9989; Wi-Fi: **100%**%
   * &#9989; System: **100%**
+  * &#9989; Storage/NAS: **100%**
   * &#10060; VPN Server: 0%
   * &#10060; VPN Client: 0%
 
@@ -108,6 +109,47 @@ Example configuration:
 unresolved_station_hostnames = "ignore"  # or "relabel"
 ```
 
+## NAS Storage Metrics
+
+The exporter provides comprehensive metrics for Freebox NAS storage functionality, exposing detailed information about attached disks and their partitions.
+
+### Disk Metrics
+
+- **Storage capacity**: Total disk size in bytes
+- **Disk state**: Current state (enabled, disabled, error, formatting)
+- **Temperature**: Disk temperature in Celsius (for supported drives)
+- **Power management**: Spinning status, idle state, and timing information
+- **Hardware info**: Disk type (internal, USB, SATA), model, serial, firmware
+- **Performance**: Active/idle duration, time before spindown
+- **Physical info**: Connector ID, partition table type
+- **Operations**: Progress percentage and step counts for ongoing operations
+
+### Partition Metrics
+
+- **Storage usage**: Total, used, and free space in bytes
+- **Partition state**: Mount status (mounted, unmounted, error, etc.)
+- **Filesystem info**: Filesystem type and partition labels
+- **Health**: FSCK results and status
+- **Operations**: Progress percentage and step counts for partition operations
+
+### Configuration
+
+Enable NAS metrics by setting `nas = true` in your configuration file:
+
+```toml
+[metrics]
+nas = true
+```
+
+**Note**: NAS metrics use the Freebox Storage API which is marked as **[UNSTABLE]** in the official documentation and may change in future Freebox firmware updates.
+
+Example metrics exposed:
+```
+fbx_exporter_nas_disk_total_bytes{disk_id="1",disk_type="internal",model="Hitachi HCC545025B9A300",serial="GSCH35VC"} 250059350016
+fbx_exporter_nas_disk_temperature_celsius{disk_id="1",disk_type="internal",model="Hitachi HCC545025B9A300",serial="GSCH35VC"} 51
+fbx_exporter_nas_partition_used_bytes{partition_id="3",disk_id="1",label="Disque dur",fstype="ext4"} 164520534016
+```
+
 ## Running project
 
 Running with docker
@@ -162,6 +204,8 @@ wifi = true
 dhcp = true
 # Exposes system
 system = true
+# Exposes NAS storage information (disks and partitions)
+nas = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

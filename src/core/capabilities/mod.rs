@@ -66,6 +66,7 @@ impl<'a> CapabilitiesAgent<'a> {
             switch: Some(is_router),
             wifi: Some(is_wifi_enabled),
             dhcp: Some(is_router),
+            nas: Some(true), // NAS is always available
             network_mode: lan_config.mode,
         })
     }
@@ -107,5 +108,6 @@ pub struct Capabilities {
     pub switch: Option<bool>,
     pub wifi: Option<bool>,
     pub dhcp: Option<bool>,
+    pub nas: Option<bool>,
     pub network_mode: Option<String>,
 }

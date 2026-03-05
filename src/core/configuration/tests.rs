@@ -109,6 +109,7 @@ unresolved_station_hostnames = \"ignore\"";
                 switch: None,
                 wifi: None,
                 dhcp: None,
+                nas: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -136,6 +137,7 @@ unresolved_station_hostnames = \"ignore\"";
                 switch: None,
                 wifi: None,
                 dhcp: None,
+                nas: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -163,6 +165,7 @@ unresolved_station_hostnames = \"ignore\"";
                 switch: None,
                 wifi: None,
                 dhcp: None,
+                nas: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -197,6 +200,7 @@ unresolved_station_hostnames = \"ignore\"";
                 switch: None,
                 wifi: None,
                 dhcp: None,
+                nas: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -218,12 +222,13 @@ unresolved_station_hostnames = \"ignore\"";
             metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
-                prefix: Some(" ".to_string()),
+                prefix: None,
                 lan_browser: None,
                 lan: None,
                 switch: None,
                 wifi: None,
                 dhcp: None,
+                nas: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -245,12 +250,13 @@ unresolved_station_hostnames = \"ignore\"";
             metrics: CapabilitiesConfiguration {
                 connection: None,
                 system: None,
-                prefix: Some("fbx_exporter".to_string()),
+                prefix: Some("valid_prefix".to_string()),
                 lan_browser: None,
                 lan: None,
                 switch: None,
                 wifi: None,
                 dhcp: None,
+                nas: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
