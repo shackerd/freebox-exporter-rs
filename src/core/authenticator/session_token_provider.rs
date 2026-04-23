@@ -75,7 +75,7 @@ impl<'a> SessionTokenProvider<'a> {
     ) -> Result<ChallengeResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching challenge");
 
-        let client = http_client_factory().unwrap();
+        let client = http_client_factory()?;
 
         let body = match (match client
             .get(format!("{}v4/login/", self.api_url))
@@ -119,7 +119,7 @@ impl<'a> SessionTokenProvider<'a> {
     ) -> Result<SessionResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("negociating session token");
 
-        let client = http_client_factory().unwrap();
+        let client = http_client_factory()?;
 
         let payload = SessionPayload {
             app_id: String::from("fr.freebox.prometheus.exporter"),

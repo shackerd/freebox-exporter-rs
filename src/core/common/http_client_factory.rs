@@ -144,11 +144,15 @@ apps_denied 	API access from apps has been disabled
 internal_error 	Internal error
  */
 
-pub fn http_client_factory() -> Result<Client, ()> {
+pub fn http_client_factory() -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
     debug!("creating HTTP client");
 
+    let root_ca = Certificate::from_pem(FBX_ROOT_CA.as_bytes())?;
+    let ecc = Certificate::from_pem(FBX_ECC_ROOT.as_bytes())?;
+
     let client = reqwest::ClientBuilder::new()
-        .danger_accept_invalid_certs(true)
+        .add_root_certificate(root_ca)
+        .add_root_certificate(ecc)
         .build()
         .expect("cannot create HTTP Client");
     Ok(client)
