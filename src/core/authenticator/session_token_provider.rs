@@ -1,4 +1,4 @@
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use log::{debug, error};
 use sha1::Sha1;
 type HmacSha1 = Hmac<Sha1>;
