@@ -153,8 +153,7 @@ pub fn http_client_factory() -> Result<Client, Box<dyn std::error::Error + Send 
     let client = reqwest::ClientBuilder::new()
         .add_root_certificate(root_ca)
         .add_root_certificate(ecc)
-        .build()
-        .expect("cannot create HTTP Client");
+        .build()?;
     Ok(client)
 }
 #[derive(Clone)]
