@@ -151,9 +151,7 @@ pub fn http_client_factory() -> Result<Client, Box<dyn std::error::Error + Send 
     let ecc = Certificate::from_pem(FBX_ECC_ROOT.as_bytes())?;
 
     let client = reqwest::ClientBuilder::new()
-        .tls_built_in_root_certs(false)
-        .add_root_certificate(root_ca)
-        .add_root_certificate(ecc)
+        .tls_certs_only([root_ca, ecc])
         .build()?;
     Ok(client)
 }
