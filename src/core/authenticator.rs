@@ -89,7 +89,7 @@ impl Authenticator {
     async fn prompt(&self) -> Result<PromptResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("prompting for registration");
 
-        let client = http_client_factory().unwrap();
+        let client = http_client_factory()?;
         let hostname = hostname::get().unwrap();
 
         let payload = PromptPayload::new(
@@ -196,7 +196,7 @@ impl Authenticator {
     ) -> Result<AuthorizationResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("checking authorization status");
 
-        let client = http_client_factory().unwrap();
+        let client = http_client_factory()?;
 
         let resp = match client
             .get(format!("{}v4/login/authorize/{}", self.api_url, track_id))
