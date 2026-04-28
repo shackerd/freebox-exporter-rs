@@ -16,7 +16,6 @@ pub struct PoliciesConfiguration {
     pub unresolved_station_hostnames: Option<String>,
 }
 
-
 #[derive(Deserialize, Clone, Debug)]
 pub struct CapabilitiesConfiguration {
     pub connection: Option<bool>,
@@ -26,6 +25,7 @@ pub struct CapabilitiesConfiguration {
     pub switch: Option<bool>,
     pub wifi: Option<bool>,
     pub dhcp: Option<bool>,
+    pub nas: Option<bool>,
     pub prefix: Option<String>,
 }
 

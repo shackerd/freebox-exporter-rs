@@ -4,6 +4,7 @@ use connection::ConnectionMetricMap;
 use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
+use nas::NasMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 
@@ -19,6 +20,7 @@ pub mod connection;
 pub mod dhcp;
 pub mod lan;
 pub mod lanbrowser;
+pub mod nas;
 pub mod switch;
 pub mod system;
 pub mod wifi;
@@ -149,6 +151,21 @@ impl<'a> Mapper<'a> {
             }
         } else {
             warn!("DHCP metrics are disabled by default, missing entry in the configuration file");
+        }
+
+        if let Some(e) = conf.nas {
+            if e {
+                if !caps.nas.unwrap_or(false) {
+                    warn!("NAS is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
+                } else {
+                    maps.push(Box::new(NasMetricMap::new(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                    )));
+                }
+            }
+        } else {
+            warn!("NAS metrics are disabled by default, missing entry in the configuration file");
         }
 
         Self { maps }
