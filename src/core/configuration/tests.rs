@@ -34,6 +34,7 @@ lan = true
 lan_browser = true
 switch = true
 wifi = true
+download = true
 system = false
 prefix = \"fbx\"
 
@@ -77,6 +78,7 @@ unresolved_station_hostnames = \"ignore\"";
         assert_eq!(true, conf.metrics.lan_browser.unwrap());
         assert_eq!(true, conf.metrics.switch.unwrap());
         assert_eq!(true, conf.metrics.wifi.unwrap());
+        assert_eq!(true, conf.metrics.download.unwrap());
         assert_eq!(false, conf.metrics.system.unwrap());
         assert_eq!("fbx", conf.metrics.prefix.unwrap());
 
@@ -110,6 +112,7 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
                 nas: None,
+                download: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -138,6 +141,7 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
                 nas: None,
+                download: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -166,6 +170,7 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
                 nas: None,
+                download: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -201,6 +206,7 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
                 nas: None,
+                download: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -229,6 +235,7 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
                 nas: None,
+                download: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -257,6 +264,7 @@ unresolved_station_hostnames = \"ignore\"";
                 wifi: None,
                 dhcp: None,
                 nas: None,
+                download: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
