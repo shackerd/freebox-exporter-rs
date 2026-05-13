@@ -150,6 +150,36 @@ fbx_exporter_nas_disk_temperature_celsius{disk_id="1",disk_type="internal",model
 fbx_exporter_nas_partition_used_bytes{partition_id="3",disk_id="1",label="Disque dur",fstype="ext4"} 164520534016
 ```
 
+## Download Metrics
+
+The exporter can expose global downloader statistics from Freebox OS Download API endpoint `/api/v4/downloads/stats`.
+
+### Configuration
+
+Enable Download metrics by setting `download = true` in your configuration file:
+
+```toml
+[metrics]
+download = true
+```
+
+### Exposed Metrics
+
+- **Traffic**: current downloader RX/TX rate in bytes per second
+- **Tasks**: total tasks and per-state counters (active, downloading, seeding, queued, stopped, checking, extracting, done, repairing, error, stopping)
+- **Downloader state**: connection readiness, peer count, unread RSS items
+- **Throttling**: current mode, schedule flag, and throttling RX/TX rates
+
+Example metrics exposed:
+```
+fbx_exporter_download_rx_rate_bytes_per_second 14222
+fbx_exporter_download_tx_rate_bytes_per_second 4294
+fbx_exporter_download_tasks_active 11
+fbx_exporter_download_tasks_downloading 4
+fbx_exporter_download_tasks_stopped 1
+fbx_exporter_download_throttling_mode_info{mode="normal"} 1
+```
+
 ## Running project
 
 Running with docker
@@ -206,6 +236,8 @@ dhcp = true
 system = true
 # Exposes NAS storage information (disks and partitions)
 nas = true
+# Exposes global downloader statistics (/api/v4/downloads/stats)
+download = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

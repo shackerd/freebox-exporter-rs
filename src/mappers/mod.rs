@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::Duration;
 use connection::ConnectionMetricMap;
+use download::DownloadMetricMap;
 use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
@@ -8,16 +9,15 @@ use nas::NasMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 
-use crate::{
-    core::{
-        capabilities::Capabilities,
-        common::http_client_factory::AuthenticatedHttpClientFactory,
-        configuration::sections::{ApiConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
-    },
+use crate::core::{
+    capabilities::Capabilities,
+    common::http_client_factory::AuthenticatedHttpClientFactory,
+    configuration::sections::{ApiConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
 };
 
 pub mod connection;
 pub mod dhcp;
+pub mod download;
 pub mod lan;
 pub mod lanbrowser;
 pub mod nas;
@@ -124,7 +124,7 @@ impl<'a> Mapper<'a> {
                         unresolved_station_hostnames: Some("ignore".to_string()),
                     };
                     let wifi_policies = policies.as_ref().unwrap_or(&default_policies);
-                    
+
                     let wifi_map = wifi::WifiMetricMap::new(
                         factory,
                         conf.prefix.to_owned().unwrap(),
@@ -168,10 +168,22 @@ impl<'a> Mapper<'a> {
             warn!("NAS metrics are disabled by default, missing entry in the configuration file");
         }
 
+        if let Some(e) = conf.download {
+            if e {
+                // The Freebox downloads stats endpoint is available across supported modes.
+                maps.push(Box::new(DownloadMetricMap::new(
+                    factory,
+                    conf.prefix.to_owned().unwrap(),
+                )));
+            }
+        } else {
+            warn!(
+                "Download metrics are disabled by default, missing entry in the configuration file"
+            );
+        }
+
         Self { maps }
     }
-
-
 
     pub async fn init_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for map in self.maps.iter_mut() {
