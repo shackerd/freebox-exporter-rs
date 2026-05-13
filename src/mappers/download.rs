@@ -78,103 +78,103 @@ impl<'a> DownloadMetricMap<'a> {
             managed_client: None,
             rx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_rx_rate_bytes_per_second"),
-                format!("{prefix}_download_rx_rate_bytes_per_second Current download receive rate in bytes per second")
+                "Current download receive rate in bytes per second"
             )
             .expect(&format!(
                 "cannot create {prefix}_download_rx_rate_bytes_per_second gauge"
             )),
             tx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_tx_rate_bytes_per_second"),
-                format!("{prefix}_download_tx_rate_bytes_per_second Current download transmit rate in bytes per second")
+                "Current download transmit rate in bytes per second"
             )
             .expect(&format!(
                 "cannot create {prefix}_download_tx_rate_bytes_per_second gauge"
             )),
             nb_tasks_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_total"),
-                format!("{prefix}_download_tasks_total Total number of download tasks")
+                "Total number of download tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_total gauge")),
             nb_tasks_active_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_active"),
-                format!("{prefix}_download_tasks_active Number of active download tasks")
+                "Number of active download tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_active gauge")),
             nb_tasks_downloading_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_downloading"),
-                format!("{prefix}_download_tasks_downloading Number of downloading tasks")
+                "Number of downloading tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_downloading gauge")),
             nb_tasks_seeding_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_seeding"),
-                format!("{prefix}_download_tasks_seeding Number of seeding tasks")
+                "Number of seeding tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_seeding gauge")),
             nb_tasks_stopped_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_stopped"),
-                format!("{prefix}_download_tasks_stopped Number of stopped tasks")
+                "Number of stopped tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_stopped gauge")),
             nb_tasks_queued_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_queued"),
-                format!("{prefix}_download_tasks_queued Number of queued tasks")
+                "Number of queued tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_queued gauge")),
             nb_tasks_checking_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_checking"),
-                format!("{prefix}_download_tasks_checking Number of checking tasks")
+                "Number of checking tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_checking gauge")),
             nb_tasks_extracting_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_extracting"),
-                format!("{prefix}_download_tasks_extracting Number of extracting tasks")
+                "Number of extracting tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_extracting gauge")),
             nb_tasks_done_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_done"),
-                format!("{prefix}_download_tasks_done Number of completed tasks")
+                "Number of completed tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_done gauge")),
             nb_tasks_repairing_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_repairing"),
-                format!("{prefix}_download_tasks_repairing Number of repairing tasks")
+                "Number of repairing tasks"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_repairing gauge")),
             nb_tasks_error_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_error"),
-                format!("{prefix}_download_tasks_error Number of tasks in error state")
+                "Number of tasks in error state"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_error gauge")),
             nb_tasks_stopping_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_stopping"),
-                format!("{prefix}_download_tasks_stopping Number of tasks stopping")
+                "Number of tasks stopping"
             )
             .expect(&format!("cannot create {prefix}_download_tasks_stopping gauge")),
             nb_rss_items_unread_metric: register_int_gauge!(
                 format!("{prefix}_download_rss_items_unread"),
-                format!("{prefix}_download_rss_items_unread Number of unread RSS download items")
+                "Number of unread RSS download items"
             )
             .expect(&format!("cannot create {prefix}_download_rss_items_unread gauge")),
             nb_peer_metric: register_int_gauge!(
                 format!("{prefix}_download_peers_total"),
-                format!("{prefix}_download_peers_total Number of connected download peers")
+                "Number of connected download peers"
             )
             .expect(&format!("cannot create {prefix}_download_peers_total gauge")),
             conn_ready_metric: register_int_gauge!(
                 format!("{prefix}_download_connection_ready"),
-                format!("{prefix}_download_connection_ready Download connection readiness (1 ready, 0 not ready)")
+                "Download connection readiness (1 ready, 0 not ready)"
             )
             .expect(&format!("cannot create {prefix}_download_connection_ready gauge")),
             throttling_is_scheduled_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_is_scheduled"),
-                format!("{prefix}_download_throttling_is_scheduled Download throttling schedule status (1 scheduled, 0 not scheduled)")
+                "Download throttling schedule status (1 scheduled, 0 not scheduled)"
             )
             .expect(&format!(
                 "cannot create {prefix}_download_throttling_is_scheduled gauge"
             )),
             throttling_mode_metric: register_int_gauge_vec!(
                 format!("{prefix}_download_throttling_mode_info"),
-                format!("{prefix}_download_throttling_mode_info Download throttling mode information"),
+                "Download throttling mode information",
                 &["mode"]
             )
             .expect(&format!(
@@ -182,14 +182,14 @@ impl<'a> DownloadMetricMap<'a> {
             )),
             throttling_rx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_rx_rate_bytes_per_second"),
-                format!("{prefix}_download_throttling_rx_rate_bytes_per_second Download throttling receive limit in bytes per second")
+                "Download throttling receive limit in bytes per second"
             )
             .expect(&format!(
                 "cannot create {prefix}_download_throttling_rx_rate_bytes_per_second gauge"
             )),
             throttling_tx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_tx_rate_bytes_per_second"),
-                format!("{prefix}_download_throttling_tx_rate_bytes_per_second Download throttling transmit limit in bytes per second")
+                "Download throttling transmit limit in bytes per second"
             )
             .expect(&format!(
                 "cannot create {prefix}_download_throttling_tx_rate_bytes_per_second gauge"
