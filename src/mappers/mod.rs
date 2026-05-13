@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::Duration;
 use connection::ConnectionMetricMap;
+use download::DownloadMetricMap;
 use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
@@ -17,6 +18,7 @@ use crate::{
 };
 
 pub mod connection;
+pub mod download;
 pub mod dhcp;
 pub mod lan;
 pub mod lanbrowser;
@@ -166,6 +168,17 @@ impl<'a> Mapper<'a> {
             }
         } else {
             warn!("NAS metrics are disabled by default, missing entry in the configuration file");
+        }
+
+        if let Some(e) = conf.download {
+            if e {
+                maps.push(Box::new(DownloadMetricMap::new(
+                    factory,
+                    conf.prefix.to_owned().unwrap(),
+                )));
+            }
+        } else {
+            warn!("Download metrics are disabled by default, missing entry in the configuration file");
         }
 
         Self { maps }
