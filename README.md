@@ -41,17 +41,18 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
     * &#9989; Configuration IPV6: **100%**
     * &#9989; xDSL: **100%**
     * &#9989; FTTH: **100%**
-    * &#10060; DynDNS: 0%
+    * &#10060; DynDNS: **0%**
   * &#9989; Lan: **100%**
   * &#9989; Lan Browser: **100%**
-  * &#10060; Freeplug: 0%
+  * &#10060; Freeplug: **0%**
   * &#9989; DHCP: **100%**
   * &#9989; Switch: **100%**
-  * &#9989; Wi-Fi: **100%**%
+  * &#9989; Wi-Fi: **100%**
   * &#9989; System: **100%**
   * &#9989; Storage/NAS: **100%**
-  * &#10060; VPN Server: 0%
-  * &#10060; VPN Client: 0%
+  * &#9989; Downloads: **100%**
+  * &#10060; VPN Server: **0%**
+  * &#10060; VPN Client: **0%**
 
 ## Enhancements
 
