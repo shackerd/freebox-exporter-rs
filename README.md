@@ -251,7 +251,7 @@ unresolved_station_hostnames = "ignore"
 #   * "relabel" : Include stations with "unresolved" labels for missing host information
 
 [core]
-# Specify where to store data for exporter such as APP_TOKEN, logs, etc.
+# Specify where to store data for exporter such as APP_TOKEN, logs, etc. Set to "/data" if you use docker, otherwise you will have to register the freebox-exporter-rs everytime you remake the container
 data_directory = "."
 # Specify which TCP port to listen to, for the /metrics HTTP endpoint
 port = 9102
