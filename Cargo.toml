@@ -17,7 +17,7 @@ flexi_logger = { version = "0.31.8", features = [
 ] }
 hmac = "0.13.0"
 lazy_static = "1.5.0"
-log = "0.4.29"
+log = "0.4.31"
 regex = "1.12.3"
 reqwest = { version = "0.13.3", features = ["json"] }
 serde = { version = "1.0.228", features = ["derive"] }
