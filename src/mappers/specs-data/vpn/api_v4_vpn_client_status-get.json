@@ -1,0 +1,43 @@
+{
+  "success": true,
+  "result": {
+    "enabled": true,
+    "type": "pptp",
+    "last_error": "none",
+    "active_vpn_description": "VPN client",
+    "last_try": 1392904509,
+    "state": "up",
+    "stats": {
+      "rate_up": 0,
+      "bytes_down": 94,
+      "bytes_up": 94,
+      "rate_down": 0
+    },
+    "active_vpn": "vpn1",
+    "next_try": 0,
+    "last_up": 1392904510,
+    "ipv4": {
+      "routes": {},
+      "config_valid": true,
+      "ip_mask": {
+        "ip": "192.168.27.65",
+        "mask": "255.255.255.255"
+      },
+      "provider": "ppp",
+      "dhcp": {
+        "state": "down",
+        "renew_remaining": 0,
+        "dhcp_options": {},
+        "lease_remaining": 0,
+        "lease_time": 0,
+        "rebind_remaining": 0,
+        "server_id": 0
+      },
+      "dns": [
+        "203.0.113.1"
+      ],
+      "domain": "example.invalid",
+      "gateway": "203.0.113.1"
+    }
+  }
+}

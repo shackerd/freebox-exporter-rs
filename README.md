@@ -52,8 +52,8 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
   * &#9989; System: **100%**
   * &#9989; Storage/NAS: **100%**
   * &#9989; Downloads: **100%**
-  * &#10060; VPN Server: **0%**
-  * &#10060; VPN Client: **0%**
+  * &#9989; VPN Server: **status and connections**
+  * &#9989; VPN Client: **status**
   * &#9989; Virtual Machines: **status and resources**
   * &#9989; RAID: **arrays and members state**
 
@@ -194,20 +194,26 @@ fbx_exporter_collector_last_success_timestamp_seconds{collector="vm"} 1794097253
 fbx_exporter_collector_duration_seconds{collector="vm"} 0.064
 ```
 
-The last success timestamp is kept when a collector fails; the vm and raid collectors also keep exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Alert on stale data with, for instance:
+The last success timestamp is kept when a collector fails; the vm, raid and vpn collectors also keep exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts.
+
+A collector that never succeeded has no last success timestamp, so alert on both failing and stale collectors, for instance:
 
 ```
+fbx_exporter_collector_success == 0
 time() - fbx_exporter_collector_last_success_timestamp_seconds > 300
 ```
 
+with a `for` duration of a few refresh intervals on the first rule.
+
 ## API Version Support
 
-Freebox OS serves every endpoint under each API version prefix up to the one of the box. Each collector calls the lowest version providing the data it needs, and is disabled when the box API version (read from `/api_version` at startup) is lower:
+Each new collector calls a fixed API version prefix, and is disabled when the box API version (read from `/api_version` at startup) is lower. The prefixes below were checked on a Freebox Delta (API 16): the vm and vpn endpoints answer identically from their minimum version up to 16. The raid minimum is the version of the first documentation of the endpoint, its actual introduction version is unknown:
 
 | Collector | Minimum API version | Additional requirement |
 |-----------|---------------------|------------------------|
 | vm | 7 | VM capable hardware (`model_info.has_vm`, e.g. Delta, Ultra) and the "VM" application permission |
 | raid | 8 | |
+| vpn | 4 | router mode |
 
 ## Virtual Machine Metrics
 
@@ -242,6 +248,21 @@ fbx_exporter_raid_member_temperature_celsius{array_id="0",device_location="sata-
 ```
 
 Also exposed: `raid_sync_speed_bytes_per_second`, `raid_size_bytes`, `raid_disks_expected`, `raid_last_check_timestamp_seconds`, `raid_next_check_timestamp_seconds` (absent when zero: never checked or no check scheduled) and `raid_member_size_bytes`.
+
+## VPN Metrics
+
+Enable with `vpn = true`. Connection traffic is aggregated per VPN server: user logins and IP addresses are never exposed.
+
+```
+fbx_exporter_vpn_server_state{name="wireguard",state="stopped",type="wireguard"} 1
+fbx_exporter_vpn_server_started{name="wireguard",type="wireguard"} 0
+fbx_exporter_vpn_server_connections{name="wireguard",type="wireguard"} 0
+fbx_exporter_vpn_server_authenticated_connections{name="wireguard",type="wireguard"} 0
+fbx_exporter_vpn_connections_rx_bytes{vpn="wireguard"} 94
+fbx_exporter_vpn_client_enabled 0
+```
+
+When the VPN client is enabled, `vpn_client_up`, `vpn_client_state`, `vpn_client_last_error`, rates, `vpn_client_uploaded_bytes_total`, `vpn_client_downloaded_bytes_total` (counters; a value lower than the previous one is exposed as a counter reset) and `vpn_client_last_up_timestamp_seconds` are also exposed, each one only when returned by the box.
 
 ## Running project
 
@@ -305,6 +326,8 @@ download = true
 vm = true
 # Exposes RAID arrays state
 raid = true
+# Exposes VPN servers and client state
+vpn = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

@@ -29,6 +29,7 @@ pub struct CapabilitiesConfiguration {
     pub download: Option<bool>,
     pub vm: Option<bool>,
     pub raid: Option<bool>,
+    pub vpn: Option<bool>,
     pub prefix: Option<String>,
 }
 

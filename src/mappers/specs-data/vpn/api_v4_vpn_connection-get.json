@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "result": [
+    {
+      "rx_bytes": 94,
+      "authenticated": true,
+      "tx_bytes": 94,
+      "user": "user-1",
+      "id": "pptp-2",
+      "vpn": "pptp",
+      "src_ip": "203.0.113.1",
+      "auth_time": 1392895603,
+      "local_ip": "192.0.2.1"
+    }
+  ]
+}

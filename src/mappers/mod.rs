@@ -11,6 +11,7 @@ use raid::RaidMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 use vm::VmMetricMap;
+use vpn::VpnMetricMap;
 
 use crate::core::{
     capabilities::Capabilities,
@@ -31,6 +32,7 @@ pub mod system;
 #[cfg(test)]
 pub mod test_support;
 pub mod vm;
+pub mod vpn;
 pub mod wifi;
 
 #[async_trait]
@@ -264,6 +266,30 @@ impl<'a> Mapper<'a> {
             }
         } else {
             warn!("RAID metrics are disabled by default, missing entry in the configuration file");
+        }
+
+        if let Some(e) = conf.vpn {
+            if e {
+                match caps.vpn {
+                    Some(true) => maps.push((
+                        "vpn",
+                        Box::new(VpnMetricMap::new(
+                            factory,
+                            conf.prefix.to_owned().unwrap(),
+                        )),
+                    )),
+                    Some(false) => warn!(
+                        "vpn is not supported by this freebox (requires API v{} in router mode), the option has been disabled",
+                        vpn::MIN_API_VERSION
+                    ),
+                    None => {
+                        error!("vpn support could not be detected at startup, the option is disabled until the exporter restarts");
+                        undetected.push("vpn");
+                    }
+                }
+            }
+        } else {
+            warn!("VPN metrics are disabled by default, missing entry in the configuration file");
         }
 
         let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());
