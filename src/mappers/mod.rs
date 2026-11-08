@@ -466,6 +466,82 @@ mod tests {
         assert_eq!(None, mapper.health.success("healthy"));
         assert_eq!(None, mapper.health.last_success("healthy"));
     }
+
+    fn existing_collectors<'a>(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: &str,
+    ) -> Vec<NamedMetricMap<'a>> {
+        let prefix = prefix.to_string();
+        vec![
+            ("connection", Box::new(ConnectionMetricMap::new(factory, prefix.clone()))),
+            ("system", Box::new(SystemMetricMap::new(factory, prefix.clone()))),
+            ("lan", Box::new(LanMetricMap::new(factory, prefix.clone()))),
+            ("lan_browser", Box::new(LanBrowserMetricMap::new(factory, prefix.clone()))),
+            ("switch", Box::new(SwitchMetricMap::new(factory, prefix.clone()))),
+            ("dhcp", Box::new(dhcp::DhcpMetricMap::new(factory, prefix.clone()))),
+            ("nas", Box::new(NasMetricMap::new(factory, prefix.clone()))),
+            ("download", Box::new(DownloadMetricMap::new(factory, prefix))),
+        ]
+    }
+
+    #[tokio::test]
+    async fn existing_collectors_return_an_error_when_the_renewed_client_is_expired() {
+        let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
+        let mut factory = authenticator.login().await.unwrap();
+        // every managed client is created already expired
+        factory.expiration = chrono::TimeDelta::seconds(-1);
+
+        // a panic here would stop every collector of the exporter
+        for (name, mut map) in existing_collectors(&factory, "test_expired_client") {
+            assert!(map.set().await.is_err(), "{name} succeeded with an expired client");
+        }
+    }
+
+    #[tokio::test]
+    async fn existing_collectors_return_an_error_when_the_session_cannot_be_renewed() {
+        use serde_json::json;
+        use wiremock::{
+            matchers::{method, path},
+            Mock, ResponseTemplate,
+        };
+
+        let (server, authenticator) = crate::mappers::test_support::mock_api().await;
+        let mut factory = authenticator.login().await.unwrap();
+        // the client expires at once, so it is renewed right after its creation
+        factory.expiration = chrono::TimeDelta::seconds(-1);
+
+        for (name, mut map) in existing_collectors(&factory, "test_failed_renewal") {
+            // the box accepts the first login of the collector, then refuses the renewal
+            server.reset().await;
+            Mock::given(path("/api/v4/login/"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(
+                    json!({ "success": true, "result": { "challenge": "1234" } }),
+                ))
+                .up_to_n_times(1)
+                .with_priority(1)
+                .mount(&server)
+                .await;
+            Mock::given(path("/api/v4/login/"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(
+                    json!({ "success": false, "error_code": "internal_error", "msg": "boom" }),
+                ))
+                .with_priority(2)
+                .mount(&server)
+                .await;
+            Mock::given(method("POST"))
+                .and(path("/api/v4/login/session"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(
+                    json!({ "success": true, "result": { "session_token": "4321" } }),
+                ))
+                .mount(&server)
+                .await;
+
+            assert!(map.set().await.is_err(), "{name} succeeded without session");
+            let challenges = server.received_requests().await.unwrap().iter()
+                .filter(|r| r.url.path() == "/api/v4/login/").count();
+            assert_eq!(2, challenges, "{name} did not try to renew its session");
+        }
+    }
 }
 
 #[cfg(test)]

@@ -463,7 +463,7 @@ impl<'a> ConnectionMetricMap<'a> {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client.unwrap());
+            self.managed_client = Some(client?);
 
             return self.managed_client.as_ref().unwrap().get();
         }
@@ -476,8 +476,7 @@ impl<'a> ConnectionMetricMap<'a> {
 
         let body = self
             .get_managed_client()
-            .await
-            .unwrap()
+            .await?
             .get(format!("{}v4/connection/ftth", self.factory.api_url))
             .send()
             .await?
@@ -602,8 +601,7 @@ impl<'a> ConnectionMetricMap<'a> {
 
         let body = self
             .get_managed_client()
-            .await
-            .unwrap()
+            .await?
             .get(format!("{}v4/connection/config", self.factory.api_url))
             .send()
             .await?
@@ -660,8 +658,7 @@ impl<'a> ConnectionMetricMap<'a> {
 
         let body = self
             .get_managed_client()
-            .await
-            .unwrap()
+            .await?
             .get(format!("{}v4/connection/ipv6/config", self.factory.api_url))
             .send()
             .await?

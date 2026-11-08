@@ -122,8 +122,7 @@ impl<'a> LanBrowserMetricMap<'a> {
 
         let body = self
             .get_managed_client()
-            .await
-            .unwrap()
+            .await?
             .get(format!("{}v4/lan/browser/{}", self.factory.api_url, iface))
             .send()
             .await?
@@ -178,7 +177,7 @@ impl<'a> LanBrowserMetricMap<'a> {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client.unwrap());
+            self.managed_client = Some(client?);
 
             return self.managed_client.as_ref().unwrap().get();
         }
@@ -191,8 +190,7 @@ impl<'a> LanBrowserMetricMap<'a> {
 
         let body = self
             .get_managed_client()
-            .await
-            .unwrap()
+            .await?
             .get(format!("{}v4/lan/browser/interfaces", self.factory.api_url))
             .send()
             .await?

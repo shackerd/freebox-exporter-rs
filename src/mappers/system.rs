@@ -221,7 +221,7 @@ impl<'a> SystemMetricMap<'a> {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client.unwrap());
+            self.managed_client = Some(client?);
 
             return self.managed_client.as_ref().unwrap().get();
         }
@@ -256,8 +256,7 @@ impl<'a> SystemMetricMap<'a> {
 
         let body = self
             .get_managed_client()
-            .await
-            .unwrap()
+            .await?
             .get(format!("{}v4/system", self.factory.api_url))
             .send()
             .await?
