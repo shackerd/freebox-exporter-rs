@@ -5,7 +5,7 @@ use crate::core::common::{
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 use async_trait::async_trait;
-use log::{debug, error};
+use log::{debug, warn};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::Deserialize;
@@ -234,6 +234,8 @@ impl<'a> LanBrowserMetricMap<'a> {
             Ok(r) => r,
         };
 
+        let mut failed_ifaces = vec![];
+
         for iface in ifaces {
             self.iface_gauge
                 .with_label_values(&[&iface.name.to_owned().unwrap_or_default()])
@@ -244,7 +246,11 @@ impl<'a> LanBrowserMetricMap<'a> {
             }
 
             match self.get_devices(&iface).await {
-                Err(e) => error!("{e:#?}"),
+                Err(e) => {
+                    let name = iface.name.to_owned().unwrap_or_default();
+                    warn!("cannot fetch devices of interface {name}: {e}");
+                    failed_ifaces.push(name);
+                }
                 Ok(devs) => {
                     for dev in devs {
                         let l2ident = dev.l2ident.unwrap_or(LanHostL2Ident {
@@ -303,6 +309,14 @@ impl<'a> LanBrowserMetricMap<'a> {
             }
         }
 
+        // devices of the other interfaces stay exposed, but the collection is incomplete
+        if !failed_ifaces.is_empty() {
+            return Err(Box::new(FreeboxResponseError::new(format!(
+                "cannot fetch devices of interface(s) {}",
+                failed_ifaces.join(", ")
+            ))));
+        }
+
         Ok(())
     }
 }
@@ -322,3 +336,77 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use prometheus_exporter::prometheus::core::Collector;
+    use serde_json::json;
+
+    use super::*;
+    use crate::mappers::test_support::{mock_api, serve};
+
+    async fn serve_interfaces(server: &wiremock::MockServer) {
+        serve(
+            server,
+            "/api/v4/lan/browser/interfaces",
+            json!({ "success": true, "result": [
+                { "name": "pub", "host_count": 1 },
+                { "name": "wifiguest", "host_count": 1 }
+            ] }),
+        )
+        .await;
+        serve(
+            server,
+            "/api/v4/lan/browser/pub",
+            json!({ "success": true, "result": [
+                { "id": "ether-1", "primary_name": "nas", "active": true, "l2ident": { "id": "mac-1", "type": "mac_address" } }
+            ] }),
+        )
+        .await;
+    }
+
+    fn device_active(map: &LanBrowserMetricMap, iface: &str, name: &str) -> Option<i64> {
+        map.device_gauge
+            .collect()
+            .iter()
+            .flat_map(|family| family.get_metric())
+            .find(|m| {
+                let labels: Vec<_> = m.get_label().iter().map(|l| (l.get_name(), l.get_value())).collect();
+                labels.contains(&("iface", iface)) && labels.contains(&("primary_name", name))
+            })
+            .map(|m| m.get_gauge().get_value() as i64)
+    }
+
+    #[tokio::test]
+    async fn set_reports_interface_whose_devices_cannot_be_fetched() {
+        let (server, authenticator) = mock_api().await;
+        serve_interfaces(&server).await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            json!({ "success": false, "error_code": "internal_error", "msg": "boom" }),
+        )
+        .await;
+
+        let factory = authenticator.login().await.unwrap();
+        let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_partial".to_string());
+
+        let err = map.set().await.unwrap_err();
+        assert!(err.to_string().contains("wifiguest"), "{err}");
+        assert!(!err.to_string().contains("pub"), "{err}");
+        assert_eq!(Some(1), device_active(&map, "pub", "nas"));
+    }
+
+    #[tokio::test]
+    async fn set_succeeds_when_every_interface_is_fetched() {
+        let (server, authenticator) = mock_api().await;
+        serve_interfaces(&server).await;
+        serve(&server, "/api/v4/lan/browser/wifiguest", json!({ "success": true, "result": [] })).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_complete".to_string());
+
+        map.set().await.unwrap();
+        assert_eq!(Some(1), device_active(&map, "pub", "nas"));
+    }
+}
