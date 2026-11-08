@@ -114,6 +114,7 @@ unresolved_station_hostnames = \"ignore\"";
                 nas: None,
                 download: None,
                 vm: None,
+                raid: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -144,6 +145,7 @@ unresolved_station_hostnames = \"ignore\"";
                 nas: None,
                 download: None,
                 vm: None,
+                raid: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -174,6 +176,7 @@ unresolved_station_hostnames = \"ignore\"";
                 nas: None,
                 download: None,
                 vm: None,
+                raid: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -211,6 +214,7 @@ unresolved_station_hostnames = \"ignore\"";
                 nas: None,
                 download: None,
                 vm: None,
+                raid: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -241,6 +245,7 @@ unresolved_station_hostnames = \"ignore\"";
                 nas: None,
                 download: None,
                 vm: None,
+                raid: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -271,6 +276,7 @@ unresolved_station_hostnames = \"ignore\"";
                 nas: None,
                 download: None,
                 vm: None,
+                raid: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,

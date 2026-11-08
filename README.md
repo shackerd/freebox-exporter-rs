@@ -55,6 +55,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
   * &#10060; VPN Server: **0%**
   * &#10060; VPN Client: **0%**
   * &#9989; Virtual Machines: **status and resources**
+  * &#9989; RAID: **arrays and members state**
 
 ## Enhancements
 
@@ -193,7 +194,7 @@ fbx_exporter_collector_last_success_timestamp_seconds{collector="vm"} 1794097253
 fbx_exporter_collector_duration_seconds{collector="vm"} 0.064
 ```
 
-The last success timestamp is kept when a collector fails; the vm collector also keeps exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Alert on stale data with, for instance:
+The last success timestamp is kept when a collector fails; the vm and raid collectors also keep exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Alert on stale data with, for instance:
 
 ```
 time() - fbx_exporter_collector_last_success_timestamp_seconds > 300
@@ -206,6 +207,7 @@ Freebox OS serves every endpoint under each API version prefix up to the one of 
 | Collector | Minimum API version | Additional requirement |
 |-----------|---------------------|------------------------|
 | vm | 7 | VM capable hardware (`model_info.has_vm`, e.g. Delta, Ultra) and the "VM" application permission |
+| raid | 8 | |
 
 ## Virtual Machine Metrics
 
@@ -224,6 +226,22 @@ fbx_exporter_vm_host_vcpus_allocated 2
 ```
 
 Memory and vCPUs are the resources allocated to the VM, not its actual usage: use an exporter inside the VM for that.
+
+## RAID Metrics
+
+Enable with `raid = true`. Without any RAID array no series is exposed. Behaviour on models without internal SATA bays has not been verified.
+
+```
+fbx_exporter_raid_degraded{id="0",level="raid5",name="Freebox"} 0
+fbx_exporter_raid_state{id="0",name="Freebox",state="running"} 1
+fbx_exporter_raid_sync_action{id="0",name="Freebox",sync_action="idle"} 1
+fbx_exporter_raid_sync_completed_ratio{id="0",level="raid5",name="Freebox"} 0
+fbx_exporter_raid_member_role{array_id="0",device_location="sata-internal-p1",id="1000",role="active"} 1
+fbx_exporter_raid_member_corrected_read_errors{array_id="0",device_location="sata-internal-p1",id="1000"} 0
+fbx_exporter_raid_member_temperature_celsius{array_id="0",device_location="sata-internal-p1",id="1000"} 43
+```
+
+Also exposed: `raid_sync_speed_bytes_per_second`, `raid_size_bytes`, `raid_disks_expected`, `raid_last_check_timestamp_seconds`, `raid_next_check_timestamp_seconds` (absent when zero: never checked or no check scheduled) and `raid_member_size_bytes`.
 
 ## Running project
 
@@ -285,6 +303,8 @@ nas = true
 download = true
 # Exposes virtual machines, requires a Freebox supporting VMs (Delta, Ultra) and the "VM" permission granted to the application
 vm = true
+# Exposes RAID arrays state
+raid = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

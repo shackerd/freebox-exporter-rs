@@ -7,6 +7,7 @@ use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
 use nas::NasMetricMap;
+use raid::RaidMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
 use vm::VmMetricMap;
@@ -24,6 +25,7 @@ pub mod health;
 pub mod lan;
 pub mod lanbrowser;
 pub mod nas;
+pub mod raid;
 pub mod switch;
 pub mod system;
 #[cfg(test)]
@@ -238,6 +240,30 @@ impl<'a> Mapper<'a> {
             }
         } else {
             warn!("VM metrics are disabled by default, missing entry in the configuration file");
+        }
+
+        if let Some(e) = conf.raid {
+            if e {
+                match caps.raid {
+                    Some(true) => maps.push((
+                        "raid",
+                        Box::new(RaidMetricMap::new(
+                            factory,
+                            conf.prefix.to_owned().unwrap(),
+                        )),
+                    )),
+                    Some(false) => warn!(
+                        "raid is not supported by this freebox (requires API v{}), the option has been disabled",
+                        raid::MIN_API_VERSION
+                    ),
+                    None => {
+                        error!("raid support could not be detected at startup, the option is disabled until the exporter restarts");
+                        undetected.push("raid");
+                    }
+                }
+            }
+        } else {
+            warn!("RAID metrics are disabled by default, missing entry in the configuration file");
         }
 
         let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());

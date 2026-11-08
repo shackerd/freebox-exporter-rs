@@ -4,7 +4,7 @@ use super::common::{
     http_client_factory::AuthenticatedHttpClientFactory,
     transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
 };
-use crate::mappers::vm;
+use crate::mappers::{raid, vm};
 use log::{debug, info, warn};
 use serde::Deserialize;
 
@@ -76,7 +76,7 @@ impl<'a> CapabilitiesAgent<'a> {
         );
 
         let is_wifi_enabled = self.is_wifi_enabled().await?;
-        // only vm depends on these probes: their failure leaves those
+        // only vm and raid depend on these probes: their failure leaves those
         // capabilities unknown (None) instead of preventing the exporter from starting
         let (api_major, has_vm) = match self.get_api_major_version().await {
             Ok(api_major) => match self.has_vm(api_major).await {
@@ -104,6 +104,7 @@ impl<'a> CapabilitiesAgent<'a> {
             vm: api_major
                 .zip(has_vm)
                 .map(|(major, has_vm)| major >= vm::MIN_API_VERSION && has_vm),
+            raid: api_major.map(|major| major >= raid::MIN_API_VERSION),
             network_mode: lan_config.mode,
         })
     }
@@ -199,6 +200,7 @@ pub struct Capabilities {
     pub nas: Option<bool>,
     /// None when support could not be detected
     pub vm: Option<bool>,
+    pub raid: Option<bool>,
     pub network_mode: Option<String>,
 }
 
@@ -239,6 +241,12 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn raid_follows_its_minimum_api_version() {
+        assert_eq!(Some(false), load("7.0", true).await.raid);
+        assert_eq!(Some(true), load("8.0", false).await.raid);
+    }
+
+    #[tokio::test]
     async fn model_info_is_not_requested_below_api_6() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": "router" } })).await;
@@ -268,6 +276,7 @@ mod tests {
 
         assert_eq!((Some(true), Some(true)), (caps.wifi, caps.switch));
         assert_eq!(None, caps.vm);
+        assert_eq!(None, caps.raid);
     }
 
     #[tokio::test]
@@ -282,5 +291,6 @@ mod tests {
         let caps = CapabilitiesAgent::new(&factory).load().await.unwrap();
 
         assert_eq!(None, caps.vm);
+        assert_eq!(Some(true), caps.raid);
     }
 }
