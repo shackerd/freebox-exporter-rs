@@ -9,6 +9,7 @@ use log::{error, warn};
 use nas::NasMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
+use vm::VmMetricMap;
 
 use crate::core::{
     capabilities::Capabilities,
@@ -27,6 +28,7 @@ pub mod switch;
 pub mod system;
 #[cfg(test)]
 pub mod test_support;
+pub mod vm;
 pub mod wifi;
 
 #[async_trait]
@@ -211,7 +213,37 @@ impl<'a> Mapper<'a> {
             );
         }
 
+        // collectors requested but whose support is unknown, exposed as failing
+        let mut undetected: Vec<&'static str> = vec![];
+
+        if let Some(e) = conf.vm {
+            if e {
+                match caps.vm {
+                    Some(true) => maps.push((
+                        "vm",
+                        Box::new(VmMetricMap::new(
+                            factory,
+                            conf.prefix.to_owned().unwrap(),
+                        )),
+                    )),
+                    Some(false) => warn!(
+                        "vm is not supported by this freebox (requires API v{} and VM capable hardware), the option has been disabled",
+                        vm::MIN_API_VERSION
+                    ),
+                    None => {
+                        error!("vm support could not be detected at startup, the option is disabled until the exporter restarts");
+                        undetected.push("vm");
+                    }
+                }
+            }
+        } else {
+            warn!("VM metrics are disabled by default, missing entry in the configuration file");
+        }
+
         let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());
+        for name in undetected {
+            health.observe(name, false, std::time::Duration::ZERO, std::time::SystemTime::now());
+        }
 
         Self { maps, health }
     }
@@ -309,6 +341,21 @@ mod tests {
             maps,
             health: CollectorHealth::new("test"),
         }
+    }
+
+    #[tokio::test]
+    async fn requested_collector_with_undetected_support_is_exposed_as_failing() {
+        let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let conf: CapabilitiesConfiguration =
+            toml::from_str("vm = true\nprefix = \"test_mapper_undetected\"").unwrap();
+        let caps: Capabilities = serde_json::from_str(r#"{ "vm": null }"#).unwrap();
+
+        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+
+        assert!(mapper.maps.is_empty());
+        assert_eq!(Some(0.0), mapper.health.success("vm"));
+        assert_eq!(None, mapper.health.last_success("vm"));
     }
 
     #[tokio::test]

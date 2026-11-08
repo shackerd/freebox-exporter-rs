@@ -1,0 +1,21 @@
+{
+  "result": {
+    "sata_ports": [
+      "sata-internal-p0",
+      "sata-internal-p1",
+      "sata-internal-p2",
+      "sata-internal-p3"
+    ],
+    "sata_used": false,
+    "total_cpus": 3,
+    "total_memory": 7168,
+    "usb_ports": [
+      "usb-external-type-a",
+      "usb-external-type-c"
+    ],
+    "usb_used": false,
+    "used_cpus": 2,
+    "used_memory": 2048
+  },
+  "success": true
+}

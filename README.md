@@ -28,6 +28,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
 * CLI overridable configuration file path
 * Freebox API certificate validation
 * Configurable handling of WiFi stations with unresolved hostnames
+* Collector health metrics (success, last success, duration)
 
 ## API Implementation
 
@@ -53,6 +54,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
   * &#9989; Downloads: **100%**
   * &#10060; VPN Server: **0%**
   * &#10060; VPN Client: **0%**
+  * &#9989; Virtual Machines: **status and resources**
 
 ## Enhancements
 
@@ -181,6 +183,48 @@ fbx_exporter_download_tasks_stopped 1
 fbx_exporter_download_throttling_mode_info{mode="normal"} 1
 ```
 
+## Collector Health Metrics
+
+Each collector exposes the outcome of its last run, so a failing collector (missing permission, unsupported endpoint, API error) is visible in Prometheus and not only in the logs:
+
+```
+fbx_exporter_collector_success{collector="vm"} 1
+fbx_exporter_collector_last_success_timestamp_seconds{collector="vm"} 1794097253
+fbx_exporter_collector_duration_seconds{collector="vm"} 0.064
+```
+
+The last success timestamp is kept when a collector fails; the vm collector also keeps exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Alert on stale data with, for instance:
+
+```
+time() - fbx_exporter_collector_last_success_timestamp_seconds > 300
+```
+
+## API Version Support
+
+Freebox OS serves every endpoint under each API version prefix up to the one of the box. Each collector calls the lowest version providing the data it needs, and is disabled when the box API version (read from `/api_version` at startup) is lower:
+
+| Collector | Minimum API version | Additional requirement |
+|-----------|---------------------|------------------------|
+| vm | 7 | VM capable hardware (`model_info.has_vm`, e.g. Delta, Ultra) and the "VM" application permission |
+
+## Virtual Machine Metrics
+
+Enable with `vm = true`. The application must be granted the "VM" permission in Freebox OS (Settings > Access management > Applications), otherwise `fbx_exporter_collector_success{collector="vm"}` is 0 and the logs report `insufficient_rights`.
+
+```
+fbx_exporter_vm_running{id="0",name="adguard"} 1
+fbx_exporter_vm_status{id="0",name="adguard",status="running"} 1
+fbx_exporter_vm_memory_allocated_bytes{id="0",name="adguard"} 2147483648
+fbx_exporter_vm_vcpus{id="0",name="adguard"} 2
+fbx_exporter_vm_info{disk_type="qcow2",id="0",name="adguard",os="ubuntu"} 1
+fbx_exporter_vm_host_memory_total_bytes 7516192768
+fbx_exporter_vm_host_memory_allocated_bytes 2147483648
+fbx_exporter_vm_host_vcpus 3
+fbx_exporter_vm_host_vcpus_allocated 2
+```
+
+Memory and vCPUs are the resources allocated to the VM, not its actual usage: use an exporter inside the VM for that.
+
 ## Running project
 
 Running with docker
@@ -239,6 +283,8 @@ system = true
 nas = true
 # Exposes global downloader statistics (/api/v4/downloads/stats)
 download = true
+# Exposes virtual machines, requires a Freebox supporting VMs (Delta, Ultra) and the "VM" permission granted to the application
+vm = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"
