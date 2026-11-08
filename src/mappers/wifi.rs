@@ -3,7 +3,7 @@ use std::usize;
 
 use async_trait::async_trait;
 use chrono::Duration;
-use log::debug;
+use log::{debug, warn};
 use models::{AccessPoint, ChannelSurveyHistory, ChannelUsage, NeighborsAccessPoint, Station};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
@@ -945,6 +945,7 @@ impl<'a> WifiMetricMap<'a> {
     pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.reset_all();
         let aps = self.get_access_points().await?;
+        let mut failed_phys = vec![];
 
         let aps = match aps.len() {
             0 => {
@@ -959,16 +960,29 @@ impl<'a> WifiMetricMap<'a> {
                 let mut aps: Vec<AccessPoint> = Vec::with_capacity(phys.len());
                 for phy in phys.iter() {
                     let id = phy.phy_id.unwrap();
-                    if let Ok(ap) = self.get_access_point(&id).await {
-                        debug!(
-                            "found access point {} from phy_id {}",
-                            ap.name.as_deref().unwrap_or("unknown"),
-                            id
-                        );
-                        aps.push(ap);
+                    match self.get_access_point(&id).await {
+                        Ok(ap) => {
+                            debug!(
+                                "found access point {} from phy_id {}",
+                                ap.name.as_deref().unwrap_or("unknown"),
+                                id
+                            );
+                            aps.push(ap);
+                        }
+                        Err(e) => {
+                            warn!("cannot fetch access point from phy_id {id}: {e}");
+                            failed_phys.push(id.to_string());
+                        }
                     }
                 }
                 debug!("{} access points found", aps.len());
+
+                if aps.is_empty() && !phys.is_empty() {
+                    return Err(Box::new(FreeboxResponseError::new(format!(
+                        "none of the {} expected access points could be fetched",
+                        phys.len()
+                    ))));
+                }
                 aps
             }
             _ => {
@@ -980,16 +994,27 @@ impl<'a> WifiMetricMap<'a> {
         for ap in aps.iter() {
             self.set_channel_survey_history_gauges(&ap).await?;
 
-            if let Ok(channel_usage) = self.get_channel_usage(&ap).await {
-                self.set_channel_usage_gauges(&channel_usage)?;
+            // optional endpoints, unavailable on some models: their failure does not fail the collector
+            match self.get_channel_usage(&ap).await {
+                Ok(channel_usage) => self.set_channel_usage_gauges(&channel_usage)?,
+                Err(e) => debug!("cannot fetch channel usage: {e}"),
             }
 
-            if let Ok(neighbors) = self.get_neighbors_access_points(&ap).await {
-                self.set_neighbors_access_points(&neighbors)?;
+            match self.get_neighbors_access_points(&ap).await {
+                Ok(neighbors) => self.set_neighbors_access_points(&neighbors)?,
+                Err(e) => debug!("cannot fetch neighbors access points: {e}"),
             }
 
             let stations = self.get_stations(&ap).await?;
             self.set_stations_gauges(&stations, &ap).await?;
+        }
+
+        // the reachable access points stay exposed, but the collection is incomplete
+        if !failed_phys.is_empty() {
+            return Err(Box::new(FreeboxResponseError::new(format!(
+                "cannot fetch access point(s) of phy_id {}",
+                failed_phys.join(", ")
+            ))));
         }
         Ok(())
     }
