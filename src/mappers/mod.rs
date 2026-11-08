@@ -542,6 +542,54 @@ mod tests {
             assert_eq!(2, challenges, "{name} did not try to renew its session");
         }
     }
+
+    #[tokio::test]
+    async fn slow_session_renewal_times_out_instead_of_stalling_collection() {
+        use serde_json::json;
+        use wiremock::{
+            matchers::{method, path},
+            Mock, ResponseTemplate,
+        };
+
+        let (server, authenticator) = crate::mappers::test_support::mock_api().await;
+        let mut factory = authenticator.login().await.unwrap();
+        factory.set_request_timeout(std::time::Duration::from_millis(200));
+        // the client expires at once, so it is renewed right after its creation
+        factory.expiration = chrono::TimeDelta::seconds(-1);
+        // the box answers the first login challenge, then takes 5 seconds
+        server.reset().await;
+        let challenge = json!({ "success": true, "result": { "challenge": "1234" } });
+        Mock::given(path("/api/v4/login/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(challenge.clone()))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(path("/api/v4/login/"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(challenge)
+                    .set_delay(std::time::Duration::from_secs(5)),
+            )
+            .with_priority(2)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v4/login/session"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "success": true, "result": { "session_token": "4321" } })),
+            )
+            .mount(&server)
+            .await;
+        let mut map = LanMetricMap::new(&factory, "test_slow_renewal".to_string());
+
+        let started = std::time::Instant::now();
+        assert!(map.set().await.is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+        assert_eq!(2, server.received_requests().await.unwrap().iter()
+            .filter(|r| r.url.path() == "/api/v4/login/").count());
+    }
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@ use crate::{
     mappers::lan::LanConfig,
 };
 
-use super::common::http_client_factory::http_client_factory;
+use super::common::http_client_factory::{http_client_factory, REQUEST_TIMEOUT};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApiVersion {
@@ -47,7 +47,7 @@ async fn get_api_url(
     port: u16,
     use_ssl: bool,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let client = http_client_factory()?;
+    let client = http_client_factory(REQUEST_TIMEOUT)?;
 
     let protocol = if use_ssl { "https" } else { "http" };
 

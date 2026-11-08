@@ -290,6 +290,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn unresponsive_api_version_probe_does_not_stall_startup() {
+        let (server, authenticator) = mock_api().await;
+        serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": "router" } })).await;
+        serve(&server, "/api/v4/wifi/config", json!({ "success": true, "result": { "enabled": true } })).await;
+        Mock::given(path("/api_version"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "api_version": "16.0" }))
+                    .set_delay(std::time::Duration::from_secs(5)),
+            )
+            .mount(&server)
+            .await;
+
+        let mut factory = authenticator.login().await.unwrap();
+        factory.set_request_timeout(std::time::Duration::from_millis(200));
+        let started = std::time::Instant::now();
+        let caps = CapabilitiesAgent::new(&factory).load().await.unwrap();
+
+        assert!(started.elapsed() < std::time::Duration::from_secs(3), "{:?}", started.elapsed());
+        assert_eq!(Some(true), caps.wifi);
+        assert_eq!((None, None, None), (caps.vm, caps.raid, caps.vpn));
+    }
+
+    #[tokio::test]
     async fn failing_model_info_probe_leaves_vm_unknown_only() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": "router" } })).await;
