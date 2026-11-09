@@ -124,30 +124,25 @@ pub async fn register(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let agnostic_auth = create_network_agnostic_authenticator(&conf).await?;
 
-    let res = agnostic_auth.is_registered().await;
+    register_once(&agnostic_auth, interval).await
+}
 
-    if let Err(e) = res {
-        return Err(e);
-    }
-
-    if !res.unwrap_or(false) {
-        info!("application is not registered, registering now");
-        agnostic_auth.register(interval).await?;
-        info!("application is registered");
-    } else {
+/// Registers the application unless a token is already stored.
+/// The token is shared by every API url, so a single registration is enough.
+async fn register_once(
+    authenticator: &Authenticator,
+    interval: u64,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if authenticator.is_registered().await? {
         info!("application is already registered, skipping registration");
+        return Ok(());
     }
 
-    let api_url = get_api_url(&agnostic_auth).await?;
+    info!("application is not registered, registering now");
+    authenticator.register(interval).await?;
+    info!("application is registered");
 
-    let authenticator = authenticator::Authenticator::new(
-        api_url.to_owned(),
-        Box::new(FileSystemProvider::new(
-            conf.core.data_directory.as_ref().unwrap().to_owned(),
-        )),
-    );
-
-    authenticator.register(interval).await
+    Ok(())
 }
 
 /// ### Serve the application
@@ -298,4 +293,68 @@ pub async fn session_diagnostic(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    use super::register_once;
+    use crate::core::authenticator::{
+        application_token_provider::MockApplicationTokenProvider, Authenticator,
+    };
+
+    async fn mock_authorization(server: &MockServer, expected_prompts: u64) {
+        Mock::given(method("POST"))
+            .and(path("/api/v4/login/authorize"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!(
+                {"result": {"app_token": "fake", "track_id": 1 }, "success": true}
+            )))
+            .expect(expected_prompts)
+            .mount(server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/v4/login/authorize/1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!(
+                {"result": { "status": "granted" }, "success": true}
+            )))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn register_once_prompts_a_single_time_when_no_token_is_stored() {
+        let server = MockServer::start().await;
+        mock_authorization(&server, 1).await;
+
+        let mut store = MockApplicationTokenProvider::new();
+        store.expect_get().returning(|| Err("no token".into()));
+        store.expect_store().times(1).returning(|_| Ok(()));
+
+        let authenticator = Authenticator::new(format!("{}/api/", server.uri()), Box::new(store));
+
+        register_once(&authenticator, 1).await.unwrap();
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn register_once_skips_registration_when_a_token_is_stored() {
+        let server = MockServer::start().await;
+        mock_authorization(&server, 0).await;
+
+        let mut store = MockApplicationTokenProvider::new();
+        store.expect_get().returning(|| Ok("fake".to_string()));
+        store.expect_store().never();
+
+        let authenticator = Authenticator::new(format!("{}/api/", server.uri()), Box::new(store));
+
+        register_once(&authenticator, 1).await.unwrap();
+        server.verify().await;
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
 }
