@@ -31,6 +31,8 @@ vm = true
 raid = true
 # Exposes VPN servers and client state
 vpn = true
+# Exposes dynamic DNS providers status
+ddns = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

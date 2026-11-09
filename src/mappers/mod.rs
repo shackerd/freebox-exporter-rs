@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::Duration;
 use connection::ConnectionMetricMap;
+use ddns::DdnsMetricMap;
 use download::DownloadMetricMap;
 use health::CollectorHealth;
 use lan::LanMetricMap;
@@ -20,6 +21,7 @@ use crate::core::{
 };
 
 pub mod connection;
+pub mod ddns;
 pub mod dhcp;
 pub mod download;
 pub mod health;
@@ -292,6 +294,30 @@ impl<'a> Mapper<'a> {
             warn!("VPN metrics are disabled by default, missing entry in the configuration file");
         }
 
+        if let Some(e) = conf.ddns {
+            if e {
+                match caps.ddns {
+                    Some(true) => maps.push((
+                        "ddns",
+                        Box::new(DdnsMetricMap::new(
+                            factory,
+                            conf.prefix.to_owned().unwrap(),
+                        )),
+                    )),
+                    Some(false) => warn!(
+                        "ddns is not supported by this freebox (requires API v{} in router mode), the option has been disabled",
+                        ddns::MIN_API_VERSION
+                    ),
+                    None => {
+                        error!("ddns support could not be detected at startup, the option is disabled until the exporter restarts");
+                        undetected.push("ddns");
+                    }
+                }
+            }
+        } else {
+            warn!("DynDNS metrics are disabled by default, missing entry in the configuration file");
+        }
+
         let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());
         for name in undetected {
             health.observe(name, false, std::time::Duration::ZERO, std::time::SystemTime::now());
@@ -399,15 +425,55 @@ mod tests {
     async fn requested_collector_with_undetected_support_is_exposed_as_failing() {
         let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
         let factory = authenticator.login().await.unwrap();
-        let conf: CapabilitiesConfiguration =
-            toml::from_str("vm = true\nprefix = \"test_mapper_undetected\"").unwrap();
-        let caps: Capabilities = serde_json::from_str(r#"{ "vm": null }"#).unwrap();
+        let conf: CapabilitiesConfiguration = toml::from_str(
+            "vm = true\nraid = true\nvpn = true\nddns = true\nprefix = \"test_mapper_undetected\"",
+        )
+        .unwrap();
+        let caps: Capabilities =
+            serde_json::from_str(r#"{ "vm": null, "raid": null, "vpn": null, "ddns": null }"#).unwrap();
 
         let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
 
         assert!(mapper.maps.is_empty());
-        assert_eq!(Some(0.0), mapper.health.success("vm"));
-        assert_eq!(None, mapper.health.last_success("vm"));
+        for name in ["vm", "raid", "vpn", "ddns"] {
+            assert_eq!(Some(0.0), mapper.health.success(name), "{name}");
+            assert_eq!(None, mapper.health.last_success(name), "{name}");
+        }
+    }
+
+    const NEW_COLLECTORS_CONF: &str = "vm = true\nraid = true\nvpn = true\nddns = true\n";
+
+    #[tokio::test]
+    async fn requested_collectors_are_created_only_when_supported() {
+        let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let conf: CapabilitiesConfiguration =
+            toml::from_str(&format!("{NEW_COLLECTORS_CONF}prefix = \"test_mapper_supported\"")).unwrap();
+        let caps: Capabilities =
+            serde_json::from_str(r#"{ "vm": true, "raid": true, "vpn": true, "ddns": true }"#).unwrap();
+
+        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+
+        let names: Vec<&str> = mapper.maps.iter().map(|(name, _)| *name).collect();
+        assert_eq!(vec!["vm", "raid", "vpn", "ddns"], names);
+    }
+
+    #[tokio::test]
+    async fn requested_collectors_are_skipped_silently_when_unsupported() {
+        let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let conf: CapabilitiesConfiguration =
+            toml::from_str(&format!("{NEW_COLLECTORS_CONF}prefix = \"test_mapper_unsupported\"")).unwrap();
+        let caps: Capabilities =
+            serde_json::from_str(r#"{ "vm": false, "raid": false, "vpn": false, "ddns": false }"#).unwrap();
+
+        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+
+        assert!(mapper.maps.is_empty());
+        // unlike undetected support, a known lack of support is not a failure
+        for name in ["vm", "raid", "vpn", "ddns"] {
+            assert_eq!(None, mapper.health.success(name), "{name}");
+        }
     }
 
     #[tokio::test]

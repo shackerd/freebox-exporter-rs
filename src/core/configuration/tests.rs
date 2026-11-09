@@ -116,6 +116,7 @@ unresolved_station_hostnames = \"ignore\"";
                 vm: None,
                 raid: None,
                 vpn: None,
+                ddns: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -148,6 +149,7 @@ unresolved_station_hostnames = \"ignore\"";
                 vm: None,
                 raid: None,
                 vpn: None,
+                ddns: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -180,6 +182,7 @@ unresolved_station_hostnames = \"ignore\"";
                 vm: None,
                 raid: None,
                 vpn: None,
+                ddns: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -219,6 +222,7 @@ unresolved_station_hostnames = \"ignore\"";
                 vm: None,
                 raid: None,
                 vpn: None,
+                ddns: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -251,6 +255,7 @@ unresolved_station_hostnames = \"ignore\"";
                 vm: None,
                 raid: None,
                 vpn: None,
+                ddns: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,
@@ -283,6 +288,7 @@ unresolved_station_hostnames = \"ignore\"";
                 vm: None,
                 raid: None,
                 vpn: None,
+                ddns: None,
             },
             policies: Some(PoliciesConfiguration {
                 unresolved_station_hostnames: None,

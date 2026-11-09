@@ -30,6 +30,7 @@ pub struct CapabilitiesConfiguration {
     pub vm: Option<bool>,
     pub raid: Option<bool>,
     pub vpn: Option<bool>,
+    pub ddns: Option<bool>,
     pub prefix: Option<String>,
 }
 

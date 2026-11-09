@@ -4,7 +4,7 @@ use super::common::{
     http_client_factory::AuthenticatedHttpClientFactory,
     transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
 };
-use crate::mappers::{raid, vm, vpn};
+use crate::mappers::{ddns, raid, vm, vpn};
 use log::{debug, info, warn};
 use serde::Deserialize;
 
@@ -76,7 +76,7 @@ impl<'a> CapabilitiesAgent<'a> {
         );
 
         let is_wifi_enabled = self.is_wifi_enabled().await?;
-        // only vm, raid and vpn depend on these probes: their failure leaves those
+        // only vm, raid, vpn and ddns depend on these probes: their failure leaves those
         // capabilities unknown (None) instead of preventing the exporter from starting
         let (api_major, has_vm) = match self.get_api_major_version().await {
             Ok(api_major) => match self.has_vm(api_major).await {
@@ -106,6 +106,7 @@ impl<'a> CapabilitiesAgent<'a> {
                 .map(|(major, has_vm)| major >= vm::MIN_API_VERSION && has_vm),
             raid: api_major.map(|major| major >= raid::MIN_API_VERSION),
             vpn: api_major.map(|major| major >= vpn::MIN_API_VERSION && is_router),
+            ddns: api_major.map(|major| major >= ddns::MIN_API_VERSION && is_router),
             network_mode: lan_config.mode,
         })
     }
@@ -203,6 +204,7 @@ pub struct Capabilities {
     pub vm: Option<bool>,
     pub raid: Option<bool>,
     pub vpn: Option<bool>,
+    pub ddns: Option<bool>,
     pub network_mode: Option<String>,
 }
 
@@ -256,6 +258,13 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ddns_requires_api_4_and_router_mode() {
+        assert_eq!(Some(false), load("3.0", false).await.ddns);
+        assert_eq!(Some(true), load("4.0", false).await.ddns);
+        assert_eq!(Some(false), load_mode("bridge", "16.0", false).await.ddns);
+    }
+
+    #[tokio::test]
     async fn model_info_is_not_requested_below_api_6() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": "router" } })).await;
@@ -287,6 +296,7 @@ mod tests {
         assert_eq!(None, caps.vm);
         assert_eq!(None, caps.raid);
         assert_eq!(None, caps.vpn);
+        assert_eq!(None, caps.ddns);
     }
 
     #[tokio::test]
@@ -310,7 +320,7 @@ mod tests {
 
         assert!(started.elapsed() < std::time::Duration::from_secs(3), "{:?}", started.elapsed());
         assert_eq!(Some(true), caps.wifi);
-        assert_eq!((None, None, None), (caps.vm, caps.raid, caps.vpn));
+        assert_eq!((None, None, None, None), (caps.vm, caps.raid, caps.vpn, caps.ddns));
     }
 
     #[tokio::test]
@@ -327,5 +337,6 @@ mod tests {
         assert_eq!(None, caps.vm);
         assert_eq!(Some(true), caps.raid);
         assert_eq!(Some(true), caps.vpn);
+        assert_eq!(Some(true), caps.ddns);
     }
 }

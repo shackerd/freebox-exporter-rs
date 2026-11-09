@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "result": {
+    "last_error": 1354127350,
+    "status": "hostinval",
+    "next_refresh": 0,
+    "last_refresh": 0,
+    "next_retry": 0
+  }
+}

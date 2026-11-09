@@ -42,7 +42,7 @@ You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957)
     * &#9989; Configuration IPV6: **100%**
     * &#9989; xDSL: **100%**
     * &#9989; FTTH: **100%**
-    * &#10060; DynDNS: **0%**
+    * &#9989; DynDNS: **status**
   * &#9989; Lan: **100%**
   * &#9989; Lan Browser: **100%**
   * &#10060; Freeplug: **0%**
@@ -194,7 +194,7 @@ fbx_exporter_collector_last_success_timestamp_seconds{collector="vm"} 1794097253
 fbx_exporter_collector_duration_seconds{collector="vm"} 0.064
 ```
 
-`collector_success` is 0 when the collector failed. The lan_browser and wifi collectors also report 0 when the devices of an interface or an expected access point could not be fetched, while still exposing the others; failures of the optional wifi channel usage and neighbors endpoints, unavailable on some models, are only logged at debug level. The last success timestamp is kept when a collector fails; the vm, raid and vpn collectors also keep exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Each request to the box times out after 10 seconds.
+`collector_success` is 0 when the collector failed. The lan_browser and wifi collectors also report 0 when the devices of an interface or an expected access point could not be fetched, while still exposing the others; failures of the optional wifi channel usage and neighbors endpoints, unavailable on some models, are only logged at debug level. The last success timestamp is kept when a collector fails; the vm, raid, vpn and ddns collectors also keep exposing their last known values. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Each request to the box times out after 10 seconds.
 
 A collector that never succeeded has no last success timestamp, so alert on both failing and stale collectors, for instance:
 
@@ -207,13 +207,14 @@ with a `for` duration of a few refresh intervals on the first rule.
 
 ## API Version Support
 
-Each new collector calls a fixed API version prefix, and is disabled when the box API version (read from `/api_version` at startup) is lower. The prefixes below were checked on a Freebox Delta (API 16): the vm and vpn endpoints answer identically from their minimum version up to 16. The raid minimum is the version of the first documentation of the endpoint, its actual introduction version is unknown:
+Each new collector calls a fixed API version prefix, and is disabled when the box API version (read from `/api_version` at startup) is lower. The prefixes below were checked on a Freebox Delta (API 16): the vm, vpn and ddns endpoints answer identically from their minimum version up to 16. The raid minimum is the version of the first documentation of the endpoint, its actual introduction version is unknown:
 
 | Collector | Minimum API version | Additional requirement |
 |-----------|---------------------|------------------------|
 | vm | 7 | VM capable hardware (`model_info.has_vm`, e.g. Delta, Ultra) and the "VM" application permission |
 | raid | 8 | |
 | vpn | 4 | router mode |
+| ddns | 4 | router mode |
 
 ## Virtual Machine Metrics
 
@@ -263,6 +264,25 @@ fbx_exporter_vpn_client_enabled 0
 ```
 
 When the VPN client is enabled, `vpn_client_up`, `vpn_client_state`, `vpn_client_last_error`, rates, `vpn_client_uploaded_bytes_total`, `vpn_client_downloaded_bytes_total` (counters; a value lower than the previous one is exposed as a counter reset) and `vpn_client_last_up_timestamp_seconds` are also exposed, each one only when returned by the box.
+
+## DynDNS Metrics
+
+Enable with `ddns = true`. The status of each dynamic DNS provider supported by the box (ovh, dyndns, noip) is exposed, disabled ones included. Hostnames and logins are never requested.
+
+```
+fbx_exporter_ddns_status{provider="ovh",status="ok"} 1
+fbx_exporter_ddns_status{provider="dyndns",status="disabled"} 1
+fbx_exporter_ddns_last_refresh_timestamp_seconds{provider="ovh"} 1794216061
+fbx_exporter_ddns_next_refresh_timestamp_seconds{provider="ovh"} 1794216361
+```
+
+`status` is one of `disabled`, `ok`, `wait` (update in progress), `reqfail`, `authfail`, `nocredential`, `ipinval`, `hostinval`, `abuse`, `dnserror`, `unavailable`, `nowan` or `unknown`. `ddns_last_error_timestamp_seconds` and `ddns_next_retry_timestamp_seconds` are also exposed; all timestamps are absent when zero. To alert on a failing or stuck update, for instance:
+
+```
+fbx_exporter_ddns_status{status!~"ok|disabled"} == 1
+```
+
+with a `for` duration of a few refresh intervals, so that a short `wait` does not fire. When the collector itself fails, the last known status is kept: combine it with the `collector_success` alert of the health metrics.
 
 ## Running project
 
@@ -328,6 +348,8 @@ vm = true
 raid = true
 # Exposes VPN servers and client state
 vpn = true
+# Exposes dynamic DNS providers status
+ddns = true
 # Sets metrics prefix, it cannot be empty
 # Warning if you are using the exporter Grafana board, changing this value will cause the board to be unable to retrieve data if you do not update it
 prefix = "fbx_exporter"

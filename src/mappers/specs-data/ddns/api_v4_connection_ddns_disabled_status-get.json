@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "result": {
+    "last_error": 0,
+    "status": "disabled",
+    "next_refresh": 0,
+    "last_refresh": 0,
+    "next_retry": 0
+  }
+}
