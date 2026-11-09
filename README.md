@@ -252,7 +252,7 @@ Also exposed: `raid_sync_speed_bytes_per_second`, `raid_size_bytes`, `raid_disks
 
 ## VPN Metrics
 
-Enable with `vpn = true`. Connection traffic is aggregated per VPN server: user logins and IP addresses are never exposed.
+Enable with `vpn = true`. Connection traffic is aggregated per VPN server: user logins and IP addresses are never exposed. `vpn_connections_rx_bytes` and `vpn_connections_tx_bytes` are gauges summing the traffic of the connections currently open: they drop when a connection closes, so `rate()` does not apply to them.
 
 ```
 fbx_exporter_vpn_server_state{name="wireguard",state="stopped",type="wireguard"} 1

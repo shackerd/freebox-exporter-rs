@@ -102,13 +102,13 @@ impl<'a> VpnMetricMap<'a> {
             .expect(&format!("cannot create {prefix}_vpn_server_authenticated_connections gauge")),
             connections_rx_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_connections_rx_bytes"),
-                "bytes received by current VPN connections",
+                "bytes received by the VPN connections currently open, drops when one closes",
                 &["vpn"]
             )
             .expect(&format!("cannot create {prefix}_vpn_connections_rx_bytes gauge")),
             connections_tx_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_connections_tx_bytes"),
-                "bytes sent by current VPN connections",
+                "bytes sent by the VPN connections currently open, drops when one closes",
                 &["vpn"]
             )
             .expect(&format!("cannot create {prefix}_vpn_connections_tx_bytes gauge")),

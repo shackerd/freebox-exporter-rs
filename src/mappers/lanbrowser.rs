@@ -90,7 +90,7 @@ impl<'a> LanBrowserMetricMap<'a> {
                 "device l3 connectivity, 1 for active",
                 &["ident", "iface", "addr", "name", "af"]
             )
-            .expect("cannot create {prfx}_device_l3 gauge"),
+            .expect(&format!("cannot create {prfx}_device_l3 gauge")),
             device_last_activity: register_int_gauge_vec!(
                 format!("{prfx}_device_last_activity"),
                 "device last activity timestamp",
@@ -116,7 +116,9 @@ impl<'a> LanBrowserMetricMap<'a> {
         &mut self,
         interface: &LanBrowserInterface,
     ) -> Result<Vec<LanHost>, Box<dyn std::error::Error + Send + Sync>> {
-        let iface = interface.name.as_ref().unwrap();
+        let iface = interface.name.as_ref().ok_or_else(|| {
+            Box::new(FreeboxResponseError::new("interface has no name".to_string()))
+        })?;
 
         debug!("fetching {} interface devices", iface);
 
@@ -245,7 +247,7 @@ impl<'a> LanBrowserMetricMap<'a> {
 
             match self.get_devices(&iface).await {
                 Err(e) => {
-                    let name = iface.name.to_owned().unwrap_or_default();
+                    let name = iface.name.to_owned().unwrap_or_else(|| "<unnamed>".to_string());
                     warn!("cannot fetch devices of interface {name}: {e}");
                     failed_ifaces.push(name);
                 }
@@ -406,5 +408,37 @@ mod tests {
 
         map.set().await.unwrap();
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
+    }
+
+    #[tokio::test]
+    async fn set_reports_unnamed_interface_instead_of_panicking() {
+        let (server, authenticator) = mock_api().await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/interfaces",
+            json!({ "success": true, "result": [
+                { "host_count": 1 },
+                { "name": "pub", "host_count": 1 }
+            ] }),
+        )
+        .await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/pub",
+            json!({ "success": true, "result": [
+                { "id": "ether-1", "primary_name": "nas", "active": true }
+            ] }),
+        )
+        .await;
+
+        let factory = authenticator.login().await.unwrap();
+        let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_unnamed".to_string());
+
+        let err = map.set().await.unwrap_err();
+        assert_eq!("cannot fetch devices of interface(s) <unnamed>", err.to_string());
+        assert_eq!(Some(1), device_active(&map, "pub", "nas"));
+        // the unnamed interface must not turn into a request on the interfaces root
+        let requests = server.received_requests().await.unwrap();
+        assert!(requests.iter().all(|r| r.url.path() != "/api/v4/lan/browser/"));
     }
 }
