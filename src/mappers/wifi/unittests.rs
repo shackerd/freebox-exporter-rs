@@ -98,7 +98,7 @@ mod tests_collect {
         core::configuration::sections::PoliciesConfiguration,
         mappers::{
             api_specs_provider::get_specs_data,
-            test_support::{mock_api, serve},
+            test_support::{mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly},
             wifi::WifiMetricMap,
             MetricMap,
         },
@@ -192,5 +192,42 @@ mod tests_collect {
             .filter(|m| m.get_label().iter().any(|l| l.get_name() == "ap_id" && l.get_value() == "1"))
             .count();
         assert!(stations_of_ap_1 > 0, "stations of the reachable access point are not exposed");
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let ap = json!({ "success": true, "result": [{ "id": 0, "name": "2G4", "config": { "band": "2d4g" } }] });
+        serve(&server, "/api/v4/wifi/ap", ap).await;
+        Mock::given(path_regex(r"^/api/v4/wifi/ap/0/channel_survey_history/\d+$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+            .mount(&server)
+            .await;
+        let unavailable = json!({ "success": false, "error_code": "invalid_request" });
+        serve(&server, "/api/v4/wifi/ap/0/channel_usage", unavailable.clone()).await;
+        serve(&server, "/api/v4/wifi/ap/0/neighbors", unavailable).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: Some("relabel".to_string()),
+        };
+        let prefix = "test_wifi_scrape";
+        let mut map = WifiMetricMap::new(&factory, prefix.to_string(), Duration::seconds(5), &policies);
+
+        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get").await.unwrap();
+        let stations: serde_json::Value = serde_json::from_str(&stations).unwrap();
+        let first = serve_scoped(&server, "/api/v4/wifi/ap/0/stations", stations).await;
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        assert!(before.iter().any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))), "{before:?}");
+        drop(first);
+
+        // the last request of the collection is slow, and its stations are gone
+        serve_slowly(&server, "/api/v4/wifi/ap/0/stations", json!({ "success": true, "result": [] })).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(!scrape(prefix).iter().any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))));
     }
 }
