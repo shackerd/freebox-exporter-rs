@@ -334,6 +334,10 @@ impl<'a> NasMetricMap<'a> {
             Some(r) => r,
         };
 
+        // reset only once the response is valid: a scrape during the request still sees
+        // the previous collection, and a failed request keeps it
+        self.reset_all();
+
         for disk in disks {
             let disk_id = disk.id.to_string();
             let disk_type = disk.disk_type.unwrap_or_else(|| "unknown".to_string());
@@ -537,8 +541,6 @@ impl<'a> MetricMap<'a> for NasMetricMap<'a> {
     }
 
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
         match self.set_storage_metrics().await {
             Err(e) => return Err(e),
             _ => {}
@@ -711,5 +713,42 @@ mod tests {
         assert_eq!(partition.used_bytes.unwrap(), 512);
         assert_eq!(partition.free_bytes.unwrap(), 123484672);
         assert_eq!(partition.fsck_result.as_ref().unwrap(), "no_run_yet");
+    }
+}
+
+#[cfg(test)]
+mod tests_collect {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{mock_api, scrape, scrape_during, serve_scoped, serve_slowly};
+
+    fn disks(total_bytes: i64) -> Value {
+        json!({ "success": true, "result": [{ "id": 1, "type": "sata", "total_bytes": total_bytes }] })
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_nas_scrape";
+        let mut map = NasMetricMap::new(&factory, prefix.to_string());
+        let total = |lines: &[String]| {
+            lines.iter().find(|l| l.starts_with(&format!("{prefix}_nas_disk_total_bytes{{"))).cloned()
+        };
+
+        let first = serve_scoped(&server, "/api/v4/storage/disk", disks(1000)).await;
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        assert!(total(&before).is_some_and(|l| l.ends_with(" 1000")), "{before:?}");
+        drop(first);
+
+        // the only request of the collection is slow, and returns a new size
+        serve_slowly(&server, "/api/v4/storage/disk", disks(2000)).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(total(&scrape(prefix)).is_some_and(|l| l.ends_with(" 2000")));
     }
 }
