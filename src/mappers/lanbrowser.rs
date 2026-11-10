@@ -383,7 +383,7 @@ mod tests {
                 let labels: Vec<_> = m
                     .get_label()
                     .iter()
-                    .map(|l| (l.get_name(), l.get_value()))
+                    .map(|l| (l.name(), l.value()))
                     .collect();
                 labels.contains(&("iface", iface)) && labels.contains(&("primary_name", name))
             })

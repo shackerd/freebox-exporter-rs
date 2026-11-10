@@ -170,7 +170,7 @@ mod tests {
                 labels.iter().all(|(k, v)| {
                     m.get_label()
                         .iter()
-                        .any(|l| l.get_name() == *k && l.get_value() == *v)
+                        .any(|l| l.name() == *k && l.value() == *v)
                 })
             })
             .map(|m| m.get_gauge().get_value())

@@ -226,12 +226,12 @@ impl<'a> VpnMetricMap<'a> {
     fn set_client_metrics(&self, client: &VpnClientStatus) {
         if let Some(enabled) = client.enabled {
             self.client_enabled_metric
-                .with_label_values(&[])
+                .with_label_values::<&str>(&[])
                 .set(enabled as i64);
         }
         if let Some(state) = client.state.as_deref() {
             self.client_up_metric
-                .with_label_values(&[])
+                .with_label_values::<&str>(&[])
                 .set((state == "up") as i64);
             self.client_state_metric
                 .with_label_values(&[state])
@@ -245,18 +245,18 @@ impl<'a> VpnMetricMap<'a> {
         // 0 when the client never connected
         if let Some(value) = client.last_up.filter(|v| *v != 0) {
             self.client_last_up_timestamp_seconds_metric
-                .with_label_values(&[])
+                .with_label_values::<&str>(&[])
                 .set(value);
         }
         if let Some(stats) = client.stats.as_ref() {
             if let Some(value) = stats.rate_up {
                 self.client_rate_up_bytes_per_second_metric
-                    .with_label_values(&[])
+                    .with_label_values::<&str>(&[])
                     .set(value);
             }
             if let Some(value) = stats.rate_down {
                 self.client_rate_down_bytes_per_second_metric
-                    .with_label_values(&[])
+                    .with_label_values::<&str>(&[])
                     .set(value);
             }
         }
@@ -335,7 +335,7 @@ fn counter_step(current: u64, value: u64) -> (bool, u64) {
 fn set_counter(vec: &IntCounterVec, value: Option<i64>) {
     match value.and_then(|v| u64::try_from(v).ok()) {
         Some(value) => {
-            let counter = vec.with_label_values(&[]);
+            let counter = vec.with_label_values::<&str>(&[]);
             let (reset, increment) = counter_step(counter.get(), value);
             if reset {
                 counter.reset();
@@ -343,7 +343,7 @@ fn set_counter(vec: &IntCounterVec, value: Option<i64>) {
             counter.inc_by(increment);
         }
         None => {
-            let _ = vec.remove_label_values(&[]);
+            let _ = vec.remove_label_values::<&str>(&[]);
         }
     }
 }
@@ -379,7 +379,7 @@ mod tests {
                 labels.iter().all(|(k, v)| {
                     m.get_label()
                         .iter()
-                        .any(|l| l.get_name() == *k && l.get_value() == *v)
+                        .any(|l| l.name() == *k && l.value() == *v)
                 })
             })
             .map(|(kind, m)| match kind {
@@ -478,8 +478,8 @@ mod tests {
             for family in metric.collect() {
                 for sample in family.get_metric() {
                     assert_eq!(1, sample.get_label().len());
-                    assert_eq!("vpn", sample.get_label()[0].get_name());
-                    assert_eq!("pptp", sample.get_label()[0].get_value());
+                    assert_eq!("vpn", sample.get_label()[0].name());
+                    assert_eq!("pptp", sample.get_label()[0].value());
                 }
             }
         }
@@ -649,14 +649,14 @@ mod tests {
             (&map.client_bytes_down_metric, "test_vpn_counters_vpn_client_downloaded_bytes_total"),
         ] {
             let families = metric.collect();
-            assert_eq!(name, families[0].get_name());
+            assert_eq!(name, families[0].name());
             assert_eq!(MetricType::COUNTER, families[0].get_field_type());
         }
         assert_eq!((Some(94.0), Some(40.0)), (up(&map), down(&map)));
 
         // the box value grows; the series is updated in place, never removed and recreated,
         // so a concurrent scrape cannot read 0 and take it for a counter reset
-        let series_before = map.client_bytes_up_metric.with_label_values(&[]);
+        let series_before = map.client_bytes_up_metric.with_label_values::<&str>(&[]);
         server.reset().await;
         serve_cycle(&server, empty(), empty(), client_status(150, 41)).await;
         map.set().await.unwrap();

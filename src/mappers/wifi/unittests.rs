@@ -221,7 +221,7 @@ mod tests_collect {
             .filter(|m| {
                 m.get_label()
                     .iter()
-                    .any(|l| l.get_name() == "ap_id" && l.get_value() == "1")
+                    .any(|l| l.name() == "ap_id" && l.value() == "1")
             })
             .count();
         assert!(

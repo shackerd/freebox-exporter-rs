@@ -285,7 +285,7 @@ mod tests {
                 labels.iter().all(|(k, v)| {
                     m.get_label()
                         .iter()
-                        .any(|l| l.get_name() == *k && l.get_value() == *v)
+                        .any(|l| l.name() == *k && l.value() == *v)
                 })
             })
             .map(|m| m.get_gauge().get_value())
@@ -318,10 +318,10 @@ mod tests {
             for family in collector.collect() {
                 for metric in family.get_metric() {
                     let mut labels: Vec<_> = metric.get_label().iter()
-                        .map(|label| (label.get_name().to_string(), label.get_value().to_string()))
+                        .map(|label| (label.name().to_string(), label.value().to_string()))
                         .collect();
                     labels.sort();
-                    values.push((family.get_name().to_string(), labels, metric.get_gauge().get_value()));
+                    values.push((family.name().to_string(), labels, metric.get_gauge().get_value()));
                 }
             }
         }
@@ -377,7 +377,7 @@ mod tests {
             };
             for metric in families.iter().flat_map(|family| family.get_metric()) {
                 assert_eq!(expected.len(), metric.get_label().len());
-                assert!(metric.get_label().iter().all(|label| expected.contains(&label.get_name())));
+                assert!(metric.get_label().iter().all(|label| expected.contains(&label.name())));
             }
         }
     }

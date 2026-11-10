@@ -173,16 +173,16 @@ impl<'a> VmMetricMap<'a> {
 
     fn set_host_metrics(&self, info: &VmSystemInfo) {
         if let Some(v) = info.total_memory {
-            self.host_memory_total_metric.with_label_values(&[]).set(v * MEGABYTE);
+            self.host_memory_total_metric.with_label_values::<&str>(&[]).set(v * MEGABYTE);
         }
         if let Some(v) = info.used_memory {
-            self.host_memory_used_metric.with_label_values(&[]).set(v * MEGABYTE);
+            self.host_memory_used_metric.with_label_values::<&str>(&[]).set(v * MEGABYTE);
         }
         if let Some(v) = info.total_cpus {
-            self.host_cpus_total_metric.with_label_values(&[]).set(v);
+            self.host_cpus_total_metric.with_label_values::<&str>(&[]).set(v);
         }
         if let Some(v) = info.used_cpus {
-            self.host_cpus_used_metric.with_label_values(&[]).set(v);
+            self.host_cpus_used_metric.with_label_values::<&str>(&[]).set(v);
         }
     }
 
@@ -244,7 +244,7 @@ mod tests {
                 labels.iter().all(|(k, v)| {
                     m.get_label()
                         .iter()
-                        .any(|l| l.get_name() == *k && l.get_value() == *v)
+                        .any(|l| l.name() == *k && l.value() == *v)
                 })
             })
             .map(|m| m.get_gauge().get_value())
