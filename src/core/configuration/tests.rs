@@ -75,13 +75,13 @@ unresolved_station_hostnames = \"ignore\"";
 
         assert_eq!(5, conf.api.refresh.unwrap());
 
-        assert_eq!(true, conf.metrics.connection.unwrap());
-        assert_eq!(true, conf.metrics.lan.unwrap());
-        assert_eq!(true, conf.metrics.lan_browser.unwrap());
-        assert_eq!(true, conf.metrics.switch.unwrap());
-        assert_eq!(true, conf.metrics.wifi.unwrap());
-        assert_eq!(true, conf.metrics.download.unwrap());
-        assert_eq!(false, conf.metrics.system.unwrap());
+        assert!(conf.metrics.connection.unwrap());
+        assert!(conf.metrics.lan.unwrap());
+        assert!(conf.metrics.lan_browser.unwrap());
+        assert!(conf.metrics.switch.unwrap());
+        assert!(conf.metrics.wifi.unwrap());
+        assert!(conf.metrics.download.unwrap());
+        assert!(!conf.metrics.system.unwrap());
         assert_eq!("fbx", conf.metrics.prefix.unwrap());
 
         assert_eq!(".".to_string(), conf.core.data_directory.unwrap());
@@ -197,9 +197,9 @@ unresolved_station_hostnames = \"ignore\"";
             }),
         };
 
-        assert_eq!(true, conf.assert_data_dir_permissions().is_err());
-        assert_eq!(true, conf2.assert_data_dir_permissions().is_err());
-        assert_eq!(true, conf3.assert_data_dir_permissions().is_ok());
+        assert!(conf.assert_data_dir_permissions().is_err());
+        assert!(conf2.assert_data_dir_permissions().is_err());
+        assert!(conf3.assert_data_dir_permissions().is_ok());
     }
 
     #[test]

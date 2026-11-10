@@ -43,33 +43,33 @@ impl<'a> LanMetricMap<'a> {
                 format!("{prfx}_name_dns"),
                 &["name_dns"]
             )
-            .expect(&format!("cannot create {prfx}_name_dns gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name_dns gauge: {e}")),
             name_mdns_metric: register_int_gauge_vec!(
                 format!("{prfx}_name_mdns"),
                 format!("{prfx}_name_mdns"),
                 &["name_mdns"]
             )
-            .expect(&format!("cannot create {prfx}_name_mdns gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name_mdns gauge: {e}")),
             name_metric: register_int_gauge_vec!(
                 format!("{prfx}_name"),
                 format!("{prfx}_name"),
                 &["name"]
             )
-            .expect(&format!("cannot create {prfx}_name gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name gauge: {e}")),
             mode_metric: register_int_gauge_vec!(
                 format!("{prfx}_mode"),
                 format!("{prfx}_mode"),
                 &["mode"]
             )
-            .expect(&format!("cannot create {prfx}_mode gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_mode gauge: {e}")),
             name_netbios_metric: register_int_gauge_vec!(
                 format!("{prfx}_name_netbios"),
                 format!("{prfx}_name_netbios"),
                 &["name_netbios"]
             )
-            .expect(&format!("cannot create {prfx}_name_netbios gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name_netbios gauge: {e}")),
             ip_metric: register_int_gauge_vec!(format!("{prfx}_ip"), format!("{prfx}_ip"), &["ip"])
-                .expect(&format!("cannot create {prfx}_ip gauge")),
+                .unwrap_or_else(|e| panic!("cannot create {prfx}_ip gauge: {e}")),
         }
     }
 
@@ -90,19 +90,17 @@ impl<'a> LanMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
-        let res = client.get();
-
-        if res.is_ok() {
-            return Ok(res.unwrap());
-        } else {
-            debug!("renewing managed client");
-
-            let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client?);
-
-            return self.managed_client.as_ref().unwrap().get();
+        let client = self.managed_client.as_ref().unwrap();
+        if let Ok(client) = client.get() {
+            return Ok(client);
         }
+
+        debug!("renewing managed client");
+
+        let client = self.factory.create_managed_client().await;
+        self.managed_client = Some(client?);
+
+        self.managed_client.as_ref().unwrap().get()
     }
 
     async fn set_lan_config(
@@ -188,9 +186,7 @@ impl<'a> MetricMap<'a> for LanMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = self.set_lan_config(lock).await {
-            return Err(e);
-        };
+        self.set_lan_config(lock).await?;
         Ok(())
     }
 }

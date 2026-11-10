@@ -81,148 +81,120 @@ impl<'a> DownloadMetricMap<'a> {
                 format!("{prefix}_download_rx_rate_bytes_per_second"),
                 "Current download receive rate in bytes per second"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_rx_rate_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_download_rx_rate_bytes_per_second gauge: {e}")
+            }),
             tx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_tx_rate_bytes_per_second"),
                 "Current download transmit rate in bytes per second"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tx_rate_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_download_tx_rate_bytes_per_second gauge: {e}")
+            }),
             nb_tasks_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_total"),
                 "Total number of download tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_total gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_total gauge: {e}")),
             nb_tasks_active_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_active"),
                 "Number of active download tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_active gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_active gauge: {e}")),
             nb_tasks_downloading_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_downloading"),
                 "Number of downloading tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_downloading gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_downloading gauge: {e}")),
             nb_tasks_seeding_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_seeding"),
                 "Number of seeding tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_seeding gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_seeding gauge: {e}")),
             nb_tasks_stopped_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_stopped"),
                 "Number of stopped tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_stopped gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_stopped gauge: {e}")),
             nb_tasks_queued_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_queued"),
                 "Number of queued tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_queued gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_queued gauge: {e}")),
             nb_tasks_checking_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_checking"),
                 "Number of checking tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_checking gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_checking gauge: {e}")),
             nb_tasks_extracting_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_extracting"),
                 "Number of extracting tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_extracting gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_extracting gauge: {e}")),
             nb_tasks_done_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_done"),
                 "Number of completed tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_done gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_done gauge: {e}")),
             nb_tasks_repairing_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_repairing"),
                 "Number of repairing tasks"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_repairing gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_repairing gauge: {e}")),
             nb_tasks_error_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_error"),
                 "Number of tasks in error state"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_error gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_error gauge: {e}")),
             nb_tasks_stopping_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_stopping"),
                 "Number of tasks stopping"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_tasks_stopping gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_stopping gauge: {e}")),
             nb_rss_items_unread_metric: register_int_gauge!(
                 format!("{prefix}_download_rss_items_unread"),
                 "Number of unread RSS download items"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_rss_items_unread gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_rss_items_unread gauge: {e}")),
             nb_peer_metric: register_int_gauge!(
                 format!("{prefix}_download_peers_total"),
                 "Number of connected download peers"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_peers_total gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_peers_total gauge: {e}")),
             conn_ready_metric: register_int_gauge!(
                 format!("{prefix}_download_connection_ready"),
                 "Download connection readiness (1 ready, 0 not ready)"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_connection_ready gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_download_connection_ready gauge: {e}")),
             throttling_is_scheduled_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_is_scheduled"),
                 "Download throttling schedule status (1 scheduled, 0 not scheduled)"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_throttling_is_scheduled gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_download_throttling_is_scheduled gauge: {e}")
+            }),
             throttling_mode_metric: register_int_gauge_vec!(
                 format!("{prefix}_download_throttling_mode_info"),
                 "Download throttling mode information",
                 &["mode"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_throttling_mode_info gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_download_throttling_mode_info gauge: {e}")
+            }),
             throttling_rx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_rx_rate_bytes_per_second"),
                 "Download throttling receive limit in bytes per second"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_throttling_rx_rate_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_download_throttling_rx_rate_bytes_per_second gauge: {e}")
+            }),
             throttling_tx_rate_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_tx_rate_bytes_per_second"),
                 "Download throttling transmit limit in bytes per second"
             )
-            .expect(&format!(
-                "cannot create {prefix}_download_throttling_tx_rate_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_download_throttling_tx_rate_bytes_per_second gauge: {e}")
+            }),
         }
     }
 
@@ -242,19 +214,17 @@ impl<'a> DownloadMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
-        let res = client.get();
-
-        if res.is_ok() {
-            return Ok(res.unwrap());
-        } else {
-            debug!("renewing managed client");
-
-            let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client?);
-
-            return self.managed_client.as_ref().unwrap().get();
+        let client = self.managed_client.as_ref().unwrap();
+        if let Ok(client) = client.get() {
+            return Ok(client);
         }
+
+        debug!("renewing managed client");
+
+        let client = self.factory.create_managed_client().await;
+        self.managed_client = Some(client?);
+
+        self.managed_client.as_ref().unwrap().get()
     }
 
     async fn set_download_metrics(
@@ -414,8 +384,8 @@ mod tests {
         assert_eq!(stats.rx_rate.unwrap(), 14222);
         assert_eq!(stats.tx_rate.unwrap(), 4294);
         assert_eq!(stats.throttling_mode.unwrap(), "normal");
-        assert_eq!(stats.throttling_is_scheduled.unwrap(), true);
-        assert_eq!(stats.conn_ready.unwrap(), true);
+        assert!(stats.throttling_is_scheduled.unwrap());
+        assert!(stats.conn_ready.unwrap());
         assert_eq!(stats.nb_peer.unwrap(), 42);
 
         let rate = stats.throttling_rate.unwrap();

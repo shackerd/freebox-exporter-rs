@@ -109,91 +109,91 @@ impl<'a> NasMetricMap<'a> {
                 format!("{prefix}_nas_disk_total_bytes Total disk size in bytes"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_total_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_total_bytes gauge: {e}")),
 
             disk_state_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_state"),
                 format!("{prefix}_nas_disk_state Disk state (1=enabled, 0=disabled, -1=error, 2=formatting)"),
                 &["disk_id", "disk_type", "model", "serial", "state"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_state gauge: {e}")),
 
             disk_temperature_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_temperature_celsius"),
                 format!("{prefix}_nas_disk_temperature_celsius Disk temperature in Celsius"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_temperature_celsius gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_temperature_celsius gauge: {e}")),
 
             disk_spinning_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_spinning"),
                 format!("{prefix}_nas_disk_spinning Disk spinning status (1=spinning, 0=not spinning)"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_spinning gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_spinning gauge: {e}")),
 
             disk_idle_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_idle"),
                 format!("{prefix}_nas_disk_idle Disk idle status (1=idle, 0=active)"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_idle gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_idle gauge: {e}")),
 
             disk_idle_duration_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_idle_duration_seconds"),
                 format!("{prefix}_nas_disk_idle_duration_seconds Disk idle duration in seconds"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_idle_duration_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_idle_duration_seconds gauge: {e}")),
 
             disk_active_duration_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_active_duration_seconds"),
                 format!("{prefix}_nas_disk_active_duration_seconds Disk active duration in seconds"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_active_duration_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_active_duration_seconds gauge: {e}")),
 
             disk_time_before_spindown_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_time_before_spindown_seconds"),
                 format!("{prefix}_nas_disk_time_before_spindown_seconds Time before disk spindown in seconds"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_time_before_spindown_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_time_before_spindown_seconds gauge: {e}")),
 
             disk_connector_info_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_connector_info"),
                 format!("{prefix}_nas_disk_connector_info Disk physical connector ID"),
                 &["disk_id", "disk_type", "model", "serial", "connector"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_connector_info gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_connector_info gauge: {e}")),
 
             disk_table_type_info_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_table_type_info"),
                 format!("{prefix}_nas_disk_table_type_info Disk partition table type"),
                 &["disk_id", "disk_type", "model", "serial", "table_type"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_table_type_info gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_table_type_info gauge: {e}")),
 
             disk_firmware_info_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_firmware_info"),
                 format!("{prefix}_nas_disk_firmware_info Disk firmware version"),
                 &["disk_id", "disk_type", "model", "serial", "firmware"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_firmware_info gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_firmware_info gauge: {e}")),
 
             disk_operation_progress_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_operation_progress_percent"),
                 format!("{prefix}_nas_disk_operation_progress_percent Disk operation progress percentage"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_operation_progress_percent gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_operation_progress_percent gauge: {e}")),
 
             disk_operation_steps_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_operation_steps"),
                 format!("{prefix}_nas_disk_operation_steps Disk operation steps (done/total)"),
                 &["disk_id", "disk_type", "model", "serial", "step_type"]
             )
-            .expect(&format!("cannot create {prefix}_nas_disk_operation_steps gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_operation_steps gauge: {e}")),
 
             // Partition metrics with labels for partition identification
             partition_total_bytes_metric: register_int_gauge_vec!(
@@ -201,49 +201,49 @@ impl<'a> NasMetricMap<'a> {
                 format!("{prefix}_nas_partition_total_bytes Partition total size in bytes"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_total_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_total_bytes gauge: {e}")),
 
             partition_used_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_used_bytes"),
                 format!("{prefix}_nas_partition_used_bytes Partition used space in bytes"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_used_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_used_bytes gauge: {e}")),
 
             partition_free_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_free_bytes"),
                 format!("{prefix}_nas_partition_free_bytes Partition free space in bytes"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_free_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_free_bytes gauge: {e}")),
 
             partition_state_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_state"),
                 format!("{prefix}_nas_partition_state Partition state (1=mounted, 0=unmounted, -1=error, 2=checking, 3=formatting, 4=mounting, 5=maintenance, 6=umounting, 7=ejecting)"),
                 &["partition_id", "disk_id", "label", "fstype", "state"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_state gauge: {e}")),
 
             partition_fsck_result_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_fsck_result"),
                 format!("{prefix}_nas_partition_fsck_result File system check result (0=no_run_yet, 1=running, 2=fs_clean, 3=fs_corrected, 4=fs_needs_correction, -1=failed)"),
                 &["partition_id", "disk_id", "label", "fstype", "fsck_result"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_fsck_result gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_fsck_result gauge: {e}")),
 
             partition_operation_progress_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_operation_progress_percent"),
                 format!("{prefix}_nas_partition_operation_progress_percent Partition operation progress percentage"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_operation_progress_percent gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_operation_progress_percent gauge: {e}")),
 
             partition_operation_steps_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_operation_steps"),
                 format!("{prefix}_nas_partition_operation_steps Partition operation steps (done/total)"),
                 &["partition_id", "disk_id", "label", "fstype", "step_type"]
             )
-            .expect(&format!("cannot create {prefix}_nas_partition_operation_steps gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_operation_steps gauge: {e}")),
         }
     }
 
@@ -263,19 +263,17 @@ impl<'a> NasMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
-        let res = client.get();
-
-        if res.is_ok() {
-            return Ok(res.unwrap());
-        } else {
-            debug!("renewing managed client");
-
-            let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client?);
-
-            return self.managed_client.as_ref().unwrap().get();
+        let client = self.managed_client.as_ref().unwrap();
+        if let Ok(client) = client.get() {
+            return Ok(client);
         }
+
+        debug!("renewing managed client");
+
+        let client = self.factory.create_managed_client().await;
+        self.managed_client = Some(client?);
+
+        self.managed_client.as_ref().unwrap().get()
     }
 
     fn reset_all(&mut self) {
@@ -598,10 +596,7 @@ impl<'a> MetricMap<'a> for NasMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_storage_metrics(lock).await {
-            Err(e) => return Err(e),
-            _ => {}
-        };
+        self.set_storage_metrics(lock).await?;
         Ok(())
     }
 }
@@ -653,8 +648,8 @@ mod tests {
         assert_eq!(disk.state.unwrap(), "enabled");
         assert_eq!(disk.total_bytes.unwrap(), 250059350016);
         assert_eq!(disk.temp.unwrap(), 51);
-        assert_eq!(disk.idle.unwrap(), true);
-        assert_eq!(disk.spinning.unwrap(), true);
+        assert!(disk.idle.unwrap());
+        assert!(disk.spinning.unwrap());
         assert_eq!(disk.table_type.unwrap(), "msdos");
         assert_eq!(disk.model.unwrap(), "Hitachi HCC545025B9A300");
         assert_eq!(disk.serial.unwrap(), "GSCH35VC");
@@ -719,8 +714,8 @@ mod tests {
         assert_eq!(disk.state.unwrap(), "enabled");
         assert_eq!(disk.total_bytes.unwrap(), 125435904);
         assert_eq!(disk.temp.unwrap(), 0);
-        assert_eq!(disk.idle.unwrap(), false);
-        assert_eq!(disk.spinning.unwrap(), false);
+        assert!(!disk.idle.unwrap());
+        assert!(!disk.spinning.unwrap());
         assert_eq!(disk.table_type.unwrap(), "gpt");
         assert_eq!(disk.model.unwrap(), "");
         assert_eq!(disk.serial.unwrap(), "");

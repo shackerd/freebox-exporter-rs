@@ -113,219 +113,213 @@ impl<'a> SwitchMetricMap<'a> {
                 "rx packet rate",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_packet_rate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_packet_rate gauge: {e}")),
             rx_good_bytes_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_good_bytes"),
                 "rx good bytes",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_good_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_good_bytes gauge: {e}")),
             rx_oversize_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_oversize_packets"),
                 "rx oversize packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_oversize_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_rx_oversize_packets gauge: {e}")
+            }),
             rx_unicast_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_unicast_packets"),
                 "rx unicast packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_unicast_packets gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_unicast_packets gauge: {e}")),
             tx_bytes_rate_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_bytes_rate"),
                 "tx bytes rate",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_bytes_rate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_bytes_rate gauge: {e}")),
             tx_unicast_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_unicast_packets"),
                 "tx unicast packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_tx_unicast_packets gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_unicast_packets gauge: {e}")),
             rx_bytes_rate_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_bytes_rate"),
                 "rx bytes rate",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_bytes_rate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_bytes_rate gauge: {e}")),
             tx_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_packets"),
                 "tx packets",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_packets gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_packets gauge: {e}")),
             tx_collisions_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_collisions"),
                 "tx collisions",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_collisions gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_collisions gauge: {e}")),
             tx_packets_rate_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_packets_rate"),
                 "tx packets rate",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_packets_rate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_packets_rate gauge: {e}")),
             tx_fcs_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_fcs"),
                 "tx fcs",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_fcs gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_fcs gauge: {e}")),
             tx_bytes_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_bytes"),
                 "tx bytes",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_bytes gauge: {e}")),
             rx_jabber_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_jabber_packets"),
                 "rx jabber packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_jabber_packets gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_jabber_packets gauge: {e}")),
             tx_single_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_single"),
                 "tx single",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_single gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_single gauge: {e}")),
             tx_excessive_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_excessive"),
                 "tx excessive",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_excessive gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_excessive gauge: {e}")),
             rx_pause_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_pause"),
                 "rx pause",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_pause gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_pause gauge: {e}")),
             rx_multicast_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_multicast_packets"),
                 "rx multicast packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_multicast_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_rx_multicast_packets gauge: {e}")
+            }),
             tx_pause_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_pause"),
                 "tx pause",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_pause gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_pause gauge: {e}")),
             rx_good_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_good_packets"),
                 "tx good packets",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_good_packets gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_good_packets gauge: {e}")),
             rx_broadcast_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_broadcast_packets"),
                 "rx broadcast packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_broadcast_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_rx_broadcast_packets gauge: {e}")
+            }),
             tx_multiple_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_multiple"),
                 "tx multiple",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_multiple gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_multiple gauge: {e}")),
             tx_deferred_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_deferred"),
                 "tx deferred",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_deferred gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_deferred gauge: {e}")),
             tx_late_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_late"),
                 "tx late",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_tx_late gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_late gauge: {e}")),
             tx_multicast_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_multicast_packets"),
                 "tx multicast packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_tx_multicast_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_tx_multicast_packets gauge: {e}")
+            }),
             rx_fcs_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_fcs_packets"),
                 "rx fcs packets",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_fcs_packets gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_fcs_packets gauge: {e}")),
             tx_broadcast_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_tx_broadcast_packets"),
                 "tx broadcast packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_tx_broadcast_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_tx_broadcast_packets gauge: {e}")
+            }),
             rx_err_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_err_packets"),
                 "rx err packets",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_err_packets gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_err_packets gauge: {e}")),
             rx_fragments_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_fragments_packets"),
                 "rx fragments packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_fragments_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_rx_fragments_packets gauge: {e}")
+            }),
             rx_bad_bytes_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_bad_bytes"),
                 "rx bad bytes",
                 &["port"]
             )
-            .expect(&format!("cannot create {stats_prfx}_rx_bad_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_bad_bytes gauge: {e}")),
             rx_undersize_packets_gauge: register_int_gauge_vec!(
                 format!("{stats_prfx}_rx_undersize_packets"),
                 "rx undersize packets",
                 &["port"]
             )
-            .expect(&format!(
-                "cannot create {stats_prfx}_rx_undersize_packets gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {stats_prfx}_rx_undersize_packets gauge: {e}")
+            }),
             port_status_gauge: register_int_gauge_vec!(
                 format!("{prfx}_port_status"),
                 "port status, 1 for link up",
                 &["port"]
             )
-            .expect(&format!("cannot create {prfx}_port_status gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_port_status gauge: {e}")),
             port_speed_gauge: register_int_gauge_vec!(
                 format!("{prfx}_port_speed"),
                 "port status speed",
                 &["port"]
             )
-            .expect(&format!("cannot create {prfx}_port_speed gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_port_speed gauge: {e}")),
             port_mac_list_gauge: register_int_gauge_vec!(
                 format!("{prfx}_port_mac_list"),
                 "port mac list, always 1",
                 &["port", "mac", "hostname"]
             )
-            .expect(&format!("cannot create {prfx}_port_mac_list gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_port_mac_list gauge: {e}")),
         }
     }
 
@@ -346,19 +340,17 @@ impl<'a> SwitchMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
-        let res = client.get();
-
-        if res.is_ok() {
-            return Ok(res.unwrap());
-        } else {
-            debug!("renewing managed client");
-
-            let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client?);
-
-            return self.managed_client.as_ref().unwrap().get();
+        let client = self.managed_client.as_ref().unwrap();
+        if let Ok(client) = client.get() {
+            return Ok(client);
         }
+
+        debug!("renewing managed client");
+
+        let client = self.factory.create_managed_client().await;
+        self.managed_client = Some(client?);
+
+        self.managed_client.as_ref().unwrap().get()
     }
 
     async fn get_ports_status_json(
@@ -382,7 +374,7 @@ impl<'a> SwitchMetricMap<'a> {
         &mut self,
         body: &str,
     ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
-        let fixed_body = SwitchMetricMap::handle_malformed_mac_list(&body)?;
+        let fixed_body = SwitchMetricMap::handle_malformed_mac_list(body)?;
 
         let res = match serde_json::from_str::<FreeboxResponse<Vec<SwitchPortStatus>>>(&fixed_body)
         {
@@ -455,12 +447,10 @@ impl<'a> SwitchMetricMap<'a> {
         }
 
         match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(format!(
-                    "v4/switch/port/{}/stats response was empty",
-                    port_id
-                ))))
-            }
+            None => Err(Box::new(FreeboxResponseError::new(format!(
+                "v4/switch/port/{}/stats response was empty",
+                port_id
+            )))),
             Some(r) => Ok(r),
         }
     }
@@ -706,9 +696,7 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = self.set_all(lock).await {
-            return Err(e);
-        }
+        self.set_all(lock).await?;
 
         Ok(())
     }

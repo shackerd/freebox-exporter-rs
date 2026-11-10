@@ -76,93 +76,91 @@ impl<'a> RaidMetricMap<'a> {
                 "1 if the array is degraded, 0 otherwise",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_degraded gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_degraded gauge: {e}")),
             state_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_state"),
                 "array state, always 1",
                 &["id", "name", "state"]
             )
-            .expect(&format!("cannot create {prefix}_raid_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_state gauge: {e}")),
             sync_action_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_sync_action"),
                 "array sync action, always 1",
                 &["id", "name", "sync_action"]
             )
-            .expect(&format!("cannot create {prefix}_raid_sync_action gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_sync_action gauge: {e}")),
             sync_completed_ratio_metric: register_gauge_vec!(
                 format!("{prefix}_raid_sync_completed_ratio"),
                 "fraction of sync completed",
                 &["id", "name", "level"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_sync_completed_ratio gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_raid_sync_completed_ratio gauge: {e}")
+            }),
             sync_speed_bytes_per_second_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_sync_speed_bytes_per_second"),
                 "sync speed in bytes per second",
                 &["id", "name", "level"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_sync_speed_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_raid_sync_speed_bytes_per_second gauge: {e}")
+            }),
             size_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_size_bytes"),
                 "array size in bytes",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_size_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_size_bytes gauge: {e}")),
             disks_expected_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_disks_expected"),
                 "expected number of array members",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_disks_expected gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_disks_expected gauge: {e}")),
             last_check_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_last_check_timestamp_seconds"),
                 "Unix timestamp of last check in seconds",
                 &["id", "name", "level"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_last_check_timestamp_seconds gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_raid_last_check_timestamp_seconds gauge: {e}")
+            }),
             next_check_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_next_check_timestamp_seconds"),
                 "Unix timestamp of next check in seconds",
                 &["id", "name", "level"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_next_check_timestamp_seconds gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_raid_next_check_timestamp_seconds gauge: {e}")
+            }),
             member_role_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_role"),
                 "member role, always 1",
                 &["array_id", "id", "device_location", "role"]
             )
-            .expect(&format!("cannot create {prefix}_raid_member_role gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_member_role gauge: {e}")),
             member_corrected_read_errors_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_corrected_read_errors"),
                 "member corrected read errors",
                 &["array_id", "id", "device_location"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_member_corrected_read_errors gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_raid_member_corrected_read_errors gauge: {e}")
+            }),
             member_size_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_size_bytes"),
                 "member size in bytes",
                 &["array_id", "id", "device_location"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_member_size_bytes gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_member_size_bytes gauge: {e}")),
             member_temperature_celsius_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_temperature_celsius"),
                 "member disk temperature in Celsius",
                 &["array_id", "id", "device_location"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_raid_member_temperature_celsius gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_raid_member_temperature_celsius gauge: {e}")
+            }),
         }
     }
 

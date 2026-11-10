@@ -1,5 +1,3 @@
-use std::usize;
-
 use async_trait::async_trait;
 use chrono::Duration;
 use log::{debug, warn};
@@ -83,25 +81,25 @@ impl<'a> WifiMetricMap<'a> {
                 format!("{prfx}_busy_percent"),
                 &["ap", "name", "band"]
             )
-            .expect(&format!("cannot create {prfx}_busy_percent gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_busy_percent gauge: {e}")),
             rx_bss_percent: register_int_gauge_vec!(
                 format!("{prfx}_rx_bss_percent"),
                 format!("{prfx}_rx_bss_percent"),
                 &["ap", "name", "band"]
             )
-            .expect(&format!("cannot create {prfx}_rx_bss_percent gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_rx_bss_percent gauge: {e}")),
             rx_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_rx_percent"),
                 format!("{prfx}_rx_percent"),
                 &["ap", "name", "band"]
             )
-            .expect(&format!("cannot create {prfx}_rx_percent gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_rx_percent gauge: {e}")),
             tx_percent_gauge: register_int_gauge_vec!(
                 format!("{prfx}_tx_percent"),
                 format!("{prfx}_tx_percent"),
                 &["ap", "name", "band"]
             )
-            .expect(&format!("cannot create {prfx}_tx_percent gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_tx_percent gauge: {e}")),
             station_active_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_active"),
                 format!("{prfx}_station_active 1 for active"),
@@ -114,103 +112,103 @@ impl<'a> WifiMetricMap<'a> {
                     "vendor_name"
                 ]
             )
-            .expect(&format!("cannot create {prfx}_station_mac gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_mac gauge: {e}")),
             station_rx_bitrate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_bitrate"),
                 format!("{prfx}_station_rx_bitrate"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_bitrate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_bitrate gauge: {e}")),
             station_rx_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_mcs"),
                 format!("{prfx}_station_rx_mcs"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_mcs gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_mcs gauge: {e}")),
             station_rx_shortgi_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_shortgi"),
                 format!("{prfx}_station_rx_shortgi 1 for shortgi enabled"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_shortgi gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_shortgi gauge: {e}")),
             station_rx_vht_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_vht_mcs"),
                 format!("{prfx}_station_rx_vht_mcs"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_vht_mcs gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_vht_mcs gauge: {e}")),
             station_rx_width_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_width"),
                 format!("{prfx}_station_rx_width"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_width gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_width gauge: {e}")),
             station_rx_bytes_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_bytes"),
                 format!("{prfx}_station_rx_bytes"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_bytes gauge: {e}")),
             station_rx_rate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_rx_rate"),
                 format!("{prfx}_station_rx_rate"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_rx_rate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_rx_rate gauge: {e}")),
             station_tx_bitrate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_bitrate"),
                 format!("{prfx}_station_tx_bitrate"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_bitrate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_bitrate gauge: {e}")),
             station_tx_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_mcs"),
                 format!("{prfx}_station_tx_mcs"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_mcs gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_mcs gauge: {e}")),
             station_tx_shortgi_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_shortgi"),
                 format!("{prfx}_station_tx_shortgi 1 for shortgi enabled"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_shortgi gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_shortgi gauge: {e}")),
             station_tx_vht_mcs_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_vht_mcs"),
                 format!("{prfx}_station_tx_vht_mcs"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_vht_mcs gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_vht_mcs gauge: {e}")),
             station_tx_width_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_width"),
                 format!("{prfx}_station_tx_width"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_width gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_width gauge: {e}")),
             station_tx_bytes_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_bytes"),
                 format!("{prfx}_station_tx_bytes"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_bytes gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_bytes gauge: {e}")),
             station_tx_rate_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_tx_rate"),
                 format!("{prfx}_station_tx_rate"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_tx_rate gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_tx_rate gauge: {e}")),
             station_signal_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_signal"),
                 format!("{prfx}_station_signal"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_signal gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_signal gauge: {e}")),
             station_inactive_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_inactive"),
                 format!("{prfx}_station_inactive"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_inactive gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_inactive gauge: {e}")),
             station_state_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_state"),
                 format!("{prfx}_station_state"),
@@ -224,7 +222,7 @@ impl<'a> WifiMetricMap<'a> {
                     "state"
                 ]
             )
-            .expect(&format!("cannot create {prfx}_station_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_state gauge: {e}")),
             station_flags_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_flags"),
                 format!("{prfx}_station_flags"),
@@ -241,21 +239,21 @@ impl<'a> WifiMetricMap<'a> {
                     "ht"
                 ]
             )
-            .expect(&format!("cannot create {prfx}_station_vht gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_vht gauge: {e}")),
             station_last_activity_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_last_activity"),
                 format!("{prfx}_station_last_activity"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!("cannot create {prfx}_station_last_activity gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_station_last_activity gauge: {e}")),
             station_last_time_reachable_gauge: register_int_gauge_vec!(
                 format!("{prfx}_station_last_time_reachable"),
                 format!("{prfx}_station_last_time_reachable"),
                 &["primary_name", "ipv4", "ap_name", "band", "ap_id", "mac"]
             )
-            .expect(&format!(
-                "cannot create {prfx}_station_last_time_reachable gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prfx}_station_last_time_reachable gauge: {e}")
+            }),
             neighbors_access_point_gauge: register_int_gauge_vec!(
                 format!("{prfx}_neighbors_access_point"),
                 format!("{prfx}_neighbors_access_point signal strength"),
@@ -272,15 +270,13 @@ impl<'a> WifiMetricMap<'a> {
                     "secondary_channel"
                 ]
             )
-            .expect(&format!(
-                "cannot create {prfx}_neighbors_access_point gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_neighbors_access_point gauge: {e}")),
             channel_usage_gauge: register_int_gauge_vec!(
                 format!("{prfx}_channel_usage"),
                 format!("{prfx}_channel_usage noise level"),
                 &["band", "channel", "rx_busy_percent"]
             )
-            .expect(&format!("cannot create {prfx}_channel_usage gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_channel_usage gauge: {e}")),
         }
     }
 
@@ -508,8 +504,7 @@ impl<'a> WifiMetricMap<'a> {
 
                     let l3 = l3s
                         .iter()
-                        .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
-                        .next();
+                        .find(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4");
 
                     let Some(l3) = l3 else { continue }; // Skip this station if no IPv4 connectivity found
 
@@ -518,7 +513,7 @@ impl<'a> WifiMetricMap<'a> {
                         station, host, ap, l3, last_rx, last_tx, flags,
                     );
                 }
-                "relabel" | _ => {
+                _ => {
                     // In relabel mode, we process all stations and use default values for missing fields
                     match (
                         station.last_rx.as_ref(),
@@ -537,13 +532,9 @@ impl<'a> WifiMetricMap<'a> {
                                             .cmp(&a.last_time_reachable.unwrap_or(0))
                                     });
 
-                                    let l3 = l3s
-                                        .iter()
-                                        .filter(|l| {
-                                            l.af.as_ref().unwrap_or(&"unknown".to_string())
-                                                == "ipv4"
-                                        })
-                                        .next();
+                                    let l3 = l3s.iter().find(|l| {
+                                        l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4"
+                                    });
 
                                     match l3 {
                                         Some(l3) => {
@@ -582,6 +573,8 @@ impl<'a> WifiMetricMap<'a> {
 
         Ok(())
     }
+    // every argument is a part of the station the caller has already checked
+    #[allow(clippy::too_many_arguments)]
     fn set_station_metrics_with_data(
         &self,
         station: &Station,
@@ -643,7 +636,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_rx_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(rx_mcs as i64);
+            .set(rx_mcs);
 
         self.station_rx_shortgi_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
@@ -651,7 +644,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_rx_vht_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(rx_vht_mcs as i64);
+            .set(rx_vht_mcs);
 
         self.station_rx_width_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
@@ -671,7 +664,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_tx_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(tx_mcs as i64);
+            .set(tx_mcs);
 
         self.station_tx_shortgi_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
@@ -679,7 +672,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_tx_vht_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(tx_vht_mcs as i64);
+            .set(tx_vht_mcs);
 
         self.station_tx_width_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
