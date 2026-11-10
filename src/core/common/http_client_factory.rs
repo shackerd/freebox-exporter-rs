@@ -12,7 +12,10 @@ use crate::core::authenticator::SessionTokenProvider;
 const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 
 /// Upper bound of a request to the box, so an unresponsive box cannot stall startup or collection
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Upper bound of the connection to the box, which answers in milliseconds on the local network
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
 const FBX_ECC_ROOT: &str = "
 -----BEGIN CERTIFICATE-----
@@ -136,6 +139,7 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             .default_headers(headers)
             .tcp_keepalive(Duration::from_secs(self.expiration.num_seconds() as u64))
             .user_agent(APP_USER_AGENT)
+            .connect_timeout(CONNECT_TIMEOUT)
             .timeout(self.request_timeout)
             .build()
             .expect("cannot create HTTP Client");
@@ -167,6 +171,7 @@ pub fn http_client_factory(
 
     let client = reqwest::ClientBuilder::new()
         .tls_certs_only([root_ca, ecc])
+        .connect_timeout(CONNECT_TIMEOUT)
         .timeout(timeout)
         .build()?;
     Ok(client)
