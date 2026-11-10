@@ -139,6 +139,10 @@ impl<'a> LanMetricMap<'a> {
             Some(r) => r,
         };
 
+        // reset only once the response is valid: a scrape during the request still sees
+        // the previous collection, and a failed request keeps it
+        self.reset_all();
+
         self.name_dns_metric
             .with_label_values(&[&cfg.name_dns.clone().unwrap_or_default()])
             .set(cfg.name_dns.is_some().into());
@@ -178,8 +182,6 @@ impl<'a> MetricMap<'a> for LanMetricMap<'a> {
     }
 
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
         if let Err(e) = self.set_lan_config().await {
             return Err(e);
         };
@@ -187,4 +189,37 @@ impl<'a> MetricMap<'a> for LanMetricMap<'a> {
     }
 }
 
+#[cfg(test)]
+mod tests_collect {
+    use serde_json::{json, Value};
 
+    use super::*;
+    use crate::mappers::test_support::{mock_api, scrape, scrape_during, serve_scoped, serve_slowly};
+
+    fn lan_config(name: &str) -> Value {
+        json!({ "success": true, "result": { "name": name, "mode": "router" } })
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_lan_scrape";
+        let mut map = LanMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/lan/config", lan_config("before")).await;
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        assert!(before.iter().any(|l| l.contains("\"before\"")), "{before:?}");
+        drop(first);
+
+        // the only request of the collection is slow, and returns a new name
+        serve_slowly(&server, "/api/v4/lan/config", lan_config("after")).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        let after = scrape(prefix);
+        assert!(after.iter().any(|l| l.contains("\"after\"")) && !after.iter().any(|l| l.contains("\"before\"")), "{after:?}");
+    }
+}
