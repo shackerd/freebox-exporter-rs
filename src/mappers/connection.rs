@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use log::{debug, info};
 use models::{
     ConnectionConfiguration, ConnectionFtth, ConnectionIpv6Configuration, ConnectionStatus,
-    XdslInfo, XdslStats,
+    XdslInfo, XdslStats, XdslStatus,
 };
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
@@ -678,6 +678,18 @@ impl<'a> ConnectionMetricMap<'a> {
             None => Err(Box::new(FreeboxResponseError::new(
                 "v4/connection/ipv6/config response was empty".to_string(),
             ))),
+            // a delegation is exposed with both labels: an incomplete one fails the collection,
+            // which keeps the previous one
+            Some(r)
+                if r.delegations
+                    .iter()
+                    .flatten()
+                    .any(|d| d.prefix.is_none() || d.next_hop.is_none()) =>
+            {
+                Err(Box::new(FreeboxResponseError::new(
+                    "v4/connection/ipv6/config delegation is missing prefix or next_hop".to_string(),
+                )))
+            }
             Some(r) => Ok(r),
         }
     }
@@ -700,7 +712,7 @@ impl<'a> ConnectionMetricMap<'a> {
 
     async fn get_xdsl_info(
         &mut self,
-    ) -> Result<XdslInfo, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(XdslStatus, XdslStats, XdslStats), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching xdsl info");
 
         let client = self.get_managed_client().await?;
@@ -712,16 +724,23 @@ impl<'a> ConnectionMetricMap<'a> {
             .json::<FreeboxResponse<XdslInfo>>()
             .await?;
 
-        result.result.ok_or_else(|| {
+        let info = result.result.ok_or_else(|| {
             Box::new(FreeboxResponseError::new(
                 "v4/connection/xdsl/status response was empty".to_string(),
             )) as Box<dyn std::error::Error + Send + Sync>
-        })
+        })?;
+
+        // the metrics are set from every part: an incomplete response fails the collection,
+        // which keeps the previous one
+        match (info.status, info.up, info.down) {
+            (Some(status), Some(up), Some(down)) => Ok((status, up, down)),
+            _ => Err(Box::new(FreeboxResponseError::new(
+                "v4/connection/xdsl response is missing status, up or down".to_string(),
+            ))),
+        }
     }
 
-    fn set_xdsl_status(&self, info: XdslInfo) {
-        let status = info.status.unwrap();
-
+    fn set_xdsl_status(&self, status: XdslStatus, up: XdslStats, down: XdslStats) {
         self.xdsl_status_uptime
             .with_label_values(&[
                 &status.status.unwrap_or_default(),
@@ -729,9 +748,6 @@ impl<'a> ConnectionMetricMap<'a> {
                 &status.modulation.unwrap_or_default(),
             ])
             .set(status.uptime.unwrap_or_default().into());
-
-        let up = info.up.unwrap();
-        let down = info.down.unwrap();
 
         struct DirectionStats {
             direction: String,
@@ -898,8 +914,8 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         if let Some(ftth) = ftth {
             self.set_connection_ftth_status(ftth);
         }
-        if let Some(xdsl) = xdsl {
-            self.set_xdsl_status(xdsl);
+        if let Some((status, up, down)) = xdsl {
+            self.set_xdsl_status(status, up, down);
         }
 
         Ok(())

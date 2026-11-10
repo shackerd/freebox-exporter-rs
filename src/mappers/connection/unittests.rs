@@ -61,3 +61,85 @@ mod tests_collect {
         assert!(scrape(prefix).contains(&format!("{prefix}_connection_ftth_sfp_pwr_rx -1600")));
     }
 }
+
+#[cfg(test)]
+mod tests_incomplete {
+    use serde_json::{json, Value};
+
+    use crate::mappers::{
+        connection::ConnectionMetricMap,
+        test_support::{mock_api, scrape, serve, serve_scoped},
+        MetricMap,
+    };
+
+    fn xdsl_status() -> Value {
+        json!({ "success": true, "result": { "type": "ethernet", "state": "up", "media": "xdsl" } })
+    }
+
+    fn xdsl() -> Value {
+        let stats = json!({ "maxrate": 30636, "rate": 28031, "snr": 7, "attn": 0, "fec": 0, "crc": 0 });
+        json!({ "success": true, "result": {
+            "status": { "status": "showtime", "protocol": "adsl2plus_a", "uptime": 5017, "modulation": "adsl" },
+            "down": stats, "up": stats
+        } })
+    }
+
+    fn ipv6_conf(delegation: Value) -> Value {
+        json!({ "success": true, "result": { "ipv6_enabled": true, "delegations": [delegation] } })
+    }
+
+    #[tokio::test]
+    async fn an_incomplete_xdsl_response_keeps_the_previous_collection() {
+        for field in ["status", "up", "down"] {
+            let (server, authenticator) = mock_api().await;
+            serve(&server, "/api/v4/connection", xdsl_status()).await;
+            serve(&server, "/api/v4/connection/config", json!({ "success": true, "result": { "ping": true } })).await;
+            serve(&server, "/api/v4/connection/ipv6/config", json!({ "success": true, "result": { "ipv6_enabled": true } })).await;
+
+            let factory = authenticator.login().await.unwrap();
+            let prefix = format!("test_connection_incomplete_xdsl_{field}");
+            let mut map = ConnectionMetricMap::new(&factory, prefix.clone());
+
+            let complete = serve_scoped(&server, "/api/v4/connection/xdsl", xdsl()).await;
+            map.set().await.unwrap();
+            let before = scrape(&prefix);
+            assert!(before.contains(&format!("{prefix}_connection_xdsl_stats_rate{{direction=\"up\"}} 28031")), "{before:?}");
+            drop(complete);
+
+            let mut incomplete = xdsl();
+            incomplete["result"].as_object_mut().unwrap().remove(field);
+            serve(&server, "/api/v4/connection/xdsl", incomplete).await;
+
+            assert!(map.set().await.is_err(), "missing {field} must fail the collection");
+            assert_eq!(before, scrape(&prefix), "missing {field} must keep the previous collection");
+        }
+    }
+
+    #[tokio::test]
+    async fn an_incomplete_ipv6_delegation_keeps_the_previous_collection() {
+        for field in ["prefix", "next_hop"] {
+            let (server, authenticator) = mock_api().await;
+            serve(&server, "/api/v4/connection", xdsl_status()).await;
+            serve(&server, "/api/v4/connection/config", json!({ "success": true, "result": { "ping": true } })).await;
+            serve(&server, "/api/v4/connection/xdsl", xdsl()).await;
+
+            let factory = authenticator.login().await.unwrap();
+            let prefix = format!("test_connection_incomplete_ipv6_{field}");
+            let mut map = ConnectionMetricMap::new(&factory, prefix.clone());
+
+            let delegation = json!({ "prefix": "2001:db8::/64", "next_hop": "fe80::1" });
+            let complete = serve_scoped(&server, "/api/v4/connection/ipv6/config", ipv6_conf(delegation.clone())).await;
+            map.set().await.unwrap();
+            let before = scrape(&prefix);
+            assert!(before.iter().any(|l| l.starts_with(&format!("{prefix}_connection_ipv6_conf_delegations{{"))), "{before:?}");
+            drop(complete);
+
+            let mut incomplete = delegation;
+            incomplete.as_object_mut().unwrap().remove(field);
+            serve(&server, "/api/v4/connection/ipv6/config", ipv6_conf(incomplete)).await;
+
+            assert!(map.set().await.is_err(), "missing {field} must fail the collection");
+            assert_eq!(before, scrape(&prefix), "missing {field} must keep the previous collection");
+        }
+    }
+}
