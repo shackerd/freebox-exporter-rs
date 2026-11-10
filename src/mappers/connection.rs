@@ -444,18 +444,18 @@ impl<'a> ConnectionMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
+        let client = self.managed_client.as_ref().unwrap();
         let res = client.get();
 
         if res.is_ok() {
-            return Ok(res.unwrap());
+            Ok(res.unwrap())
         } else {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
             self.managed_client = Some(client?);
 
-            return self.managed_client.as_ref().unwrap().get();
+            self.managed_client.as_ref().unwrap().get()
         }
     }
 
@@ -532,16 +532,16 @@ impl<'a> ConnectionMetricMap<'a> {
 
         if response.success.unwrap_or(false) {
             if let Some(result) = response.result {
-                return Ok(result);
+                Ok(result)
             } else {
-                return Err(Box::new(FreeboxResponseError::new(
+                Err(Box::new(FreeboxResponseError::new(
                     "v4/connection response was empty".to_string(),
-                )));
+                )))
             }
         } else {
-            return Err(Box::new(FreeboxResponseError::new(
+            Err(Box::new(FreeboxResponseError::new(
                 response.msg.unwrap_or_default(),
-            )));
+            )))
         }
     }
 
@@ -621,7 +621,7 @@ impl<'a> ConnectionMetricMap<'a> {
         self.is_secure_pass_metric
             .set(conf.is_secure_pass.unwrap_or_default().into());
         self.remote_access_port_metric
-            .set(conf.remote_access_port.unwrap_or_else(|| 0).into());
+            .set(conf.remote_access_port.unwrap_or(0).into());
         self.remote_access_metric
             .set(conf.remote_access.unwrap_or_default().into());
         self.wol_metric.set(conf.wol.unwrap_or_default().into());
@@ -634,7 +634,7 @@ impl<'a> ConnectionMetricMap<'a> {
         self.allow_token_request_metric
             .set(conf.allow_token_request.unwrap_or_default().into());
         self.remote_access_ip_metric
-            .with_label_values(&[&conf.remote_access_ip.unwrap_or_else(|| String::new())])
+            .with_label_values(&[&conf.remote_access_ip.unwrap_or_default()])
             .set(conf.remote_access.is_some().into());
     }
 
@@ -759,10 +759,10 @@ impl<'a> ConnectionMetricMap<'a> {
         for stats in arr {
             self.xdsl_stats_maxrate
                 .with_label_values(&[&stats.direction])
-                .set(stats.stats.maxrate.unwrap_or_default().into());
+                .set(stats.stats.maxrate.unwrap_or_default());
             self.xdsl_stats_rate
                 .with_label_values(&[&stats.direction])
-                .set(stats.stats.rate.unwrap_or_default().into());
+                .set(stats.stats.rate.unwrap_or_default());
             self.xdsl_stats_snr
                 .with_label_values(&[&stats.direction])
                 .set(stats.stats.snr.unwrap_or_default().into());
@@ -873,7 +873,7 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         let media = status.media.unwrap_or_default();
 
         info!("exposing network media metrics: {}", media);
-        self.is_ftth = Some(media.trim().to_lowercase() == "ftth".to_string());
+        self.is_ftth = Some(media.trim().to_lowercase() == "ftth");
         Ok(())
     }
 

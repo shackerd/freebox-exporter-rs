@@ -79,8 +79,6 @@ async fn get_api_url(
         false => port.into(),
     };
 
-    if resp.https_available {}
-
     let url = format!(
         "{}://{}:{}{}",
         proto, resp.api_domain, api_port, resp.api_base_url
@@ -125,7 +123,7 @@ async fn get_network_mode<'a>(
         .await?
         .json::<FreeboxResponse<LanConfig>>()
         .await
-        .map_err(|e| Box::new(e))?;
+        .map_err(Box::new)?;
 
     if !res.success.unwrap_or(false) {
         return Err(Box::new(FreeboxResponseError::new(
@@ -157,7 +155,7 @@ pub async fn get_url<'a>(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     info!("discovering freebox api url");
 
-    let mode = get_network_mode(&factory).await?;
+    let mode = get_network_mode(factory).await?;
     let mode = mode.to_lowercase();
 
     let url = match mode.as_str() {

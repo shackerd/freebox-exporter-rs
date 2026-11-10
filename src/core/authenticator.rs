@@ -55,23 +55,23 @@ impl Authenticator {
             Err(e) => return Err(e),
         };
 
-        match self.token_store.store(prompt_result.to_owned().app_token).await {
-            Err(_) => warn!("storing applicaton token failed, you can still save it by yourself (token.dat): {}", prompt_result.app_token),
-            _ => {}
+        if let Err(_) = self
+            .token_store
+            .store(prompt_result.to_owned().app_token)
+            .await
+        {
+            warn!("storing applicaton token failed, you can still save it by yourself (token.dat): {}", prompt_result.app_token)
         }
 
         let monitor_result = self
             .monitor_prompt(prompt_result.track_id, pool_interval)
             .await;
 
-        match monitor_result {
-            Err(e) => {
-                error!("{e:#?}");
-                return Err(Box::new(AuthenticationError::new(
-                    "Failed to register application".to_string(),
-                )));
-            }
-            _ => {}
+        if let Err(e) = monitor_result {
+            error!("{e:#?}");
+            return Err(Box::new(AuthenticationError::new(
+                "Failed to register application".to_string(),
+            )));
         }
 
         info!("Successfully registered application");

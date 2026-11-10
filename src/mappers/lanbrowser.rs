@@ -146,12 +146,10 @@ impl<'a> LanBrowserMetricMap<'a> {
 
         match res.result {
             Some(r) => Ok(r),
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(format!(
-                    "v4/lan/browser/{} response was empty",
-                    iface
-                ))))
-            }
+            None => Err(Box::new(FreeboxResponseError::new(format!(
+                "v4/lan/browser/{} response was empty",
+                iface
+            )))),
         }
     }
 
@@ -172,18 +170,18 @@ impl<'a> LanBrowserMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
+        let client = self.managed_client.as_ref().unwrap();
         let res = client.get();
 
         if res.is_ok() {
-            return Ok(res.unwrap());
+            Ok(res.unwrap())
         } else {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
             self.managed_client = Some(client?);
 
-            return self.managed_client.as_ref().unwrap().get();
+            self.managed_client.as_ref().unwrap().get()
         }
     }
 
@@ -345,10 +343,7 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_all(lock).await {
-            Err(e) => return Err(e),
-            _ => {}
-        };
+        self.set_all(lock).await?;
         Ok(())
     }
 }

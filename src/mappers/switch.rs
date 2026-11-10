@@ -340,18 +340,18 @@ impl<'a> SwitchMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
+        let client = self.managed_client.as_ref().unwrap();
         let res = client.get();
 
         if res.is_ok() {
-            return Ok(res.unwrap());
+            Ok(res.unwrap())
         } else {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
             self.managed_client = Some(client?);
 
-            return self.managed_client.as_ref().unwrap().get();
+            self.managed_client.as_ref().unwrap().get()
         }
     }
 
@@ -376,7 +376,7 @@ impl<'a> SwitchMetricMap<'a> {
         &mut self,
         body: &str,
     ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
-        let fixed_body = SwitchMetricMap::handle_malformed_mac_list(&body)?;
+        let fixed_body = SwitchMetricMap::handle_malformed_mac_list(body)?;
 
         let res = match serde_json::from_str::<FreeboxResponse<Vec<SwitchPortStatus>>>(&fixed_body)
         {
@@ -449,12 +449,10 @@ impl<'a> SwitchMetricMap<'a> {
         }
 
         match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(format!(
-                    "v4/switch/port/{}/stats response was empty",
-                    port_id
-                ))))
-            }
+            None => Err(Box::new(FreeboxResponseError::new(format!(
+                "v4/switch/port/{}/stats response was empty",
+                port_id
+            )))),
             Some(r) => Ok(r),
         }
     }
@@ -700,9 +698,7 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = self.set_all(lock).await {
-            return Err(e);
-        }
+        self.set_all(lock).await?;
 
         Ok(())
     }

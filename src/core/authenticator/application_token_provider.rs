@@ -38,9 +38,8 @@ impl ApplicationTokenProvider for FileSystemProvider {
         let path = Path::new(&self.path);
 
         if path.exists() {
-            match std::fs::remove_file(path) {
-                Err(e) => return Err(Box::new(e)),
-                _ => {}
+            if let Err(e) = std::fs::remove_file(path) {
+                return Err(Box::new(e));
             };
         }
 
@@ -49,20 +48,15 @@ impl ApplicationTokenProvider for FileSystemProvider {
             Ok(f) => f,
         };
 
-        match file.write_all(token.as_bytes()).await {
-            Err(e) => {
-                match file.shutdown().await {
-                    Err(e) => return Err(Box::new(e)),
-                    _ => {}
-                };
+        if let Err(e) = file.write_all(token.as_bytes()).await {
+            if let Err(e) = file.shutdown().await {
                 return Err(Box::new(e));
-            }
-            _ => {}
+            };
+            return Err(Box::new(e));
         }
 
-        match file.shutdown().await {
-            Err(e) => return Err(Box::new(e)),
-            _ => {}
+        if let Err(e) = file.shutdown().await {
+            return Err(Box::new(e));
         };
 
         Ok(())
@@ -89,9 +83,8 @@ impl ApplicationTokenProvider for FileSystemProvider {
 
         let mut buffer = vec![];
 
-        match file.read_to_end(&mut buffer).await {
-            Err(e) => return Err(Box::new(e)),
-            _ => {}
+        if let Err(e) = file.read_to_end(&mut buffer).await {
+            return Err(Box::new(e));
         };
 
         let token = match String::from_utf8(buffer) {

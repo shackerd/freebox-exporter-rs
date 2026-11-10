@@ -96,15 +96,15 @@ impl DhcpLease for DynamicDhcpLease {
     }
 
     fn get_lease_remaining(&self) -> Option<i64> {
-        self.lease_remaining.clone().map(|v| v as i64)
+        self.lease_remaining.map(|v| v as i64)
     }
 
     fn get_assign_time(&self) -> Option<u64> {
-        self.assign_time.clone()
+        self.assign_time
     }
 
     fn get_refresh_time(&self) -> Option<i64> {
-        self.refresh_time.clone().map(|v| v as i64)
+        self.refresh_time.map(|v| v as i64)
     }
 }
 
@@ -161,18 +161,18 @@ impl<'a> DhcpMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
+        let client = self.managed_client.as_ref().unwrap();
         let res = client.get();
 
         if res.is_ok() {
-            return Ok(res.unwrap());
+            Ok(res.unwrap())
         } else {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
             self.managed_client = Some(client?);
 
-            return self.managed_client.as_ref().unwrap().get();
+            self.managed_client.as_ref().unwrap().get()
         }
     }
 
@@ -204,8 +204,7 @@ impl<'a> DhcpMetricMap<'a> {
         if res.success.unwrap_or_default() {
             Ok(res.result.unwrap_or(vec![]))
         } else {
-            Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Err(Box::new(std::io::Error::other(
                 res.msg.unwrap_or("Unknown error".to_string()),
             )))
         }
@@ -239,8 +238,7 @@ impl<'a> DhcpMetricMap<'a> {
         if res.success.unwrap_or_default() {
             Ok(res.result.unwrap_or(vec![]))
         } else {
-            Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Err(Box::new(std::io::Error::other(
                 res.msg.unwrap_or("Unknown error".to_string()),
             )))
         }
@@ -338,9 +336,7 @@ impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-        if let Err(e) = self.set_all(lock).await {
-            return Err(e);
-        }
+        self.set_all(lock).await?;
 
         Ok(())
     }

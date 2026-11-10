@@ -263,18 +263,18 @@ impl<'a> NasMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
+        let client = self.managed_client.as_ref().unwrap();
         let res = client.get();
 
         if res.is_ok() {
-            return Ok(res.unwrap());
+            Ok(res.unwrap())
         } else {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
             self.managed_client = Some(client?);
 
-            return self.managed_client.as_ref().unwrap().get();
+            self.managed_client.as_ref().unwrap().get()
         }
     }
 
@@ -598,10 +598,7 @@ impl<'a> MetricMap<'a> for NasMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_storage_metrics(lock).await {
-            Err(e) => return Err(e),
-            _ => {}
-        };
+        self.set_storage_metrics(lock).await?;
         Ok(())
     }
 }
@@ -653,8 +650,8 @@ mod tests {
         assert_eq!(disk.state.unwrap(), "enabled");
         assert_eq!(disk.total_bytes.unwrap(), 250059350016);
         assert_eq!(disk.temp.unwrap(), 51);
-        assert_eq!(disk.idle.unwrap(), true);
-        assert_eq!(disk.spinning.unwrap(), true);
+        assert!(disk.idle.unwrap());
+        assert!(disk.spinning.unwrap());
         assert_eq!(disk.table_type.unwrap(), "msdos");
         assert_eq!(disk.model.unwrap(), "Hitachi HCC545025B9A300");
         assert_eq!(disk.serial.unwrap(), "GSCH35VC");
@@ -719,8 +716,8 @@ mod tests {
         assert_eq!(disk.state.unwrap(), "enabled");
         assert_eq!(disk.total_bytes.unwrap(), 125435904);
         assert_eq!(disk.temp.unwrap(), 0);
-        assert_eq!(disk.idle.unwrap(), false);
-        assert_eq!(disk.spinning.unwrap(), false);
+        assert!(!disk.idle.unwrap());
+        assert!(!disk.spinning.unwrap());
         assert_eq!(disk.table_type.unwrap(), "gpt");
         assert_eq!(disk.model.unwrap(), "");
         assert_eq!(disk.serial.unwrap(), "");

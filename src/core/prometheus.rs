@@ -39,22 +39,12 @@ impl<'a> Server<'a> {
         let lock = exporter.update_lock();
         let duration = std::time::Duration::from_secs(self.refresh_interval);
 
-        let mut i = 0;
-
-        match self.mapper.init_all().await {
-            Err(e) => return Err(e),
-            _ => {}
-        };
+        self.mapper.init_all().await?;
 
         loop {
             debug!("fetching result from mapper maps");
 
-            match self.mapper.set_all(&lock).await {
-                Err(e) => return Err(e),
-                _ => {}
-            };
-
-            i = i + 1;
+            self.mapper.set_all(&lock).await?;
 
             let _guard = exporter.wait_duration(duration);
         }

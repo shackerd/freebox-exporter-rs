@@ -181,8 +181,7 @@ pub async fn serve(
 
     if !res.unwrap_or(false) {
         info!("application is not registered, exiting now");
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(Box::new(std::io::Error::other(
             "Application is not registered, please register it first",
         )));
     }
@@ -218,7 +217,7 @@ pub async fn serve(
         conf.to_owned().api,
         conf.to_owned().policies,
     );
-    let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or_else(|| 5), mapper);
+    let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
 
     server.run().await
 }
@@ -273,8 +272,7 @@ pub async fn session_diagnostic(
 
     if !res.unwrap_or(false) {
         info!("application is not registered, exiting now");
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(Box::new(std::io::Error::other(
             "Application is not registered, please register it first",
         )));
     }
@@ -290,10 +288,7 @@ pub async fn session_diagnostic(
 
         authenticator.diagnostic(show_token).await?;
     } else {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Unable to get api url",
-        )));
+        return Err(Box::new(std::io::Error::other("Unable to get api url")));
     }
 
     Ok(())

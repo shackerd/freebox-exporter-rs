@@ -506,8 +506,7 @@ impl<'a> WifiMetricMap<'a> {
 
                     let l3 = l3s
                         .iter()
-                        .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
-                        .next();
+                        .find(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4");
 
                     let Some(l3) = l3 else { continue }; // Skip this station if no IPv4 connectivity found
 
@@ -535,13 +534,9 @@ impl<'a> WifiMetricMap<'a> {
                                             .cmp(&a.last_time_reachable.unwrap_or(0))
                                     });
 
-                                    let l3 = l3s
-                                        .iter()
-                                        .filter(|l| {
-                                            l.af.as_ref().unwrap_or(&"unknown".to_string())
-                                                == "ipv4"
-                                        })
-                                        .next();
+                                    let l3 = l3s.iter().find(|l| {
+                                        l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4"
+                                    });
 
                                     match l3 {
                                         Some(l3) => {
@@ -641,7 +636,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_rx_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(rx_mcs as i64);
+            .set(rx_mcs);
 
         self.station_rx_shortgi_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
@@ -649,7 +644,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_rx_vht_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(rx_vht_mcs as i64);
+            .set(rx_vht_mcs);
 
         self.station_rx_width_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
@@ -669,7 +664,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_tx_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(tx_mcs as i64);
+            .set(tx_mcs);
 
         self.station_tx_shortgi_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
@@ -677,7 +672,7 @@ impl<'a> WifiMetricMap<'a> {
 
         self.station_tx_vht_mcs_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])
-            .set(tx_vht_mcs as i64);
+            .set(tx_vht_mcs);
 
         self.station_tx_width_gauge
             .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac])

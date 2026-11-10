@@ -214,18 +214,18 @@ impl<'a> DownloadMetricMap<'a> {
             self.managed_client = Some(res.unwrap());
         }
 
-        let client = self.managed_client.as_ref().clone().unwrap();
+        let client = self.managed_client.as_ref().unwrap();
         let res = client.get();
 
         if res.is_ok() {
-            return Ok(res.unwrap());
+            Ok(res.unwrap())
         } else {
             debug!("renewing managed client");
 
             let client = self.factory.create_managed_client().await;
             self.managed_client = Some(client?);
 
-            return self.managed_client.as_ref().unwrap().get();
+            self.managed_client.as_ref().unwrap().get()
         }
     }
 
@@ -386,8 +386,8 @@ mod tests {
         assert_eq!(stats.rx_rate.unwrap(), 14222);
         assert_eq!(stats.tx_rate.unwrap(), 4294);
         assert_eq!(stats.throttling_mode.unwrap(), "normal");
-        assert_eq!(stats.throttling_is_scheduled.unwrap(), true);
-        assert_eq!(stats.conn_ready.unwrap(), true);
+        assert!(stats.throttling_is_scheduled.unwrap());
+        assert!(stats.conn_ready.unwrap());
         assert_eq!(stats.nb_peer.unwrap(), 42);
 
         let rate = stats.throttling_rate.unwrap();

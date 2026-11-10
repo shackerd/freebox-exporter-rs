@@ -69,11 +69,9 @@ pub async fn get_configuration(
 
     match toml::from_str::<Configuration>(&result) {
         Ok(c) => {
-            if let Err(e) = assert_configuration_is_valid(&c) {
-                return Err(e);
-            }
+            assert_configuration_is_valid(&c)?;
 
-            return Ok(c);
+            Ok(c)
         }
         Err(e) => {
             println!("{e:#?}");
