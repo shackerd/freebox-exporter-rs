@@ -45,3 +45,53 @@ pub async fn serve(server: &MockServer, endpoint: &str, body: Value) {
         .mount(server)
         .await;
 }
+
+/// Series whose name starts with `prefix`, as a scrape of the exporter would return them
+pub fn scrape(prefix: &str) -> Vec<String> {
+    use prometheus_exporter::prometheus::{Encoder, TextEncoder};
+
+    let mut buffer = vec![];
+    TextEncoder::new()
+        .encode(&prometheus_exporter::prometheus::gather(), &mut buffer)
+        .unwrap();
+    String::from_utf8(buffer)
+        .unwrap()
+        .lines()
+        .filter(|line| line.starts_with(&format!("{prefix}_")))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Delay of the slow endpoint served by `serve_slowly`, and when `scrape_during` scrapes
+pub const SLOW_RESPONSE: std::time::Duration = std::time::Duration::from_millis(600);
+const SCRAPE_AFTER: std::time::Duration = std::time::Duration::from_millis(300);
+
+/// Serves `body` on GET `endpoint` after `SLOW_RESPONSE`
+pub async fn serve_slowly(server: &MockServer, endpoint: &str, body: Value) {
+    Mock::given(method("GET"))
+        .and(path(endpoint))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(body)
+                .set_delay(SLOW_RESPONSE),
+        )
+        .mount(server)
+        .await;
+}
+
+/// Runs `collect` and scrapes `prefix` while it waits for a slow endpoint
+pub async fn scrape_during<F: std::future::Future>(collect: F, prefix: &str) -> (F::Output, Vec<String>) {
+    tokio::join!(collect, async {
+        tokio::time::sleep(SCRAPE_AFTER).await;
+        scrape(prefix)
+    })
+}
+
+/// Serves `body` on GET `endpoint` until the returned guard is dropped
+pub async fn serve_scoped(server: &MockServer, endpoint: &str, body: Value) -> wiremock::MockGuard {
+    Mock::given(method("GET"))
+        .and(path(endpoint))
+        .respond_with(ResponseTemplate::new(200).set_body_json(body))
+        .mount_as_scoped(server)
+        .await
+}

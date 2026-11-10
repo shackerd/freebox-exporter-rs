@@ -227,21 +227,16 @@ impl<'a> LanBrowserMetricMap<'a> {
     }
 
     async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
+        let ifaces = self.get_ifaces().await?;
 
-        let ifaces = match self.get_ifaces().await {
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        };
-
+        // fetch every interface before touching the metrics: a scrape during the requests
+        // still sees the previous collection, and a failed listing keeps it
+        let mut fetched = vec![];
         let mut failed_ifaces = vec![];
 
         for iface in ifaces {
-            self.iface_gauge
-                .with_label_values(&[&iface.name.to_owned().unwrap_or_default()])
-                .set(iface.host_count.unwrap_or(0).into());
-
             if iface.host_count.unwrap_or(0) == 0 {
+                fetched.push((iface, vec![]));
                 continue;
             }
 
@@ -250,61 +245,70 @@ impl<'a> LanBrowserMetricMap<'a> {
                     let name = iface.name.to_owned().unwrap_or_else(|| "<unnamed>".to_string());
                     warn!("cannot fetch devices of interface {name}: {e}");
                     failed_ifaces.push(name);
+                    fetched.push((iface, vec![]));
                 }
-                Ok(devs) => {
-                    for dev in devs {
-                        let l2ident = dev.l2ident.unwrap_or(LanHostL2Ident {
-                            id: None,
-                            _type: None,
-                        });
+                Ok(devs) => fetched.push((iface, devs)),
+            }
+        }
 
-                        self.device_gauge
-                            .with_label_values(&[
-                                &iface.name.to_owned().unwrap_or_default(),
-                                &dev.primary_name.to_owned().unwrap_or_default(),
-                                &dev.id.unwrap_or_default(),
-                                &dev.host_type.unwrap_or_default(),
-                                &dev.primary_name_manual.unwrap_or_default().to_string(),
-                                &l2ident.id.to_owned().unwrap_or_default(),
-                                &l2ident._type.to_owned().unwrap_or_default(),
-                                &dev.vendor_name.unwrap_or_default(),
-                            ])
-                            .set(dev.active.unwrap_or_default().into());
+        self.reset_all();
 
-                        self.device_last_activity
-                            .with_label_values(&[
-                                &iface.to_owned().name.unwrap_or_default(),
-                                &dev.primary_name.to_owned().unwrap_or_default(),
-                            ])
-                            .set(dev.last_activity.unwrap_or_default());
+        for (iface, devs) in fetched {
+            self.iface_gauge
+                .with_label_values(&[&iface.name.to_owned().unwrap_or_default()])
+                .set(iface.host_count.unwrap_or(0).into());
 
-                        let l3s = dev.l3connectivities.unwrap_or(vec![]);
+            for dev in devs {
+                let l2ident = dev.l2ident.unwrap_or(LanHostL2Ident {
+                    id: None,
+                    _type: None,
+                });
 
-                        for l3 in l3s {
-                            self.device_l3_connectivity_gauge
-                                .with_label_values(&[
-                                    &l2ident.id.to_owned().unwrap_or_default(),
-                                    &iface.name.to_owned().unwrap_or_default(),
-                                    &l3.addr.unwrap_or_default(),
-                                    &dev.primary_name.to_owned().unwrap_or_default(),
-                                    &l3.af.unwrap_or_default(),
-                                ])
-                                .set(l3.active.unwrap_or_default().into());
-                        }
+                self.device_gauge
+                    .with_label_values(&[
+                        &iface.name.to_owned().unwrap_or_default(),
+                        &dev.primary_name.to_owned().unwrap_or_default(),
+                        &dev.id.unwrap_or_default(),
+                        &dev.host_type.unwrap_or_default(),
+                        &dev.primary_name_manual.unwrap_or_default().to_string(),
+                        &l2ident.id.to_owned().unwrap_or_default(),
+                        &l2ident._type.to_owned().unwrap_or_default(),
+                        &dev.vendor_name.unwrap_or_default(),
+                    ])
+                    .set(dev.active.unwrap_or_default().into());
 
-                        let names = dev.names.unwrap_or(vec![]);
+                self.device_last_activity
+                    .with_label_values(&[
+                        &iface.to_owned().name.unwrap_or_default(),
+                        &dev.primary_name.to_owned().unwrap_or_default(),
+                    ])
+                    .set(dev.last_activity.unwrap_or_default());
 
-                        for name in names {
-                            self.device_name_gauge
-                                .with_label_values(&[
-                                    &name.name.unwrap_or_default(),
-                                    &name.source.unwrap_or_default(),
-                                    &l2ident.id.to_owned().unwrap_or_default(),
-                                    &iface.name.to_owned().unwrap_or_default(),
-                                ])
-                                .set(1);
-                        }
-                    }
+                let l3s = dev.l3connectivities.unwrap_or(vec![]);
+
+                for l3 in l3s {
+                    self.device_l3_connectivity_gauge
+                        .with_label_values(&[
+                            &l2ident.id.to_owned().unwrap_or_default(),
+                            &iface.name.to_owned().unwrap_or_default(),
+                            &l3.addr.unwrap_or_default(),
+                            &dev.primary_name.to_owned().unwrap_or_default(),
+                            &l3.af.unwrap_or_default(),
+                        ])
+                        .set(l3.active.unwrap_or_default().into());
+                }
+
+                let names = dev.names.unwrap_or(vec![]);
+
+                for name in names {
+                    self.device_name_gauge
+                        .with_label_values(&[
+                            &name.name.unwrap_or_default(),
+                            &name.source.unwrap_or_default(),
+                            &l2ident.id.to_owned().unwrap_or_default(),
+                            &iface.name.to_owned().unwrap_or_default(),
+                        ])
+                        .set(1);
                 }
             }
         }
@@ -343,7 +347,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::mappers::test_support::{mock_api, serve};
+    use crate::mappers::test_support::{
+        mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly,
+    };
 
     async fn serve_interfaces(server: &wiremock::MockServer) {
         serve(
@@ -440,5 +446,40 @@ mod tests {
         // the unnamed interface must not turn into a request on the interfaces root
         let requests = server.received_requests().await.unwrap();
         assert!(requests.iter().all(|r| r.url.path() != "/api/v4/lan/browser/"));
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_lanbrowser_scrape";
+        let mut map = LanBrowserMetricMap::new(&factory, prefix.to_string());
+        let interfaces = json!({ "success": true, "result": [
+            { "name": "pub", "host_count": 1 },
+            { "name": "wifiguest", "host_count": 1 }
+        ] });
+        let devices = |name: &str, active: bool| json!({ "success": true, "result": [
+            { "id": name, "primary_name": name, "active": active }
+        ] });
+
+        let first = [
+            serve_scoped(&server, "/api/v4/lan/browser/interfaces", interfaces.clone()).await,
+            serve_scoped(&server, "/api/v4/lan/browser/pub", devices("nas", true)).await,
+            serve_scoped(&server, "/api/v4/lan/browser/wifiguest", devices("phone", true)).await,
+        ];
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        assert!(before.iter().any(|l| l.contains("\"phone\"") && l.ends_with(" 1")), "{before:?}");
+        drop(first);
+
+        serve(&server, "/api/v4/lan/browser/interfaces", interfaces).await;
+        serve(&server, "/api/v4/lan/browser/pub", devices("nas", false)).await;
+        serve_slowly(&server, "/api/v4/lan/browser/wifiguest", devices("phone", false)).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_eq!(Some(0), device_active(&map, "wifiguest", "phone"));
+        assert_eq!(Some(0), device_active(&map, "pub", "nas"));
     }
 }
