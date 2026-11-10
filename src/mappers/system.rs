@@ -283,6 +283,10 @@ impl<'a> SystemMetricMap<'a> {
             Some(r) => r,
         };
 
+        // reset only once the response is valid: a scrape during the request still sees
+        // the previous collection, and a failed request keeps it
+        self.reset_all();
+
         self.mac_metric
             .with_label_values(&[&sys_cnf.mac.clone().unwrap_or_default()])
             .set(1);
@@ -408,8 +412,6 @@ impl<'a> MetricMap<'a> for SystemMetricMap<'a> {
     }
 
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
         match self.set_system_config().await {
             Err(e) => return Err(e),
             _ => {}
@@ -638,5 +640,39 @@ mod tests {
         assert_eq!(config.device_name, None);
         assert_eq!(config.api_version, None);
         assert_eq!(config.temp_hdd, None);
+    }
+}
+
+#[cfg(test)]
+mod tests_collect {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{mock_api, scrape, scrape_during, serve_scoped, serve_slowly};
+
+    fn system(uptime_val: i64) -> Value {
+        json!({ "success": true, "result": { "mac": "00:00:00:00:00:00", "uptime_val": uptime_val } })
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_scrape";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/system", system(100)).await;
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        assert!(before.contains(&format!("{prefix}_system_uptime_val 100")), "{before:?}");
+        drop(first);
+
+        // the only request of the collection is slow, and returns a new uptime
+        serve_slowly(&server, "/api/v4/system", system(200)).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
     }
 }
