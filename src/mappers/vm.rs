@@ -75,7 +75,9 @@ impl<'a> VmMetricMap<'a> {
                 "memory allocated to the virtual machine",
                 &["id", "name"]
             )
-            .expect(&format!("cannot create {prefix}_vm_memory_allocated_bytes gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vm_memory_allocated_bytes gauge"
+            )),
             vcpus_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_vcpus"),
                 "virtual CPUs allocated to the virtual machine",
@@ -93,13 +95,17 @@ impl<'a> VmMetricMap<'a> {
                 "memory available to virtual machines",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vm_host_memory_total_bytes gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vm_host_memory_total_bytes gauge"
+            )),
             host_memory_used_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_host_memory_allocated_bytes"),
                 "memory allocated to virtual machines",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vm_host_memory_allocated_bytes gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vm_host_memory_allocated_bytes gauge"
+            )),
             host_cpus_total_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_host_vcpus"),
                 "virtual CPUs available to virtual machines",
@@ -111,7 +117,9 @@ impl<'a> VmMetricMap<'a> {
                 "virtual CPUs allocated to virtual machines",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vm_host_vcpus_allocated gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vm_host_vcpus_allocated gauge"
+            )),
         }
     }
 
@@ -174,16 +182,24 @@ impl<'a> VmMetricMap<'a> {
 
     fn set_host_metrics(&self, info: &VmSystemInfo) {
         if let Some(v) = info.total_memory {
-            self.host_memory_total_metric.with_label_values::<&str>(&[]).set(v * MEGABYTE);
+            self.host_memory_total_metric
+                .with_label_values::<&str>(&[])
+                .set(v * MEGABYTE);
         }
         if let Some(v) = info.used_memory {
-            self.host_memory_used_metric.with_label_values::<&str>(&[]).set(v * MEGABYTE);
+            self.host_memory_used_metric
+                .with_label_values::<&str>(&[])
+                .set(v * MEGABYTE);
         }
         if let Some(v) = info.total_cpus {
-            self.host_cpus_total_metric.with_label_values::<&str>(&[]).set(v);
+            self.host_cpus_total_metric
+                .with_label_values::<&str>(&[])
+                .set(v);
         }
         if let Some(v) = info.used_cpus {
-            self.host_cpus_used_metric.with_label_values::<&str>(&[]).set(v);
+            self.host_cpus_used_metric
+                .with_label_values::<&str>(&[])
+                .set(v);
         }
     }
 
@@ -194,12 +210,17 @@ impl<'a> VmMetricMap<'a> {
         let client = self.get_managed_client().await?;
         let api_url = self.factory.api_url.clone();
 
-        let info =
-            get_api_result::<VmSystemInfo>(&client, &api_url, &format!("v{MIN_API_VERSION}/vm/info/"))
-                .await?
-                .ok_or_else(|| {
-                    Box::new(FreeboxResponseError::new("vm/info response has no result".to_string()))
-                })?;
+        let info = get_api_result::<VmSystemInfo>(
+            &client,
+            &api_url,
+            &format!("v{MIN_API_VERSION}/vm/info/"),
+        )
+        .await?
+        .ok_or_else(|| {
+            Box::new(FreeboxResponseError::new(
+                "vm/info response has no result".to_string(),
+            ))
+        })?;
         // the API omits the result field when there is no VM
         let vms = get_api_result::<Vec<Vm>>(&client, &api_url, &format!("v{MIN_API_VERSION}/vm/"))
             .await?
@@ -269,7 +290,12 @@ mod tests {
     async fn set_exposes_vm_and_host_metrics_from_real_box_response() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v7/vm/", fixture("api_v7_vm-get").await).await;
-        serve(&server, "/api/v7/vm/info/", fixture("api_v7_vm_info-get").await).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            fixture("api_v7_vm_info-get").await,
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_real".to_string());
 
@@ -281,14 +307,26 @@ mod tests {
             Some(1.0),
             exposed(&map.status_metric, &[("id", "0"), ("status", "running")])
         );
-        assert_eq!(Some(2048.0 * 1024.0 * 1024.0), exposed(&map.memory_metric, &vm));
+        assert_eq!(
+            Some(2048.0 * 1024.0 * 1024.0),
+            exposed(&map.memory_metric, &vm)
+        );
         assert_eq!(Some(2.0), exposed(&map.vcpus_metric, &vm));
         assert_eq!(
             Some(1.0),
-            exposed(&map.info_metric, &[("id", "0"), ("os", "ubuntu"), ("disk_type", "qcow2")])
+            exposed(
+                &map.info_metric,
+                &[("id", "0"), ("os", "ubuntu"), ("disk_type", "qcow2")]
+            )
         );
-        assert_eq!(Some((7168 * MEGABYTE) as f64), exposed(&map.host_memory_total_metric, &[]));
-        assert_eq!(Some((2048 * MEGABYTE) as f64), exposed(&map.host_memory_used_metric, &[]));
+        assert_eq!(
+            Some((7168 * MEGABYTE) as f64),
+            exposed(&map.host_memory_total_metric, &[])
+        );
+        assert_eq!(
+            Some((2048 * MEGABYTE) as f64),
+            exposed(&map.host_memory_used_metric, &[])
+        );
         assert_eq!(Some(3.0), exposed(&map.host_cpus_total_metric, &[]));
         assert_eq!(Some(2.0), exposed(&map.host_cpus_used_metric, &[]));
     }
@@ -302,7 +340,12 @@ mod tests {
             json!({ "success": true, "result": [{ "id": 3, "name": "lab", "status": "stopped", "memory": 512, "vcpus": 1 }] }),
         )
         .await;
-        serve(&server, "/api/v7/vm/info/", json!({ "success": true, "result": {} })).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            json!({ "success": true, "result": {} }),
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_stopped".to_string());
 
@@ -322,7 +365,12 @@ mod tests {
     async fn set_accepts_missing_result_when_there_is_no_vm() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v7/vm/", json!({ "success": true })).await;
-        serve(&server, "/api/v7/vm/info/", fixture("api_v7_vm_info-get").await).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            fixture("api_v7_vm_info-get").await,
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_none".to_string());
 
@@ -336,7 +384,12 @@ mod tests {
     async fn set_fails_and_keeps_host_metrics_when_vm_info_has_no_result() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v7/vm/", fixture("api_v7_vm-get").await).await;
-        serve(&server, "/api/v7/vm/info/", fixture("api_v7_vm_info-get").await).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            fixture("api_v7_vm_info-get").await,
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_info_missing".to_string());
         map.set(update_lock()).await.unwrap();
@@ -354,7 +407,12 @@ mod tests {
     #[tokio::test]
     async fn set_fails_with_freebox_error_code_when_permission_is_missing() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v7/vm/info/", fixture("api_v7_vm_info-get").await).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            fixture("api_v7_vm_info-get").await,
+        )
+        .await;
         serve(
             &server,
             "/api/v7/vm/",
@@ -372,7 +430,12 @@ mod tests {
     #[tokio::test]
     async fn set_drops_series_of_deleted_vm_and_keeps_them_on_failure() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v7/vm/info/", json!({ "success": true, "result": {} })).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            json!({ "success": true, "result": {} }),
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_lifecycle".to_string());
 
@@ -389,9 +452,10 @@ mod tests {
 
         // cycle 2: API failure, last known values are kept
         let failing = wiremock::Mock::given(wiremock::matchers::path("/api/v7/vm/"))
-            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
-                json!({ "success": false, "error_code": "internal_error" }),
-            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(json!({ "success": false, "error_code": "internal_error" })),
+            )
             .mount_as_scoped(&server)
             .await;
         assert!(map.set(update_lock()).await.is_err());
@@ -407,7 +471,12 @@ mod tests {
     #[tokio::test]
     async fn collection_waits_for_a_scrape_in_progress() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v7/vm/info/", json!({ "success": true, "result": {} })).await;
+        serve(
+            &server,
+            "/api/v7/vm/info/",
+            json!({ "success": true, "result": {} }),
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let prefix = "test_vm_lock";
         let mut map = VmMetricMap::new(&factory, prefix.to_string());

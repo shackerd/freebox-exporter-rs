@@ -104,8 +104,14 @@ impl<'a> DdnsMetricMap<'a> {
         }
         // 0 when the event never happened or is not scheduled
         let timestamps = [
-            (&self.last_refresh_timestamp_seconds_metric, status.last_refresh),
-            (&self.next_refresh_timestamp_seconds_metric, status.next_refresh),
+            (
+                &self.last_refresh_timestamp_seconds_metric,
+                status.last_refresh,
+            ),
+            (
+                &self.next_refresh_timestamp_seconds_metric,
+                status.next_refresh,
+            ),
             (&self.last_error_timestamp_seconds_metric, status.last_error),
             (&self.next_retry_timestamp_seconds_metric, status.next_retry),
         ];
@@ -129,7 +135,9 @@ impl<'a> DdnsMetricMap<'a> {
             let status = get_api_result::<DdnsStatus>(&client, &api_url, &endpoint)
                 .await?
                 .ok_or_else(|| {
-                    Box::new(FreeboxResponseError::new(format!("{endpoint} response has no result")))
+                    Box::new(FreeboxResponseError::new(format!(
+                        "{endpoint} response has no result"
+                    )))
                 })?;
             statuses.push((provider, status));
         }
@@ -188,7 +196,10 @@ mod tests {
     }
 
     fn series_count(vec: &IntGaugeVec) -> usize {
-        vec.collect().iter().map(|family| family.get_metric().len()).sum()
+        vec.collect()
+            .iter()
+            .map(|family| family.get_metric().len())
+            .sum()
     }
 
     async fn fixture(endpoint: &'static str) -> Value {
@@ -225,12 +236,33 @@ mod tests {
         map.set(update_lock()).await.unwrap();
 
         assert_eq!(3, series_count(&map.status_metric));
-        assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "ovh"), ("status", "ok")]));
-        assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "dyndns"), ("status", "disabled")]));
-        assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "noip"), ("status", "disabled")]));
+        assert_eq!(
+            Some(1.0),
+            exposed(&map.status_metric, &[("provider", "ovh"), ("status", "ok")])
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.status_metric,
+                &[("provider", "dyndns"), ("status", "disabled")]
+            )
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.status_metric,
+                &[("provider", "noip"), ("status", "disabled")]
+            )
+        );
         let ovh = [("provider", "ovh")];
-        assert_eq!(Some(1794216061.0), exposed(&map.last_refresh_timestamp_seconds_metric, &ovh));
-        assert_eq!(Some(1794216361.0), exposed(&map.next_refresh_timestamp_seconds_metric, &ovh));
+        assert_eq!(
+            Some(1794216061.0),
+            exposed(&map.last_refresh_timestamp_seconds_metric, &ovh)
+        );
+        assert_eq!(
+            Some(1794216361.0),
+            exposed(&map.next_refresh_timestamp_seconds_metric, &ovh)
+        );
         // zero timestamps are not exposed, and disabled providers have only zeros
         assert_eq!(1, series_count(&map.last_refresh_timestamp_seconds_metric));
         assert_eq!(1, series_count(&map.next_refresh_timestamp_seconds_metric));
@@ -252,9 +284,27 @@ mod tests {
         let mut map = DdnsMetricMap::new(&factory, "test_ddns_doc".to_string());
         map.set(update_lock()).await.unwrap();
 
-        assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "dyndns"), ("status", "hostinval")]));
-        assert_eq!(Some(1354127350.0), exposed(&map.last_error_timestamp_seconds_metric, &[("provider", "dyndns")]));
-        assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "ovh"), ("status", "reqfail")]));
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.status_metric,
+                &[("provider", "dyndns"), ("status", "hostinval")]
+            )
+        );
+        assert_eq!(
+            Some(1354127350.0),
+            exposed(
+                &map.last_error_timestamp_seconds_metric,
+                &[("provider", "dyndns")]
+            )
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.status_metric,
+                &[("provider", "ovh"), ("status", "reqfail")]
+            )
+        );
         let ovh = [("provider", "ovh")];
         for (metric, expected) in timestamps(&map).into_iter().zip([11.0, 13.0, 17.0, 19.0]) {
             assert_eq!(Some(expected), exposed(metric, &ovh));
@@ -297,7 +347,10 @@ mod tests {
         for (failing, provider) in PROVIDERS.iter().enumerate() {
             let no_result = format!("ddns/{provider}/status/ response has no result");
             for (failure, expected) in [
-                (json!({"success":false,"error_code":"internal_error"}), "internal_error"),
+                (
+                    json!({"success":false,"error_code":"internal_error"}),
+                    "internal_error",
+                ),
                 (json!({"success":true}), no_result.as_str()),
             ] {
                 server.reset().await;
@@ -307,13 +360,40 @@ mod tests {
                     json!({"success":true,"result":{"status":"ok","last_refresh":5}}),
                 ];
                 bodies[failing] = failure;
-                serve_cycle(&server, bodies[0].clone(), bodies[1].clone(), bodies[2].clone()).await;
+                serve_cycle(
+                    &server,
+                    bodies[0].clone(),
+                    bodies[1].clone(),
+                    bodies[2].clone(),
+                )
+                .await;
                 let err = map.set(update_lock()).await.unwrap_err();
                 assert!(err.to_string().contains(expected), "{err}");
-                assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "ovh"), ("status", "ok")]));
-                assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "dyndns"), ("status", "hostinval")]));
-                assert_eq!(Some(1794216061.0), exposed(&map.last_refresh_timestamp_seconds_metric, &[("provider", "ovh")]));
-                assert_eq!(Some(1354127350.0), exposed(&map.last_error_timestamp_seconds_metric, &[("provider", "dyndns")]));
+                assert_eq!(
+                    Some(1.0),
+                    exposed(&map.status_metric, &[("provider", "ovh"), ("status", "ok")])
+                );
+                assert_eq!(
+                    Some(1.0),
+                    exposed(
+                        &map.status_metric,
+                        &[("provider", "dyndns"), ("status", "hostinval")]
+                    )
+                );
+                assert_eq!(
+                    Some(1794216061.0),
+                    exposed(
+                        &map.last_refresh_timestamp_seconds_metric,
+                        &[("provider", "ovh")]
+                    )
+                );
+                assert_eq!(
+                    Some(1354127350.0),
+                    exposed(
+                        &map.last_error_timestamp_seconds_metric,
+                        &[("provider", "dyndns")]
+                    )
+                );
             }
         }
 
@@ -324,7 +404,10 @@ mod tests {
         map.set(update_lock()).await.unwrap();
         assert_eq!(3, series_count(&map.status_metric));
         assert_eq!(None, exposed(&map.status_metric, &[("status", "ok")]));
-        assert_eq!(None, exposed(&map.status_metric, &[("status", "hostinval")]));
+        assert_eq!(
+            None,
+            exposed(&map.status_metric, &[("status", "hostinval")])
+        );
         for metric in timestamps(&map) {
             assert_eq!(0, series_count(metric));
         }

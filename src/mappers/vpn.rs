@@ -94,25 +94,33 @@ impl<'a> VpnMetricMap<'a> {
                 "number of active VPN server connections",
                 &["name", "type"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_server_connections gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_server_connections gauge"
+            )),
             server_authenticated_connections_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_server_authenticated_connections"),
                 "number of authenticated VPN server connections",
                 &["name", "type"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_server_authenticated_connections gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_server_authenticated_connections gauge"
+            )),
             connections_rx_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_connections_rx_bytes"),
                 "bytes received by the VPN connections currently open, drops when one closes",
                 &["vpn"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_connections_rx_bytes gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_connections_rx_bytes gauge"
+            )),
             connections_tx_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_connections_tx_bytes"),
                 "bytes sent by the VPN connections currently open, drops when one closes",
                 &["vpn"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_connections_tx_bytes gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_connections_tx_bytes gauge"
+            )),
             client_enabled_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_enabled"),
                 "1 if the VPN client is enabled, 0 otherwise",
@@ -136,37 +144,49 @@ impl<'a> VpnMetricMap<'a> {
                 "VPN client last error, always 1",
                 &["last_error"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_last_error gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_client_last_error gauge"
+            )),
             client_rate_up_bytes_per_second_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_rate_up_bytes_per_second"),
                 "VPN client upload rate in bytes per second",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_rate_up_bytes_per_second gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_client_rate_up_bytes_per_second gauge"
+            )),
             client_rate_down_bytes_per_second_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_rate_down_bytes_per_second"),
                 "VPN client download rate in bytes per second",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_rate_down_bytes_per_second gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_client_rate_down_bytes_per_second gauge"
+            )),
             client_bytes_up_metric: register_int_counter_vec!(
                 format!("{prefix}_vpn_client_uploaded_bytes_total"),
                 "total bytes uploaded by the VPN client, as reported by the box",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_uploaded_bytes_total counter")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_client_uploaded_bytes_total counter"
+            )),
             client_bytes_down_metric: register_int_counter_vec!(
                 format!("{prefix}_vpn_client_downloaded_bytes_total"),
                 "total bytes downloaded by the VPN client, as reported by the box",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_downloaded_bytes_total counter")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_client_downloaded_bytes_total counter"
+            )),
             client_last_up_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_last_up_timestamp_seconds"),
                 "timestamp of the last successful VPN client connection",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_last_up_timestamp_seconds gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_vpn_client_last_up_timestamp_seconds gauge"
+            )),
         }
     }
 
@@ -234,9 +254,7 @@ impl<'a> VpnMetricMap<'a> {
             self.client_up_metric
                 .with_label_values::<&str>(&[])
                 .set((state == "up") as i64);
-            self.client_state_metric
-                .with_label_values(&[state])
-                .set(1);
+            self.client_state_metric.with_label_values(&[state]).set(1);
         }
         if let Some(error) = client.last_error.as_deref() {
             self.client_last_error_metric
@@ -269,16 +287,20 @@ impl<'a> VpnMetricMap<'a> {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
         let api_url = self.factory.api_url.clone();
-        let servers = get_api_result::<Vec<VpnServer>>(&client, &api_url, &format!("v{MIN_API_VERSION}/vpn/"))
-            .await?
-            .unwrap_or_default();
+        let servers = get_api_result::<Vec<VpnServer>>(
+            &client,
+            &api_url,
+            &format!("v{MIN_API_VERSION}/vpn/"),
+        )
+        .await?
+        .unwrap_or_default();
         let connections = get_api_result::<Vec<VpnConnection>>(
             &client,
             &api_url,
             &format!("v{MIN_API_VERSION}/vpn/connection/"),
         )
-            .await?
-            .unwrap_or_default();
+        .await?
+        .unwrap_or_default();
         let status = get_api_result::<VpnClientStatus>(
             &client,
             &api_url,
@@ -287,17 +309,21 @@ impl<'a> VpnMetricMap<'a> {
         .await?
         // unlike collections, the client status is always an object, even when disabled
         .ok_or_else(|| {
-            Box::new(FreeboxResponseError::new("vpn_client/status response has no result".to_string()))
+            Box::new(FreeboxResponseError::new(
+                "vpn_client/status response has no result".to_string(),
+            ))
         })?;
 
         let mut rx = HashMap::<&str, i64>::new();
         let mut tx = HashMap::<&str, i64>::new();
         for connection in &connections {
             if let Some(value) = connection.rx_bytes {
-                *rx.entry(connection.vpn.as_deref().unwrap_or("unknown")).or_default() += value;
+                *rx.entry(connection.vpn.as_deref().unwrap_or("unknown"))
+                    .or_default() += value;
             }
             if let Some(value) = connection.tx_bytes {
-                *tx.entry(connection.vpn.as_deref().unwrap_or("unknown")).or_default() += value;
+                *tx.entry(connection.vpn.as_deref().unwrap_or("unknown"))
+                    .or_default() += value;
             }
         }
 
@@ -321,7 +347,10 @@ impl<'a> VpnMetricMap<'a> {
         self.set_client_metrics(&status);
         let stats = status.stats.as_ref();
         set_counter(&self.client_bytes_up_metric, stats.and_then(|s| s.bytes_up));
-        set_counter(&self.client_bytes_down_metric, stats.and_then(|s| s.bytes_down));
+        set_counter(
+            &self.client_bytes_down_metric,
+            stats.and_then(|s| s.bytes_down),
+        );
         Ok(())
     }
 }
@@ -385,7 +414,12 @@ mod tests {
     fn exposed(vec: &dyn Collector, labels: &[(&str, &str)]) -> Option<f64> {
         vec.collect()
             .iter()
-            .flat_map(|family| family.get_metric().iter().map(move |m| (family.get_field_type(), m)))
+            .flat_map(|family| {
+                family
+                    .get_metric()
+                    .iter()
+                    .map(move |m| (family.get_field_type(), m))
+            })
             .find(|(_, m)| {
                 labels.iter().all(|(k, v)| {
                     m.get_label()
@@ -400,7 +434,10 @@ mod tests {
     }
 
     fn series_count(vec: &IntGaugeVec) -> usize {
-        vec.collect().iter().map(|family| family.get_metric().len()).sum()
+        vec.collect()
+            .iter()
+            .map(|family| family.get_metric().len())
+            .sum()
     }
 
     fn assert_client_optional_absent(map: &VpnMetricMap<'_>) {
@@ -423,7 +460,12 @@ mod tests {
         serde_json::from_str(&get_specs_data("vpn", endpoint).await.unwrap()).unwrap()
     }
 
-    async fn serve_cycle(server: &wiremock::MockServer, servers: Value, connections: Value, client: Value) {
+    async fn serve_cycle(
+        server: &wiremock::MockServer,
+        servers: Value,
+        connections: Value,
+        client: Value,
+    ) {
         serve(server, "/api/v4/vpn/", servers).await;
         serve(server, "/api/v4/vpn/connection/", connections).await;
         serve(server, "/api/v4/vpn_client/status", client).await;
@@ -437,7 +479,8 @@ mod tests {
             fixture("api_v4_vpn-get").await,
             fixture("api_v4_vpn_connection_empty-get").await,
             fixture("api_v4_vpn_client_status_disabled-get").await,
-        ).await;
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VpnMetricMap::new(&factory, "test_vpn_real".to_string());
         map.set(update_lock()).await.unwrap();
@@ -460,9 +503,17 @@ mod tests {
             let labels = [("name", name), ("type", vpn_type)];
             assert_eq!(Some(0.0), exposed(&map.server_started_metric, &labels));
             assert_eq!(Some(0.0), exposed(&map.server_connections_metric, &labels));
-            assert_eq!(Some(0.0), exposed(&map.server_authenticated_connections_metric, &labels));
-            assert_eq!(Some(1.0), exposed(&map.server_state_metric,
-                &[("name", name), ("type", vpn_type), ("state", "stopped")]));
+            assert_eq!(
+                Some(0.0),
+                exposed(&map.server_authenticated_connections_metric, &labels)
+            );
+            assert_eq!(
+                Some(1.0),
+                exposed(
+                    &map.server_state_metric,
+                    &[("name", name), ("type", vpn_type), ("state", "stopped")]
+                )
+            );
         }
         assert_eq!(Some(0.0), exposed(&map.client_enabled_metric, &[]));
         assert_client_optional_absent(&map);
@@ -478,12 +529,16 @@ mod tests {
             fixture("api_v4_vpn-get").await,
             fixture("api_v4_vpn_connection-get").await,
             fixture("api_v4_vpn_client_status-get").await,
-        ).await;
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VpnMetricMap::new(&factory, "test_vpn_doc".to_string());
         map.set(update_lock()).await.unwrap();
 
-        for metric in [&map.connections_rx_bytes_metric, &map.connections_tx_bytes_metric] {
+        for metric in [
+            &map.connections_rx_bytes_metric,
+            &map.connections_tx_bytes_metric,
+        ] {
             assert_eq!(1, series_count(metric));
             assert_eq!(Some(94.0), exposed(metric, &[("vpn", "pptp")]));
             for family in metric.collect() {
@@ -496,8 +551,14 @@ mod tests {
         }
         assert_eq!(Some(1.0), exposed(&map.client_enabled_metric, &[]));
         assert_eq!(Some(1.0), exposed(&map.client_up_metric, &[]));
-        assert_eq!(Some(1.0), exposed(&map.client_state_metric, &[("state", "up")]));
-        assert_eq!(Some(1.0), exposed(&map.client_last_error_metric, &[("last_error", "none")]));
+        assert_eq!(
+            Some(1.0),
+            exposed(&map.client_state_metric, &[("state", "up")])
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(&map.client_last_error_metric, &[("last_error", "none")])
+        );
         let cases: [(&dyn Collector, f64); 5] = [
             (&map.client_rate_up_bytes_per_second_metric, 0.0),
             (&map.client_rate_down_bytes_per_second_metric, 0.0),
@@ -532,20 +593,50 @@ mod tests {
         let mut map = VpnMetricMap::new(&factory, "test_vpn_sums".to_string());
         map.set(update_lock()).await.unwrap();
 
-        assert_eq!(Some(100.0), exposed(&map.connections_rx_bytes_metric, &[("vpn","pptp")]));
-        assert_eq!(Some(111.0), exposed(&map.connections_tx_bytes_metric, &[("vpn","pptp")]));
-        assert_eq!(Some(3.0), exposed(&map.connections_rx_bytes_metric, &[("vpn","wireguard")]));
-        assert_eq!(Some(5.0), exposed(&map.connections_tx_bytes_metric, &[("vpn","wireguard")]));
+        assert_eq!(
+            Some(100.0),
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "pptp")])
+        );
+        assert_eq!(
+            Some(111.0),
+            exposed(&map.connections_tx_bytes_metric, &[("vpn", "pptp")])
+        );
+        assert_eq!(
+            Some(3.0),
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "wireguard")])
+        );
+        assert_eq!(
+            Some(5.0),
+            exposed(&map.connections_tx_bytes_metric, &[("vpn", "wireguard")])
+        );
         assert_eq!(2, series_count(&map.connections_rx_bytes_metric));
         assert_eq!(2, series_count(&map.connections_tx_bytes_metric));
-        let labels = [("name","pptp"),("type","pptp")];
+        let labels = [("name", "pptp"), ("type", "pptp")];
         assert_eq!(Some(1.0), exposed(&map.server_started_metric, &labels));
         assert_eq!(Some(3.0), exposed(&map.server_connections_metric, &labels));
-        assert_eq!(Some(2.0), exposed(&map.server_authenticated_connections_metric, &labels));
-        assert_eq!(Some(1.0), exposed(&map.server_state_metric, &[("name","pptp"),("type","pptp"),("state","started")]));
+        assert_eq!(
+            Some(2.0),
+            exposed(&map.server_authenticated_connections_metric, &labels)
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.server_state_metric,
+                &[("name", "pptp"), ("type", "pptp"), ("state", "started")]
+            )
+        );
         assert_eq!(Some(0.0), exposed(&map.client_up_metric, &[]));
-        assert_eq!(Some(1.0), exposed(&map.client_state_metric, &[("state","down")]));
-        assert_eq!(Some(1.0), exposed(&map.client_last_error_metric, &[("last_error","connect_timeout")]));
+        assert_eq!(
+            Some(1.0),
+            exposed(&map.client_state_metric, &[("state", "down")])
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.client_last_error_metric,
+                &[("last_error", "connect_timeout")]
+            )
+        );
         let cases: [(&dyn Collector, f64); 5] = [
             (&map.client_rate_up_bytes_per_second_metric, 7.0),
             (&map.client_rate_down_bytes_per_second_metric, 11.0),
@@ -561,11 +652,13 @@ mod tests {
     #[tokio::test]
     async fn set_propagates_connection_permission_error() {
         let (server, authenticator) = mock_api().await;
-        serve_cycle(&server,
+        serve_cycle(
+            &server,
             fixture("api_v4_vpn-get").await,
             json!({"success":false,"error_code":"insufficient_rights"}),
             fixture("api_v4_vpn_client_status_disabled-get").await,
-        ).await;
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VpnMetricMap::new(&factory, "test_vpn_rights".to_string());
         let err = map.set(update_lock()).await.unwrap_err();
@@ -577,38 +670,71 @@ mod tests {
         let (server, authenticator) = mock_api().await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VpnMetricMap::new(&factory, "test_vpn_lifecycle".to_string());
-        serve_cycle(&server,
+        serve_cycle(
+            &server,
             fixture("api_v4_vpn-get").await,
             fixture("api_v4_vpn_connection-get").await,
             fixture("api_v4_vpn_client_status-get").await,
-        ).await;
+        )
+        .await;
         map.set(update_lock()).await.unwrap();
-        assert_eq!(Some(94.0), exposed(&map.connections_rx_bytes_metric, &[("vpn","pptp")]));
-        assert_eq!(Some(94.0), exposed(&map.connections_tx_bytes_metric, &[("vpn","pptp")]));
+        assert_eq!(
+            Some(94.0),
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "pptp")])
+        );
+        assert_eq!(
+            Some(94.0),
+            exposed(&map.connections_tx_bytes_metric, &[("vpn", "pptp")])
+        );
 
         // Fail each endpoint in turn, including the final call after empty collections.
         for failing_endpoint in 0..3 {
             server.reset().await;
-            let mut bodies = [json!({"success":true}), json!({"success":true}), json!({"success":true,"result":{"enabled":false}})];
+            let mut bodies = [
+                json!({"success":true}),
+                json!({"success":true}),
+                json!({"success":true,"result":{"enabled":false}}),
+            ];
             bodies[failing_endpoint] = json!({"success":false,"error_code":"internal_error"});
-            serve_cycle(&server, bodies[0].clone(), bodies[1].clone(), bodies[2].clone()).await;
+            serve_cycle(
+                &server,
+                bodies[0].clone(),
+                bodies[1].clone(),
+                bodies[2].clone(),
+            )
+            .await;
             let err = map.set(update_lock()).await.unwrap_err();
             assert!(err.to_string().contains("internal_error"), "{err}");
-            assert_eq!(Some(94.0), exposed(&map.connections_rx_bytes_metric, &[("vpn","pptp")]));
-            assert_eq!(Some(94.0), exposed(&map.connections_tx_bytes_metric, &[("vpn","pptp")]));
+            assert_eq!(
+                Some(94.0),
+                exposed(&map.connections_rx_bytes_metric, &[("vpn", "pptp")])
+            );
+            assert_eq!(
+                Some(94.0),
+                exposed(&map.connections_tx_bytes_metric, &[("vpn", "pptp")])
+            );
             assert_eq!(5, series_count(&map.server_started_metric));
             assert_eq!(Some(1.0), exposed(&map.client_up_metric, &[]));
             assert_eq!(Some(94.0), exposed(&map.client_bytes_down_metric, &[]));
         }
 
         server.reset().await;
-        serve_cycle(&server, json!({"success":true}), json!({"success":true}),
-            fixture("api_v4_vpn_client_status_disabled-get").await).await;
+        serve_cycle(
+            &server,
+            json!({"success":true}),
+            json!({"success":true}),
+            fixture("api_v4_vpn_client_status_disabled-get").await,
+        )
+        .await;
         map.set(update_lock()).await.unwrap();
         assert_eq!(None, exposed(&map.connections_rx_bytes_metric, &[]));
         assert_eq!(None, exposed(&map.connections_tx_bytes_metric, &[]));
-        for metric in [&map.server_state_metric, &map.server_started_metric,
-            &map.server_connections_metric, &map.server_authenticated_connections_metric] {
+        for metric in [
+            &map.server_state_metric,
+            &map.server_started_metric,
+            &map.server_connections_metric,
+            &map.server_authenticated_connections_metric,
+        ] {
             assert_eq!(None, exposed(metric, &[]));
         }
         assert_eq!(Some(0.0), exposed(&map.client_enabled_metric, &[]));
@@ -627,14 +753,38 @@ mod tests {
         let mut map = VpnMetricMap::new(&factory, "test_vpn_optional".to_string());
         map.set(update_lock()).await.unwrap();
         assert_eq!(None, exposed(&map.server_connections_metric, &[]));
-        assert_eq!(None, exposed(&map.server_authenticated_connections_metric, &[]));
-        assert_eq!(Some(0.0), exposed(&map.server_started_metric, &[("name","pptp")]));
-        assert_eq!(None, exposed(&map.connections_rx_bytes_metric, &[("vpn","pptp")]));
-        assert_eq!(Some(0.0), exposed(&map.connections_tx_bytes_metric, &[("vpn","pptp")]));
-        assert_eq!(Some(0.0), exposed(&map.connections_rx_bytes_metric, &[("vpn","wireguard")]));
-        assert_eq!(None, exposed(&map.connections_tx_bytes_metric, &[("vpn","wireguard")]));
-        assert_eq!(None, exposed(&map.connections_rx_bytes_metric, &[("vpn","ipsec")]));
-        assert_eq!(None, exposed(&map.connections_tx_bytes_metric, &[("vpn","ipsec")]));
+        assert_eq!(
+            None,
+            exposed(&map.server_authenticated_connections_metric, &[])
+        );
+        assert_eq!(
+            Some(0.0),
+            exposed(&map.server_started_metric, &[("name", "pptp")])
+        );
+        assert_eq!(
+            None,
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "pptp")])
+        );
+        assert_eq!(
+            Some(0.0),
+            exposed(&map.connections_tx_bytes_metric, &[("vpn", "pptp")])
+        );
+        assert_eq!(
+            Some(0.0),
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "wireguard")])
+        );
+        assert_eq!(
+            None,
+            exposed(&map.connections_tx_bytes_metric, &[("vpn", "wireguard")])
+        );
+        assert_eq!(
+            None,
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "ipsec")])
+        );
+        assert_eq!(
+            None,
+            exposed(&map.connections_tx_bytes_metric, &[("vpn", "ipsec")])
+        );
         assert_eq!(Some(1.0), exposed(&map.client_enabled_metric, &[]));
         assert_client_optional_absent(&map);
     }
@@ -656,8 +806,14 @@ mod tests {
         serve_cycle(&server, empty(), empty(), client_status(94, 40)).await;
         map.set(update_lock()).await.unwrap();
         for (metric, name) in [
-            (&map.client_bytes_up_metric, "test_vpn_counters_vpn_client_uploaded_bytes_total"),
-            (&map.client_bytes_down_metric, "test_vpn_counters_vpn_client_downloaded_bytes_total"),
+            (
+                &map.client_bytes_up_metric,
+                "test_vpn_counters_vpn_client_uploaded_bytes_total",
+            ),
+            (
+                &map.client_bytes_down_metric,
+                "test_vpn_counters_vpn_client_downloaded_bytes_total",
+            ),
         ] {
             let families = metric.collect();
             assert_eq!(name, families[0].name());
@@ -676,7 +832,13 @@ mod tests {
 
         // a failed collection keeps the last value
         server.reset().await;
-        serve_cycle(&server, empty(), empty(), json!({"success":false,"error_code":"internal_error"})).await;
+        serve_cycle(
+            &server,
+            empty(),
+            empty(),
+            json!({"success":false,"error_code":"internal_error"}),
+        )
+        .await;
         map.set(update_lock()).await.unwrap_err();
         assert_eq!((Some(150.0), Some(41.0)), (up(&map), down(&map)));
 
@@ -688,7 +850,13 @@ mod tests {
 
         // no more stats: the series disappear
         server.reset().await;
-        serve_cycle(&server, empty(), empty(), fixture("api_v4_vpn_client_status_disabled-get").await).await;
+        serve_cycle(
+            &server,
+            empty(),
+            empty(),
+            fixture("api_v4_vpn_client_status_disabled-get").await,
+        )
+        .await;
         map.set(update_lock()).await.unwrap();
         assert_eq!((None, None), (up(&map), down(&map)));
     }
@@ -698,21 +866,32 @@ mod tests {
         let (server, authenticator) = mock_api().await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VpnMetricMap::new(&factory, "test_vpn_status_missing".to_string());
-        serve_cycle(&server,
+        serve_cycle(
+            &server,
             fixture("api_v4_vpn-get").await,
             fixture("api_v4_vpn_connection-get").await,
             fixture("api_v4_vpn_client_status-get").await,
-        ).await;
+        )
+        .await;
         map.set(update_lock()).await.unwrap();
 
         server.reset().await;
-        serve_cycle(&server, fixture("api_v4_vpn-get").await, json!({"success":true}), json!({"success":true})).await;
+        serve_cycle(
+            &server,
+            fixture("api_v4_vpn-get").await,
+            json!({"success":true}),
+            json!({"success":true}),
+        )
+        .await;
         let err = map.set(update_lock()).await.unwrap_err();
 
         assert!(err.to_string().contains("vpn_client/status"), "{err}");
         assert_eq!(Some(1.0), exposed(&map.client_up_metric, &[]));
         assert_eq!(Some(94.0), exposed(&map.client_bytes_up_metric, &[]));
-        assert_eq!(Some(94.0), exposed(&map.connections_rx_bytes_metric, &[("vpn", "pptp")]));
+        assert_eq!(
+            Some(94.0),
+            exposed(&map.connections_rx_bytes_metric, &[("vpn", "pptp")])
+        );
     }
 
     #[test]
