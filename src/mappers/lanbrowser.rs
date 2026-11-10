@@ -475,7 +475,7 @@ mod tests {
         serve(&server, "/api/v4/lan/browser/interfaces", interfaces).await;
         serve(&server, "/api/v4/lan/browser/pub", devices("nas", false)).await;
         serve_slowly(&server, "/api/v4/lan/browser/wifiguest", devices("phone", false)).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/lan/browser/wifiguest", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

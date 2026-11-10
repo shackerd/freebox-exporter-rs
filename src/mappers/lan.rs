@@ -215,7 +215,7 @@ mod tests_collect {
 
         // the only request of the collection is slow, and returns a new name
         serve_slowly(&server, "/api/v4/lan/config", lan_config("after")).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/lan/config", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

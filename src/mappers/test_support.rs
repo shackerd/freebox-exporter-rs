@@ -62,9 +62,8 @@ pub fn scrape(prefix: &str) -> Vec<String> {
         .collect()
 }
 
-/// Delay of the slow endpoint served by `serve_slowly`, and when `scrape_during` scrapes
-pub const SLOW_RESPONSE: std::time::Duration = std::time::Duration::from_millis(600);
-const SCRAPE_AFTER: std::time::Duration = std::time::Duration::from_millis(300);
+/// Delay of the slow endpoint served by `serve_slowly`: `scrape_during` scrapes within it
+pub const SLOW_RESPONSE: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Serves `body` on GET `endpoint` after `SLOW_RESPONSE`
 pub async fn serve_slowly(server: &MockServer, endpoint: &str, body: Value) {
@@ -79,10 +78,28 @@ pub async fn serve_slowly(server: &MockServer, endpoint: &str, body: Value) {
         .await;
 }
 
-/// Runs `collect` and scrapes `prefix` while it waits for a slow endpoint
-pub async fn scrape_during<F: std::future::Future>(collect: F, prefix: &str) -> (F::Output, Vec<String>) {
+/// Runs `collect` and scrapes `prefix` once the slow `endpoint` has been requested, so while
+/// the collection waits for it
+pub async fn scrape_during<F: std::future::Future>(
+    server: &MockServer,
+    endpoint: &str,
+    collect: F,
+    prefix: &str,
+) -> (F::Output, Vec<String>) {
+    let requests = || async {
+        let received = server.received_requests().await.unwrap();
+        received.iter().filter(|r| r.url.path() == endpoint).count()
+    };
+    let before = requests().await;
+
     tokio::join!(collect, async {
-        tokio::time::sleep(SCRAPE_AFTER).await;
+        tokio::time::timeout(SLOW_RESPONSE, async {
+            while requests().await == before {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("{endpoint} was not requested during the collection"));
         scrape(prefix)
     })
 }

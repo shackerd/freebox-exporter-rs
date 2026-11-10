@@ -669,7 +669,7 @@ mod tests_collect {
 
         // the only request of the collection is slow, and returns a new uptime
         serve_slowly(&server, "/api/v4/system", system(200)).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/system", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

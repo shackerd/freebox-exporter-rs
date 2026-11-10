@@ -745,7 +745,7 @@ mod tests_collect {
 
         // the only request of the collection is slow, and returns a new size
         serve_slowly(&server, "/api/v4/storage/disk", disks(2000)).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/storage/disk", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

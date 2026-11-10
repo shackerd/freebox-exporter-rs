@@ -224,7 +224,7 @@ mod tests_collect {
 
         // the last request of the collection is slow, and its stations are gone
         serve_slowly(&server, "/api/v4/wifi/ap/0/stations", json!({ "success": true, "result": [] })).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/wifi/ap/0/stations", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

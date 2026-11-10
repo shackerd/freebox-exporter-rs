@@ -54,7 +54,7 @@ mod tests_collect {
 
         // the last request of the collection is slow, and returns a new power level
         serve_slowly(&server, "/api/v4/connection/ftth", ftth(-1600)).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/connection/ftth", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

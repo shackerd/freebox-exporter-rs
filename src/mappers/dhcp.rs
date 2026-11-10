@@ -404,7 +404,7 @@ mod tests {
 
         // the last request of the collection is slow, and the static leases are gone
         serve_slowly(&server, "/api/v4/dhcp/static_lease/", json!({ "success": true, "result": [] })).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/dhcp/static_lease/", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

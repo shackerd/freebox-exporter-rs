@@ -809,7 +809,7 @@ mod tests {
 
         // the last request of the collection is slow, and returns new stats
         serve_slowly(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
-        let (result, during) = scrape_during(map.set(), prefix).await;
+        let (result, during) = scrape_during(&server, "/api/v4/switch/port/2/stats", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);
