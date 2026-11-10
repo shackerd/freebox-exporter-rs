@@ -3,9 +3,9 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
-
 
 use super::MetricMap;
 use crate::core::common::{
@@ -91,7 +91,9 @@ impl<'a> SystemMetricMap<'a> {
                 format!("{prefix}_system_box_model_name"),
                 &["model_name"]
             )
-            .expect(&format!("cannot create {prefix}_system_box_model_name gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_system_box_model_name gauge"
+            )),
             device_name_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_device_name"),
                 format!("{prefix}_system_device_name"),
@@ -251,7 +253,10 @@ impl<'a> SystemMetricMap<'a> {
         self.firmware_version_metric.reset();
     }
 
-    async fn set_system_config(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_system_config(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching system config");
 
         let body = self
@@ -283,35 +288,42 @@ impl<'a> SystemMetricMap<'a> {
             Some(r) => r,
         };
 
+        // reset only once the response is valid: a scrape during the request still sees
+        // the previous collection, and a failed request keeps it
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
+        self.reset_all();
+
         self.mac_metric
             .with_label_values(&[&sys_cnf.mac.clone().unwrap_or_default()])
             .set(1);
         self.box_flavor_metric
             .with_label_values(&[&sys_cnf.box_flavor.clone().unwrap_or_default()])
             .set(1);
-        
+
         // Set new metrics if available
         if let Some(model_name) = &sys_cnf.box_model_name {
             self.box_model_name_metric
                 .with_label_values(&[model_name])
                 .set(1);
         }
-        
+
         if let Some(device_name) = &sys_cnf.device_name {
             self.device_name_metric
                 .with_label_values(&[device_name])
                 .set(1);
         }
-        
+
         if let Some(api_version) = &sys_cnf.api_version {
             self.api_version_metric
                 .with_label_values(&[api_version])
                 .set(1);
         }
-        
+
         // Set HDD temperature if available
-        self.temp_hdd_metric.set(sys_cnf.temp_hdd.unwrap_or_default());
-        
+        self.temp_hdd_metric
+            .set(sys_cnf.temp_hdd.unwrap_or_default());
+
         // Set additional temperature sensors if available
         self.temp_t1_metric.set(sys_cnf.temp_t1.unwrap_or_default());
         self.temp_t2_metric.set(sys_cnf.temp_t2.unwrap_or_default());
@@ -344,25 +356,27 @@ impl<'a> SystemMetricMap<'a> {
     }
 
     /// Handles CPU temperature metrics for both legacy and new formats
-    /// 
+    ///
     /// This function addresses issue #237: CPU properties migrated on Ultra
-    /// 
+    ///
     /// Legacy format (older Freebox models):
     /// - temp_cpub: CPU B temperature  
     /// - temp_cpum: CPU M temperature
-    /// 
+    ///
     /// New format (Freebox Ultra v9):
     /// - temp_cpu0, temp_cpu1, temp_cpu2, temp_cpu3: Individual core temperatures
-    /// 
+    ///
     /// The function provides backward compatibility by:
     /// - Preserving legacy metrics for existing dashboards
     /// - Adding new labeled metrics for better granularity
     /// - Auto-mapping new format to legacy when appropriate
     fn handle_cpu_temperatures(&self, sys_cnf: &SystemConfig) {
         // Check for new format first (Freebox Ultra)
-        if sys_cnf.temp_cpu0.is_some() || sys_cnf.temp_cpu1.is_some() || 
-           sys_cnf.temp_cpu2.is_some() || sys_cnf.temp_cpu3.is_some() {
-            
+        if sys_cnf.temp_cpu0.is_some()
+            || sys_cnf.temp_cpu1.is_some()
+            || sys_cnf.temp_cpu2.is_some()
+            || sys_cnf.temp_cpu3.is_some()
+        {
             // Use new format with labeled metrics
             if let Some(temp) = sys_cnf.temp_cpu0 {
                 self.temp_cpu_metric.with_label_values(&["0"]).set(temp);
@@ -376,7 +390,7 @@ impl<'a> SystemMetricMap<'a> {
             if let Some(temp) = sys_cnf.temp_cpu3 {
                 self.temp_cpu_metric.with_label_values(&["3"]).set(temp);
             }
-            
+
             // For backward compatibility, also set legacy metrics if we have corresponding cores
             if let Some(temp) = sys_cnf.temp_cpu0 {
                 self.temp_cpub_metric.set(temp); // Map cpu0 to cpub
@@ -384,7 +398,6 @@ impl<'a> SystemMetricMap<'a> {
             if let Some(temp) = sys_cnf.temp_cpu1 {
                 self.temp_cpum_metric.set(temp); // Map cpu1 to cpum
             }
-            
         } else {
             // Use legacy format (older Freebox models)
             if let Some(temp) = sys_cnf.temp_cpub {
@@ -407,10 +420,11 @@ impl<'a> MetricMap<'a> for SystemMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
-        match self.set_system_config().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match self.set_system_config(lock).await {
             Err(e) => return Err(e),
             _ => {}
         };
@@ -565,7 +579,7 @@ mod tests {
         assert_eq!(config.temp_cpu1.unwrap(), 59);
         assert_eq!(config.temp_cpu2.unwrap(), 59);
         assert_eq!(config.temp_cpu3.unwrap(), 59);
-        
+
         // Verify new fields specific to Freebox Ultra
         assert_eq!(config.temp_hdd.unwrap(), 47);
         assert_eq!(config.box_model_name.unwrap(), "Freebox v9 (r1)");
@@ -573,7 +587,7 @@ mod tests {
         assert_eq!(config.api_version.unwrap(), "15.0");
         assert_eq!(config.board_name.unwrap(), "fbxgw9r");
         assert_eq!(config.firmware_version.unwrap(), "4.9.14");
-        
+
         // Verify legacy fields are not present
         assert_eq!(config.temp_cpub, None);
         assert_eq!(config.temp_cpum, None);
@@ -626,17 +640,84 @@ mod tests {
         assert_eq!(config.fan_rpm.unwrap(), 2640);
         assert_eq!(config.board_name.unwrap(), "fbxgw8r");
         assert_eq!(config.firmware_version.unwrap(), "4.8.15");
-        
+
         // Verify new CPU format fields are not present in Gen8
         assert_eq!(config.temp_cpu0, None);
         assert_eq!(config.temp_cpu1, None);
         assert_eq!(config.temp_cpu2, None);
         assert_eq!(config.temp_cpu3, None);
-        
+
         // Verify Ultra-specific fields are not present
         assert_eq!(config.box_model_name, None);
         assert_eq!(config.device_name, None);
         assert_eq!(config.api_version, None);
         assert_eq!(config.temp_hdd, None);
+    }
+}
+
+#[cfg(test)]
+mod tests_collect {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
+    };
+
+    fn system(uptime_val: i64) -> Value {
+        json!({ "success": true, "result": { "mac": "00:00:00:00:00:00", "uptime_val": uptime_val } })
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_scrape";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before.contains(&format!("{prefix}_system_uptime_val 100")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // the only request of the collection is slow, and returns a new uptime
+        serve_slowly(&server, "/api/v4/system", system(200)).await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/system", map.set(update_lock()), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_lock";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before.contains(&format!("{prefix}_system_uptime_val 100")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(&server, "/api/v4/system", system(200)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
     }
 }

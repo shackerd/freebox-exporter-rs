@@ -39,7 +39,9 @@ impl CollectorHealth {
                 ),
                 &["collector"],
             )
-            .expect(&format!("cannot create {prefix}_collector_duration_seconds gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_collector_duration_seconds gauge"
+            )),
         }
     }
 
@@ -51,8 +53,9 @@ impl CollectorHealth {
         prometheus::register(Box::new(health.last_success.clone())).expect(&format!(
             "cannot register {prefix}_collector_last_success_timestamp_seconds gauge"
         ));
-        prometheus::register(Box::new(health.duration.clone()))
-            .expect(&format!("cannot register {prefix}_collector_duration_seconds gauge"));
+        prometheus::register(Box::new(health.duration.clone())).expect(&format!(
+            "cannot register {prefix}_collector_duration_seconds gauge"
+        ));
         health
     }
 
@@ -80,7 +83,7 @@ impl CollectorHealth {
         vec.collect()
             .iter()
             .flat_map(|family| family.get_metric())
-            .find(|m| m.get_label().iter().any(|l| l.get_value() == collector))
+            .find(|m| m.get_label().iter().any(|l| l.value() == collector))
             .map(|m| m.get_gauge().get_value())
     }
 
@@ -154,13 +157,16 @@ mod tests {
         ] {
             let family = families
                 .iter()
-                .find(|f| f.get_name() == name)
+                .find(|f| f.name() == name)
                 .unwrap_or_else(|| panic!("{name} is not registered"));
-            assert_eq!(prometheus::proto::MetricType::GAUGE, family.get_field_type());
+            assert_eq!(
+                prometheus::proto::MetricType::GAUGE,
+                family.get_field_type()
+            );
             let labels = family.get_metric()[0].get_label();
             assert_eq!(1, labels.len());
-            assert_eq!("collector", labels[0].get_name());
-            assert_eq!("vm", labels[0].get_value());
+            assert_eq!("collector", labels[0].name());
+            assert_eq!("vm", labels[0].value());
         }
     }
 }

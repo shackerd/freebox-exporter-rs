@@ -3,6 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_gauge_vec, register_int_gauge_vec, GaugeVec, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -93,13 +94,17 @@ impl<'a> RaidMetricMap<'a> {
                 "fraction of sync completed",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_sync_completed_ratio gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_sync_completed_ratio gauge"
+            )),
             sync_speed_bytes_per_second_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_sync_speed_bytes_per_second"),
                 "sync speed in bytes per second",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_sync_speed_bytes_per_second gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_sync_speed_bytes_per_second gauge"
+            )),
             size_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_size_bytes"),
                 "array size in bytes",
@@ -117,13 +122,17 @@ impl<'a> RaidMetricMap<'a> {
                 "Unix timestamp of last check in seconds",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_last_check_timestamp_seconds gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_last_check_timestamp_seconds gauge"
+            )),
             next_check_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_next_check_timestamp_seconds"),
                 "Unix timestamp of next check in seconds",
                 &["id", "name", "level"]
             )
-            .expect(&format!("cannot create {prefix}_raid_next_check_timestamp_seconds gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_next_check_timestamp_seconds gauge"
+            )),
             member_role_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_role"),
                 "member role, always 1",
@@ -135,19 +144,25 @@ impl<'a> RaidMetricMap<'a> {
                 "member corrected read errors",
                 &["array_id", "id", "device_location"]
             )
-            .expect(&format!("cannot create {prefix}_raid_member_corrected_read_errors gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_member_corrected_read_errors gauge"
+            )),
             member_size_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_size_bytes"),
                 "member size in bytes",
                 &["array_id", "id", "device_location"]
             )
-            .expect(&format!("cannot create {prefix}_raid_member_size_bytes gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_member_size_bytes gauge"
+            )),
             member_temperature_celsius_metric: register_int_gauge_vec!(
                 format!("{prefix}_raid_member_temperature_celsius"),
                 "member disk temperature in Celsius",
                 &["array_id", "id", "device_location"]
             )
-            .expect(&format!("cannot create {prefix}_raid_member_temperature_celsius gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_raid_member_temperature_celsius gauge"
+            )),
         }
     }
 
@@ -188,31 +203,47 @@ impl<'a> RaidMetricMap<'a> {
         let labels = [&*id, name, level];
 
         if let Some(value) = array.degraded {
-            self.degraded_metric.with_label_values(&labels).set(value as i64);
+            self.degraded_metric
+                .with_label_values(&labels)
+                .set(value as i64);
         }
         if let Some(state) = array.state.as_deref() {
-            self.state_metric.with_label_values(&[&id, name, state]).set(1);
+            self.state_metric
+                .with_label_values(&[&id, name, state])
+                .set(1);
         }
         if let Some(action) = array.sync_action.as_deref() {
-            self.sync_action_metric.with_label_values(&[&id, name, action]).set(1);
+            self.sync_action_metric
+                .with_label_values(&[&id, name, action])
+                .set(1);
         }
         if let Some(value) = array.sync_completed_percent {
-            self.sync_completed_ratio_metric.with_label_values(&labels).set(value / 100.0);
+            self.sync_completed_ratio_metric
+                .with_label_values(&labels)
+                .set(value / 100.0);
         }
         if let Some(value) = array.sync_speed {
-            self.sync_speed_bytes_per_second_metric.with_label_values(&labels).set(value);
+            self.sync_speed_bytes_per_second_metric
+                .with_label_values(&labels)
+                .set(value);
         }
         if let Some(value) = array.array_size {
             self.size_bytes_metric.with_label_values(&labels).set(value);
         }
         if let Some(value) = array.raid_disks {
-            self.disks_expected_metric.with_label_values(&labels).set(value);
+            self.disks_expected_metric
+                .with_label_values(&labels)
+                .set(value);
         }
         if let Some(value) = array.last_check.filter(|v| *v != 0) {
-            self.last_check_timestamp_seconds_metric.with_label_values(&labels).set(value);
+            self.last_check_timestamp_seconds_metric
+                .with_label_values(&labels)
+                .set(value);
         }
         if let Some(value) = array.next_check.filter(|v| *v != 0) {
-            self.next_check_timestamp_seconds_metric.with_label_values(&labels).set(value);
+            self.next_check_timestamp_seconds_metric
+                .with_label_values(&labels)
+                .set(value);
         }
         for member in array.members.iter().flatten() {
             let member_id = member.id.map(|i| i.to_string()).unwrap_or_default();
@@ -224,18 +255,27 @@ impl<'a> RaidMetricMap<'a> {
                     .set(1);
             }
             if let Some(value) = member.corrected_read_errors {
-                self.member_corrected_read_errors_metric.with_label_values(&labels).set(value);
+                self.member_corrected_read_errors_metric
+                    .with_label_values(&labels)
+                    .set(value);
             }
             if let Some(value) = member.total_bytes {
-                self.member_size_bytes_metric.with_label_values(&labels).set(value);
+                self.member_size_bytes_metric
+                    .with_label_values(&labels)
+                    .set(value);
             }
             if let Some(value) = member.disk.as_ref().and_then(|disk| disk.temp) {
-                self.member_temperature_celsius_metric.with_label_values(&labels).set(value);
+                self.member_temperature_celsius_metric
+                    .with_label_values(&labels)
+                    .set(value);
             }
         }
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
         let api_url = self.factory.api_url.clone();
         let arrays = get_api_result::<Vec<RaidArray>>(
@@ -243,10 +283,12 @@ impl<'a> RaidMetricMap<'a> {
             &api_url,
             &format!("v{MIN_API_VERSION}/storage/raid/"),
         )
-            .await?
-            .unwrap_or_default();
+        .await?
+        .unwrap_or_default();
 
         // Keep the last known values if the API call fails.
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
         for array in &arrays {
             self.set_array_metrics(array);
@@ -261,8 +303,11 @@ impl<'a> MetricMap<'a> for RaidMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_all().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_all(lock).await
     }
 }
 
@@ -274,7 +319,9 @@ mod tests {
     use super::*;
     use crate::mappers::{
         api_specs_provider::get_specs_data,
-        test_support::{mock_api, serve},
+        test_support::{
+            collect_while_locked, mock_api, new_update_lock, scrape, serve, update_lock,
+        },
     };
 
     fn exposed(vec: &impl Collector, labels: &[(&str, &str)]) -> Option<f64> {
@@ -285,7 +332,7 @@ mod tests {
                 labels.iter().all(|(k, v)| {
                     m.get_label()
                         .iter()
-                        .any(|l| l.get_name() == *k && l.get_value() == *v)
+                        .any(|l| l.name() == *k && l.value() == *v)
                 })
             })
             .map(|m| m.get_gauge().get_value())
@@ -317,11 +364,17 @@ mod tests {
         for collector in collectors(map) {
             for family in collector.collect() {
                 for metric in family.get_metric() {
-                    let mut labels: Vec<_> = metric.get_label().iter()
-                        .map(|label| (label.get_name().to_string(), label.get_value().to_string()))
+                    let mut labels: Vec<_> = metric
+                        .get_label()
+                        .iter()
+                        .map(|label| (label.name().to_string(), label.value().to_string()))
                         .collect();
                     labels.sort();
-                    values.push((family.get_name().to_string(), labels, metric.get_gauge().get_value()));
+                    values.push((
+                        family.name().to_string(),
+                        labels,
+                        metric.get_gauge().get_value(),
+                    ));
                 }
             }
         }
@@ -336,21 +389,45 @@ mod tests {
     #[tokio::test]
     async fn set_exposes_doc_array_and_all_four_members() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid-get").await).await;
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            fixture("api_v8_storage_raid-get").await,
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_doc".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         let labels = [("id", "0"), ("name", "Freebox"), ("level", "raid5")];
         assert_eq!(Some(0.0), exposed(&map.degraded_metric, &labels));
         assert_eq!(Some(4.0), exposed(&map.disks_expected_metric, &labels));
-        assert_eq!(Some(3_000_000_000_000.0), exposed(&map.size_bytes_metric, &labels));
-        assert_eq!(Some(0.0), exposed(&map.sync_speed_bytes_per_second_metric, &labels));
-        assert_eq!(Some(0.0), exposed(&map.sync_completed_ratio_metric, &labels));
-        assert_eq!(Some(1.0), exposed(&map.state_metric,
-            &[("id", "0"), ("name", "Freebox"), ("state", "running")]));
-        assert_eq!(Some(1.0), exposed(&map.sync_action_metric,
-            &[("id", "0"), ("name", "Freebox"), ("sync_action", "idle")]));
+        assert_eq!(
+            Some(3_000_000_000_000.0),
+            exposed(&map.size_bytes_metric, &labels)
+        );
+        assert_eq!(
+            Some(0.0),
+            exposed(&map.sync_speed_bytes_per_second_metric, &labels)
+        );
+        assert_eq!(
+            Some(0.0),
+            exposed(&map.sync_completed_ratio_metric, &labels)
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.state_metric,
+                &[("id", "0"), ("name", "Freebox"), ("state", "running")]
+            )
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.sync_action_metric,
+                &[("id", "0"), ("name", "Freebox"), ("sync_action", "idle")]
+            )
+        );
         for (id, location, temp) in [
             ("1000", "sata-internal-p1", 43.0),
             ("2000", "sata-internal-p0", 47.0),
@@ -358,16 +435,44 @@ mod tests {
             ("4000", "sata-internal-p3", 46.0),
         ] {
             let labels = [("array_id", "0"), ("id", id), ("device_location", location)];
-            assert_eq!(Some(1.0), exposed(&map.member_role_metric,
-                &[("array_id", "0"), ("id", id), ("device_location", location), ("role", "active")]));
-            assert_eq!(Some(temp), exposed(&map.member_temperature_celsius_metric, &labels));
-            assert_eq!(Some(0.0), exposed(&map.member_corrected_read_errors_metric, &labels));
-            assert_eq!(Some(1_000_000_000_000.0), exposed(&map.member_size_bytes_metric, &labels));
+            assert_eq!(
+                Some(1.0),
+                exposed(
+                    &map.member_role_metric,
+                    &[
+                        ("array_id", "0"),
+                        ("id", id),
+                        ("device_location", location),
+                        ("role", "active")
+                    ]
+                )
+            );
+            assert_eq!(
+                Some(temp),
+                exposed(&map.member_temperature_celsius_metric, &labels)
+            );
+            assert_eq!(
+                Some(0.0),
+                exposed(&map.member_corrected_read_errors_metric, &labels)
+            );
+            assert_eq!(
+                Some(1_000_000_000_000.0),
+                exposed(&map.member_size_bytes_metric, &labels)
+            );
         }
         for (index, collector) in collectors(&map).iter().enumerate() {
             let families = collector.collect();
             let count: usize = families.iter().map(|f| f.get_metric().len()).sum();
-            assert_eq!(if index == 8 { 0 } else if index >= 9 { 4 } else { 1 }, count);
+            assert_eq!(
+                if index == 8 {
+                    0
+                } else if index >= 9 {
+                    4
+                } else {
+                    1
+                },
+                count
+            );
             let expected: &[&str] = match index {
                 1 => &["id", "name", "state"],
                 2 => &["id", "name", "sync_action"],
@@ -377,7 +482,10 @@ mod tests {
             };
             for metric in families.iter().flat_map(|family| family.get_metric()) {
                 assert_eq!(expected.len(), metric.get_label().len());
-                assert!(metric.get_label().iter().all(|label| expected.contains(&label.get_name())));
+                assert!(metric
+                    .get_label()
+                    .iter()
+                    .all(|label| expected.contains(&label.name())));
             }
         }
     }
@@ -385,70 +493,140 @@ mod tests {
     #[tokio::test]
     async fn set_accepts_real_empty_response() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid_empty-get").await).await;
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            fixture("api_v8_storage_raid_empty-get").await,
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_empty".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert!(snapshot(&map).is_empty());
     }
 
     #[tokio::test]
     async fn set_exposes_degraded_faulty_and_resync_progress() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v8/storage/raid/", json!({
-            "success": true, "result": [{
-                "id": 7, "name": "rebuilding", "level": "raid1", "degraded": true,
-                "state": "error", "sync_action": "resync", "sync_completed_percent": 42,
-                "sync_speed": 123456, "array_size": 9876543210_i64, "raid_disks": 2,
-                "members": [{"id": 9, "array_id": 7, "device_location": "sata-internal-p0",
-                    "role": "faulty", "corrected_read_errors": 17,
-                    "total_bytes": 9876543210_i64, "disk": {"temp": 58}}]
-            }]
-        })).await;
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            json!({
+                "success": true, "result": [{
+                    "id": 7, "name": "rebuilding", "level": "raid1", "degraded": true,
+                    "state": "error", "sync_action": "resync", "sync_completed_percent": 42,
+                    "sync_speed": 123456, "array_size": 9876543210_i64, "raid_disks": 2,
+                    "members": [{"id": 9, "array_id": 7, "device_location": "sata-internal-p0",
+                        "role": "faulty", "corrected_read_errors": 17,
+                        "total_bytes": 9876543210_i64, "disk": {"temp": 58}}]
+                }]
+            }),
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_degraded".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let labels = [("id", "7"), ("name", "rebuilding"), ("level", "raid1")];
         assert_eq!(Some(1.0), exposed(&map.degraded_metric, &labels));
-        assert_eq!(Some(0.42), exposed(&map.sync_completed_ratio_metric, &labels));
-        assert_eq!(Some(123456.0), exposed(&map.sync_speed_bytes_per_second_metric, &labels));
+        assert_eq!(
+            Some(0.42),
+            exposed(&map.sync_completed_ratio_metric, &labels)
+        );
+        assert_eq!(
+            Some(123456.0),
+            exposed(&map.sync_speed_bytes_per_second_metric, &labels)
+        );
         assert_eq!(Some(9876543210.0), exposed(&map.size_bytes_metric, &labels));
         assert_eq!(Some(2.0), exposed(&map.disks_expected_metric, &labels));
-        assert_eq!(Some(1.0), exposed(&map.sync_action_metric, &[("id", "7"), ("sync_action", "resync")]));
-        assert_eq!(Some(1.0), exposed(&map.state_metric, &[("id", "7"), ("state", "error")]));
-        let labels = [("array_id", "7"), ("id", "9"), ("device_location", "sata-internal-p0")];
-        assert_eq!(Some(1.0), exposed(&map.member_role_metric,
-            &[("array_id", "7"), ("id", "9"), ("device_location", "sata-internal-p0"), ("role", "faulty")]));
-        assert_eq!(Some(17.0), exposed(&map.member_corrected_read_errors_metric, &labels));
-        assert_eq!(Some(9876543210.0), exposed(&map.member_size_bytes_metric, &labels));
-        assert_eq!(Some(58.0), exposed(&map.member_temperature_celsius_metric, &labels));
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.sync_action_metric,
+                &[("id", "7"), ("sync_action", "resync")]
+            )
+        );
+        assert_eq!(
+            Some(1.0),
+            exposed(&map.state_metric, &[("id", "7"), ("state", "error")])
+        );
+        let labels = [
+            ("array_id", "7"),
+            ("id", "9"),
+            ("device_location", "sata-internal-p0"),
+        ];
+        assert_eq!(
+            Some(1.0),
+            exposed(
+                &map.member_role_metric,
+                &[
+                    ("array_id", "7"),
+                    ("id", "9"),
+                    ("device_location", "sata-internal-p0"),
+                    ("role", "faulty")
+                ]
+            )
+        );
+        assert_eq!(
+            Some(17.0),
+            exposed(&map.member_corrected_read_errors_metric, &labels)
+        );
+        assert_eq!(
+            Some(9876543210.0),
+            exposed(&map.member_size_bytes_metric, &labels)
+        );
+        assert_eq!(
+            Some(58.0),
+            exposed(&map.member_temperature_celsius_metric, &labels)
+        );
     }
 
     #[tokio::test]
     async fn set_omits_zero_timestamps_and_exposes_nonzero_timestamps() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v8/storage/raid/", json!({"success": true, "result": [
-            {"id": 1, "last_check": 1576082428, "next_check": 0},
-            {"id": 2, "last_check": 0, "next_check": 1576086028}
-        ]})).await;
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            json!({"success": true, "result": [
+                {"id": 1, "last_check": 1576082428, "next_check": 0},
+                {"id": 2, "last_check": 0, "next_check": 1576086028}
+            ]}),
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_timestamps".to_string());
-        map.set().await.unwrap();
-        assert_eq!(Some(1576082428.0), exposed(&map.last_check_timestamp_seconds_metric, &[("id", "1")]));
-        assert_eq!(None, exposed(&map.next_check_timestamp_seconds_metric, &[("id", "1")]));
-        assert_eq!(None, exposed(&map.last_check_timestamp_seconds_metric, &[("id", "2")]));
-        assert_eq!(Some(1576086028.0), exposed(&map.next_check_timestamp_seconds_metric, &[("id", "2")]));
+        map.set(update_lock()).await.unwrap();
+        assert_eq!(
+            Some(1576082428.0),
+            exposed(&map.last_check_timestamp_seconds_metric, &[("id", "1")])
+        );
+        assert_eq!(
+            None,
+            exposed(&map.next_check_timestamp_seconds_metric, &[("id", "1")])
+        );
+        assert_eq!(
+            None,
+            exposed(&map.last_check_timestamp_seconds_metric, &[("id", "2")])
+        );
+        assert_eq!(
+            Some(1576086028.0),
+            exposed(&map.next_check_timestamp_seconds_metric, &[("id", "2")])
+        );
     }
 
     #[tokio::test]
     async fn set_reports_insufficient_rights() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v8/storage/raid/", json!({
-            "success": false, "error_code": "insufficient_rights"
-        })).await;
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            json!({
+                "success": false, "error_code": "insufficient_rights"
+            }),
+        )
+        .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_rights".to_string());
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert!(err.to_string().contains("insufficient_rights"), "{err}");
     }
 
@@ -462,12 +640,14 @@ mod tests {
         let first = wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/api/v8/storage/raid/"))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(body))
-            .mount_as_scoped(&server).await;
-        map.set().await.unwrap();
+            .mount_as_scoped(&server)
+            .await;
+        map.set(update_lock()).await.unwrap();
         let before = snapshot(&map);
         assert_eq!(25, before.len());
-        assert!(collectors(&map).iter().all(|c|
-            c.collect().iter().any(|f| !f.get_metric().is_empty())));
+        assert!(collectors(&map)
+            .iter()
+            .all(|c| c.collect().iter().any(|f| !f.get_metric().is_empty())));
         drop(first);
 
         let failure = wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -475,13 +655,19 @@ mod tests {
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
                 "success": false, "error_code": "internal_error"
             })))
-            .mount_as_scoped(&server).await;
-        assert!(map.set().await.is_err());
+            .mount_as_scoped(&server)
+            .await;
+        assert!(map.set(update_lock()).await.is_err());
         assert_eq!(before, snapshot(&map));
         drop(failure);
 
-        serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid_empty-get").await).await;
-        map.set().await.unwrap();
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            fixture("api_v8_storage_raid_empty-get").await,
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
         assert!(snapshot(&map).is_empty());
     }
 
@@ -492,21 +678,64 @@ mod tests {
         let mut map = RaidMetricMap::new(&factory, "test_raid_missing".to_string());
         let first = wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/api/v8/storage/raid/"))
-            .respond_with(wiremock::ResponseTemplate::new(200)
-                .set_body_json(fixture("api_v8_storage_raid-get").await))
-            .mount_as_scoped(&server).await;
-        map.set().await.unwrap();
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(fixture("api_v8_storage_raid-get").await),
+            )
+            .mount_as_scoped(&server)
+            .await;
+        map.set(update_lock()).await.unwrap();
         assert_eq!(24, snapshot(&map).len());
         drop(first);
 
-        serve(&server, "/api/v8/storage/raid/", json!({"success": true, "result": [{
-            "id": 0, "name": "Freebox", "level": "raid5", "members": [
-                {"id": 1000, "device_location": "sata-internal-p1"},
-                {"id": 2000, "device_location": "sata-internal-p0", "disk": {}},
-                {"id": 3000, "device_location": "sata-internal-p2", "disk": {"temp": null}}
-            ]
-        }]})).await;
-        map.set().await.unwrap();
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            json!({"success": true, "result": [{
+                "id": 0, "name": "Freebox", "level": "raid5", "members": [
+                    {"id": 1000, "device_location": "sata-internal-p1"},
+                    {"id": 2000, "device_location": "sata-internal-p0", "disk": {}},
+                    {"id": 3000, "device_location": "sata-internal-p2", "disk": {"temp": null}}
+                ]
+            }]}),
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
+        assert!(snapshot(&map).is_empty());
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_raid_lock";
+        let mut map = RaidMetricMap::new(&factory, prefix.to_string());
+
+        let first = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/v8/storage/raid/"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(fixture("api_v8_storage_raid-get").await),
+            )
+            .mount_as_scoped(&server)
+            .await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(!before.is_empty());
+        drop(first);
+
+        // the array disappeared
+        serve(
+            &server,
+            "/api/v8/storage/raid/",
+            fixture("api_v8_storage_raid_empty-get").await,
+        )
+        .await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
         assert!(snapshot(&map).is_empty());
     }
 }

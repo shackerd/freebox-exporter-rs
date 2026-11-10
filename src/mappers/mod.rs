@@ -8,6 +8,7 @@ use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
 use nas::NasMetricMap;
+use prometheus_exporter::UpdateLock;
 use raid::RaidMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
@@ -39,7 +40,12 @@ pub mod wifi;
 
 #[async_trait]
 pub trait MetricMap<'a> {
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    /// Collects the values from the box, then updates the metrics while holding `lock`,
+    /// the lock the exporter takes to return them
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
@@ -96,10 +102,7 @@ impl<'a> Mapper<'a> {
             if e {
                 maps.push((
                     "lan",
-                    Box::new(LanMetricMap::new(
-                        factory,
-                        conf.prefix.to_owned().unwrap(),
-                    )),
+                    Box::new(LanMetricMap::new(factory, conf.prefix.to_owned().unwrap())),
                 ));
             }
         } else {
@@ -191,10 +194,7 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "nas",
-                        Box::new(NasMetricMap::new(
-                            factory,
-                            conf.prefix.to_owned().unwrap(),
-                        )),
+                        Box::new(NasMetricMap::new(factory, conf.prefix.to_owned().unwrap())),
                     ));
                 }
             }
@@ -315,12 +315,19 @@ impl<'a> Mapper<'a> {
                 }
             }
         } else {
-            warn!("DynDNS metrics are disabled by default, missing entry in the configuration file");
+            warn!(
+                "DynDNS metrics are disabled by default, missing entry in the configuration file"
+            );
         }
 
         let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());
         for name in undetected {
-            health.observe(name, false, std::time::Duration::ZERO, std::time::SystemTime::now());
+            health.observe(
+                name,
+                false,
+                std::time::Duration::ZERO,
+                std::time::SystemTime::now(),
+            );
         }
 
         Self { maps, health }
@@ -343,15 +350,20 @@ impl<'a> Mapper<'a> {
 
     /// Runs every collector; a failing collector does not stop the others nor the exporter,
     /// its outcome is exposed through the health metrics
-    pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for (name, map) in self.maps.iter_mut() {
             let started = std::time::Instant::now();
-            let res = map.set().await;
+            let res = map.set(lock).await;
 
             if let Err(e) = &res {
                 error!("collector {name} failed: {e}");
             }
 
+            // a scrape waits for the health update to complete instead of returning part of it
+            let _update = lock.lock();
             self.health.observe(
                 name,
                 res.is_ok(),
@@ -372,6 +384,9 @@ mod tests {
     };
 
     use super::*;
+    use crate::mappers::test_support::{
+        collect_while_locked, new_update_lock, scrape, update_lock,
+    };
 
     /// Collector returning a scripted sequence of outcomes and counting its runs
     struct ScriptedMap {
@@ -396,7 +411,10 @@ mod tests {
 
     #[async_trait]
     impl<'a> MetricMap<'a> for ScriptedMap {
-        async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn set(
+            &mut self,
+            _lock: &UpdateLock,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             *self.runs.lock().unwrap() += 1;
             match self.outcomes.pop_front() {
                 Some(true) => Ok(()),
@@ -430,9 +448,20 @@ mod tests {
         )
         .unwrap();
         let caps: Capabilities =
-            serde_json::from_str(r#"{ "vm": null, "raid": null, "vpn": null, "ddns": null }"#).unwrap();
+            serde_json::from_str(r#"{ "vm": null, "raid": null, "vpn": null, "ddns": null }"#)
+                .unwrap();
 
-        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+        let mapper = Mapper::new(
+            &factory,
+            conf,
+            caps,
+            ApiConfiguration {
+                refresh: Some(5),
+                connect_timeout: None,
+                request_timeout: None,
+            },
+            None,
+        );
 
         assert!(mapper.maps.is_empty());
         for name in ["vm", "raid", "vpn", "ddns"] {
@@ -447,12 +476,25 @@ mod tests {
     async fn requested_collectors_are_created_only_when_supported() {
         let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
         let factory = authenticator.login().await.unwrap();
-        let conf: CapabilitiesConfiguration =
-            toml::from_str(&format!("{NEW_COLLECTORS_CONF}prefix = \"test_mapper_supported\"")).unwrap();
+        let conf: CapabilitiesConfiguration = toml::from_str(&format!(
+            "{NEW_COLLECTORS_CONF}prefix = \"test_mapper_supported\""
+        ))
+        .unwrap();
         let caps: Capabilities =
-            serde_json::from_str(r#"{ "vm": true, "raid": true, "vpn": true, "ddns": true }"#).unwrap();
+            serde_json::from_str(r#"{ "vm": true, "raid": true, "vpn": true, "ddns": true }"#)
+                .unwrap();
 
-        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+        let mapper = Mapper::new(
+            &factory,
+            conf,
+            caps,
+            ApiConfiguration {
+                refresh: Some(5),
+                connect_timeout: None,
+                request_timeout: None,
+            },
+            None,
+        );
 
         let names: Vec<&str> = mapper.maps.iter().map(|(name, _)| *name).collect();
         assert_eq!(vec!["vm", "raid", "vpn", "ddns"], names);
@@ -462,12 +504,25 @@ mod tests {
     async fn requested_collectors_are_skipped_silently_when_unsupported() {
         let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
         let factory = authenticator.login().await.unwrap();
-        let conf: CapabilitiesConfiguration =
-            toml::from_str(&format!("{NEW_COLLECTORS_CONF}prefix = \"test_mapper_unsupported\"")).unwrap();
+        let conf: CapabilitiesConfiguration = toml::from_str(&format!(
+            "{NEW_COLLECTORS_CONF}prefix = \"test_mapper_unsupported\""
+        ))
+        .unwrap();
         let caps: Capabilities =
-            serde_json::from_str(r#"{ "vm": false, "raid": false, "vpn": false, "ddns": false }"#).unwrap();
+            serde_json::from_str(r#"{ "vm": false, "raid": false, "vpn": false, "ddns": false }"#)
+                .unwrap();
 
-        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+        let mapper = Mapper::new(
+            &factory,
+            conf,
+            caps,
+            ApiConfiguration {
+                refresh: Some(5),
+                connect_timeout: None,
+                request_timeout: None,
+            },
+            None,
+        );
 
         assert!(mapper.maps.is_empty());
         // unlike undetected support, a known lack of support is not a failure
@@ -482,7 +537,7 @@ mod tests {
         let (ko, _) = ScriptedMap::new(&[false]);
         let mut mapper = mapper(vec![("ok", Box::new(ok)), ("ko", Box::new(ko))]);
 
-        assert!(mapper.set_all().await.is_ok());
+        assert!(mapper.set_all(update_lock()).await.is_ok());
 
         assert_eq!(Some(1.0), mapper.health.success("ok"));
         assert_eq!(Some(0.0), mapper.health.success("ko"));
@@ -491,13 +546,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn health_update_waits_for_a_scrape_in_progress() {
+        let prefix = "test_mapper_lock";
+        let (map, _) = ScriptedMap::new(&[true, false]);
+        let mut mapper = Mapper {
+            maps: vec![("scripted", Box::new(map))],
+            health: CollectorHealth::register(prefix),
+        };
+
+        mapper.set_all(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("_collector_success{") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+
+        // the collector now fails
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, mapper.set_all(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_eq!(Some(0.0), mapper.health.success("scripted"));
+    }
+
+    #[tokio::test]
     async fn set_all_keeps_last_success_timestamp_when_collector_starts_failing() {
         let (flaky, _) = ScriptedMap::new(&[true, false]);
         let mut mapper = mapper(vec![("flaky", Box::new(flaky))]);
 
-        mapper.set_all().await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
         let first_success = mapper.health.last_success("flaky");
-        mapper.set_all().await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
 
         assert_eq!(Some(0.0), mapper.health.success("flaky"));
         assert!(first_success.is_some());
@@ -510,7 +592,7 @@ mod tests {
         let (ok, ok_runs) = ScriptedMap::new(&[true]);
         let mut mapper = mapper(vec![("ko", Box::new(ko)), ("ok", Box::new(ok))]);
 
-        mapper.set_all().await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
 
         assert_eq!(1, *ko_runs.lock().unwrap());
         assert_eq!(1, *ok_runs.lock().unwrap());
@@ -523,7 +605,10 @@ mod tests {
         broken.init_fails = true;
         let (healthy, _) = ScriptedMap::new(&[]);
         let healthy_inits = healthy.inits.clone();
-        let mut mapper = mapper(vec![("broken", Box::new(broken)), ("healthy", Box::new(healthy))]);
+        let mut mapper = mapper(vec![
+            ("broken", Box::new(broken)),
+            ("healthy", Box::new(healthy)),
+        ]);
 
         assert!(mapper.init_all().await.is_ok());
 
@@ -539,14 +624,32 @@ mod tests {
     ) -> Vec<NamedMetricMap<'a>> {
         let prefix = prefix.to_string();
         vec![
-            ("connection", Box::new(ConnectionMetricMap::new(factory, prefix.clone()))),
-            ("system", Box::new(SystemMetricMap::new(factory, prefix.clone()))),
+            (
+                "connection",
+                Box::new(ConnectionMetricMap::new(factory, prefix.clone())),
+            ),
+            (
+                "system",
+                Box::new(SystemMetricMap::new(factory, prefix.clone())),
+            ),
             ("lan", Box::new(LanMetricMap::new(factory, prefix.clone()))),
-            ("lan_browser", Box::new(LanBrowserMetricMap::new(factory, prefix.clone()))),
-            ("switch", Box::new(SwitchMetricMap::new(factory, prefix.clone()))),
-            ("dhcp", Box::new(dhcp::DhcpMetricMap::new(factory, prefix.clone()))),
+            (
+                "lan_browser",
+                Box::new(LanBrowserMetricMap::new(factory, prefix.clone())),
+            ),
+            (
+                "switch",
+                Box::new(SwitchMetricMap::new(factory, prefix.clone())),
+            ),
+            (
+                "dhcp",
+                Box::new(dhcp::DhcpMetricMap::new(factory, prefix.clone())),
+            ),
             ("nas", Box::new(NasMetricMap::new(factory, prefix.clone()))),
-            ("download", Box::new(DownloadMetricMap::new(factory, prefix))),
+            (
+                "download",
+                Box::new(DownloadMetricMap::new(factory, prefix)),
+            ),
         ]
     }
 
@@ -559,7 +662,10 @@ mod tests {
 
         // a panic here would stop every collector of the exporter
         for (name, mut map) in existing_collectors(&factory, "test_expired_client") {
-            assert!(map.set().await.is_err(), "{name} succeeded with an expired client");
+            assert!(
+                map.set(update_lock()).await.is_err(),
+                "{name} succeeded with an expired client"
+            );
         }
     }
 
@@ -580,9 +686,11 @@ mod tests {
             // the box accepts the first login of the collector, then refuses the renewal
             server.reset().await;
             Mock::given(path("/api/v4/login/"))
-                .respond_with(ResponseTemplate::new(200).set_body_json(
-                    json!({ "success": true, "result": { "challenge": "1234" } }),
-                ))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(
+                        json!({ "success": true, "result": { "challenge": "1234" } }),
+                    ),
+                )
                 .up_to_n_times(1)
                 .with_priority(1)
                 .mount(&server)
@@ -602,9 +710,17 @@ mod tests {
                 .mount(&server)
                 .await;
 
-            assert!(map.set().await.is_err(), "{name} succeeded without session");
-            let challenges = server.received_requests().await.unwrap().iter()
-                .filter(|r| r.url.path() == "/api/v4/login/").count();
+            assert!(
+                map.set(update_lock()).await.is_err(),
+                "{name} succeeded without session"
+            );
+            let challenges = server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .filter(|r| r.url.path() == "/api/v4/login/")
+                .count();
             assert_eq!(2, challenges, "{name} did not try to renew its session");
         }
     }
@@ -643,18 +759,31 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/api/v4/login/session"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({ "success": true, "result": { "session_token": "4321" } })),
+                ResponseTemplate::new(200).set_body_json(
+                    json!({ "success": true, "result": { "session_token": "4321" } }),
+                ),
             )
             .mount(&server)
             .await;
         let mut map = LanMetricMap::new(&factory, "test_slow_renewal".to_string());
 
         let started = std::time::Instant::now();
-        assert!(map.set().await.is_err());
-        assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
-        assert_eq!(2, server.received_requests().await.unwrap().iter()
-            .filter(|r| r.url.path() == "/api/v4/login/").count());
+        assert!(map.set(update_lock()).await.is_err());
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "{:?}",
+            started.elapsed()
+        );
+        assert_eq!(
+            2,
+            server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .filter(|r| r.url.path() == "/api/v4/login/")
+                .count()
+        );
     }
 }
 

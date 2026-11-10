@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
@@ -379,9 +380,8 @@ impl<'a> SwitchMetricMap<'a> {
 
     async fn get_ports_status(
         &mut self,
-        body: &str
-    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {      
-
+        body: &str,
+    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
         let fixed_body = SwitchMetricMap::handle_malformed_mac_list(&body)?;
 
         let res = match serde_json::from_str::<FreeboxResponse<Vec<SwitchPortStatus>>>(&fixed_body)
@@ -440,10 +440,9 @@ impl<'a> SwitchMetricMap<'a> {
 
     async fn get_port_stats(
         &mut self,
-        body: &str, 
+        body: &str,
         port_id: &i16,
     ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
-
         let res = match serde_json::from_str::<FreeboxResponse<SwitchPortStats>>(body) {
             Err(e) => return Err(Box::new(e)),
             Ok(r) => r,
@@ -502,9 +501,10 @@ impl<'a> SwitchMetricMap<'a> {
         self.port_mac_list_gauge.reset();
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let body_status = self.get_ports_status_json().await;
 
         if body_status.is_err() {
@@ -513,18 +513,19 @@ impl<'a> SwitchMetricMap<'a> {
             )));
         }
 
-        let body_status = body_status.unwrap(); 
+        let body_status = body_status.unwrap();
 
         let port_statuses = match self.get_ports_status(&body_status).await {
             Err(e) => return Err(e),
             Ok(r) => r,
         };
 
+        // fetch every port before touching the metrics: a scrape during the requests
+        // still sees the previous collection, and a failed request keeps it
+        let mut fetched = Vec::with_capacity(port_statuses.len());
         for port_status in port_statuses {
-            
-            let body_stats = self.get_port_stats_json(&port_status)
-                .await;
-            
+            let body_stats = self.get_port_stats_json(&port_status).await;
+
             if body_stats.is_err() {
                 return Err(Box::new(FreeboxResponseError::new(
                     "v4/switch/port/{}/stats failed".to_string(),
@@ -533,11 +534,20 @@ impl<'a> SwitchMetricMap<'a> {
 
             let body_stats = body_stats.unwrap();
 
-            let stats = match self.get_port_stats(&body_stats, port_status.id.as_ref().unwrap()).await {
+            let stats = match self
+                .get_port_stats(&body_stats, port_status.id.as_ref().unwrap())
+                .await
+            {
                 Err(e) => return Err(e),
                 Ok(r) => r,
             };
+            fetched.push((port_status, stats));
+        }
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
+        self.reset_all();
+        for (port_status, stats) in fetched {
             self.rx_packets_rate_gauge
                 .with_label_values(&[&port_status.id.unwrap_or_default().to_string()])
                 .set(stats.rx_packets_rate.unwrap_or_default());
@@ -692,16 +702,17 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = self.set_all().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Err(e) = self.set_all(lock).await {
             return Err(e);
         }
 
         Ok(())
     }
 }
-
-
 
 lazy_static! {
     // for performance reasons, we compile the regex only once
@@ -763,5 +774,111 @@ mod non_reg_tests {
         // check is the replacement is done correctly
         let reg = Regex::new(r#""mac_list".+\[\s{0,}\]"#).unwrap();
         assert!(reg.is_match(&res.unwrap()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
+    };
+
+    fn stats(rx_good_bytes: i64) -> Value {
+        json!({ "success": true, "result": { "rx_good_bytes": rx_good_bytes } })
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        serve(
+            &server,
+            "/api/v4/switch/status/",
+            json!({ "success": true, "result": [
+            { "id": 1, "link": "up", "speed": "1000", "mac_list": [] },
+            { "id": 2, "link": "up", "speed": "1000", "mac_list": [] }
+        ] }),
+        )
+        .await;
+        serve(&server, "/api/v4/switch/port/1/stats", stats(1)).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_switch_scrape";
+        let mut map = SwitchMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/switch/port/2/stats", stats(100)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        let port_2 = |lines: &[String]| {
+            lines
+                .iter()
+                .find(|l| l.contains("rx_good_bytes{") && l.contains("\"2\""))
+                .cloned()
+        };
+        assert!(
+            port_2(&before).is_some_and(|l| l.ends_with(" 100")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // the last request of the collection is slow, and returns new stats
+        serve_slowly(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/switch/port/2/stats",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(port_2(&scrape(prefix)).is_some_and(|l| l.ends_with(" 200")));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        serve(
+            &server,
+            "/api/v4/switch/status/",
+            json!({ "success": true, "result": [
+            { "id": 1, "link": "up", "speed": "1000", "mac_list": [] },
+            { "id": 2, "link": "up", "speed": "1000", "mac_list": [] }
+        ] }),
+        )
+        .await;
+        serve(&server, "/api/v4/switch/port/1/stats", stats(1)).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_switch_lock";
+        let mut map = SwitchMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/switch/port/2/stats", stats(100)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        let port_2 = |lines: &[String]| {
+            lines
+                .iter()
+                .find(|l| l.contains("rx_good_bytes{") && l.contains("\"2\""))
+                .cloned()
+        };
+        assert!(
+            port_2(&before).is_some_and(|l| l.ends_with(" 100")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(port_2(&scrape(prefix)).is_some_and(|l| l.ends_with(" 200")));
     }
 }

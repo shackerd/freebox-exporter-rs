@@ -3,6 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -94,42 +95,58 @@ impl<'a> DownloadMetricMap<'a> {
                 format!("{prefix}_download_tasks_total"),
                 "Total number of download tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_total gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_total gauge"
+            )),
             nb_tasks_active_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_active"),
                 "Number of active download tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_active gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_active gauge"
+            )),
             nb_tasks_downloading_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_downloading"),
                 "Number of downloading tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_downloading gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_downloading gauge"
+            )),
             nb_tasks_seeding_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_seeding"),
                 "Number of seeding tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_seeding gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_seeding gauge"
+            )),
             nb_tasks_stopped_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_stopped"),
                 "Number of stopped tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_stopped gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_stopped gauge"
+            )),
             nb_tasks_queued_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_queued"),
                 "Number of queued tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_queued gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_queued gauge"
+            )),
             nb_tasks_checking_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_checking"),
                 "Number of checking tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_checking gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_checking gauge"
+            )),
             nb_tasks_extracting_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_extracting"),
                 "Number of extracting tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_extracting gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_extracting gauge"
+            )),
             nb_tasks_done_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_done"),
                 "Number of completed tasks"
@@ -139,32 +156,44 @@ impl<'a> DownloadMetricMap<'a> {
                 format!("{prefix}_download_tasks_repairing"),
                 "Number of repairing tasks"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_repairing gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_repairing gauge"
+            )),
             nb_tasks_error_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_error"),
                 "Number of tasks in error state"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_error gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_error gauge"
+            )),
             nb_tasks_stopping_metric: register_int_gauge!(
                 format!("{prefix}_download_tasks_stopping"),
                 "Number of tasks stopping"
             )
-            .expect(&format!("cannot create {prefix}_download_tasks_stopping gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_tasks_stopping gauge"
+            )),
             nb_rss_items_unread_metric: register_int_gauge!(
                 format!("{prefix}_download_rss_items_unread"),
                 "Number of unread RSS download items"
             )
-            .expect(&format!("cannot create {prefix}_download_rss_items_unread gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_rss_items_unread gauge"
+            )),
             nb_peer_metric: register_int_gauge!(
                 format!("{prefix}_download_peers_total"),
                 "Number of connected download peers"
             )
-            .expect(&format!("cannot create {prefix}_download_peers_total gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_peers_total gauge"
+            )),
             conn_ready_metric: register_int_gauge!(
                 format!("{prefix}_download_connection_ready"),
                 "Download connection readiness (1 ready, 0 not ready)"
             )
-            .expect(&format!("cannot create {prefix}_download_connection_ready gauge")),
+            .expect(&format!(
+                "cannot create {prefix}_download_connection_ready gauge"
+            )),
             throttling_is_scheduled_metric: register_int_gauge!(
                 format!("{prefix}_download_throttling_is_scheduled"),
                 "Download throttling schedule status (1 scheduled, 0 not scheduled)"
@@ -230,6 +259,7 @@ impl<'a> DownloadMetricMap<'a> {
 
     async fn set_download_metrics(
         &mut self,
+        lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let body = self
             .get_managed_client()
@@ -260,6 +290,8 @@ impl<'a> DownloadMetricMap<'a> {
             }
         };
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.rx_rate_metric.set(stats.rx_rate.unwrap_or_default());
         self.tx_rate_metric.set(stats.tx_rate.unwrap_or_default());
         self.nb_tasks_metric.set(stats.nb_tasks.unwrap_or_default());
@@ -324,8 +356,11 @@ impl<'a> MetricMap<'a> for DownloadMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_download_metrics().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_download_metrics(lock).await
     }
 }
 
@@ -386,5 +421,52 @@ mod tests {
         let rate = stats.throttling_rate.unwrap();
         assert_eq!(rate.rx_rate.unwrap(), 0);
         assert_eq!(rate.tx_rate.unwrap(), 0);
+    }
+}
+
+#[cfg(test)]
+mod tests_collect {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{
+        collect_while_locked, mock_api, new_update_lock, scrape, serve, serve_scoped, update_lock,
+    };
+
+    fn stats(nb_peer: i64) -> Value {
+        json!({ "success": true, "result": { "nb_peer": nb_peer, "throttling_mode": "normal" } })
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_download_lock";
+        let mut map = DownloadMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/downloads/stats", stats(1)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("_peers_total") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+        drop(first);
+
+        serve(&server, "/api/v4/downloads/stats", stats(2)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        let after = scrape(prefix);
+        assert!(
+            after
+                .iter()
+                .any(|l| l.contains("_peers_total") && l.ends_with(" 2")),
+            "{after:?}"
+        );
     }
 }

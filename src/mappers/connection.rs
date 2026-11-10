@@ -2,20 +2,18 @@ use async_trait::async_trait;
 use log::{debug, info};
 use models::{
     ConnectionConfiguration, ConnectionFtth, ConnectionIpv6Configuration, ConnectionStatus,
-    XdslInfo, XdslStats,
+    XdslInfo, XdslStats, XdslStatus,
 };
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 
-
 use super::MetricMap;
-use crate::{
-    core::common::{
-        http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-        transport::{FreeboxResponse, FreeboxResponseError},
-    },
+use crate::core::common::{
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
+    transport::{FreeboxResponse, FreeboxResponseError},
 };
 mod models;
 mod unittests;
@@ -469,9 +467,9 @@ impl<'a> ConnectionMetricMap<'a> {
         }
     }
 
-    async fn set_connection_ftth_status(
+    async fn get_connection_ftth(
         &mut self,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<ConnectionFtth, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ftth");
 
         let body = self
@@ -494,15 +492,15 @@ impl<'a> ConnectionMetricMap<'a> {
             )));
         }
 
-        let ftth = match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection/ftth response was empty".to_string(),
-                )))
-            }
-            Some(r) => r,
-        };
+        match res.result {
+            None => Err(Box::new(FreeboxResponseError::new(
+                "v4/connection/ftth response was empty".to_string(),
+            ))),
+            Some(r) => Ok(r),
+        }
+    }
 
+    fn set_connection_ftth_status(&self, ftth: ConnectionFtth) {
         self.sfp_has_power_report_metric
             .set(ftth.sfp_has_power_report.unwrap_or_default().into());
         self.sfp_has_signal_metric
@@ -525,7 +523,6 @@ impl<'a> ConnectionMetricMap<'a> {
             .set(ftth.sfp_serial.is_some().into());
         self.sfp_present_metric
             .set(ftth.sfp_present.unwrap_or_default().into());
-        Ok(())
     }
 
     async fn get_connection_status(
@@ -556,7 +553,7 @@ impl<'a> ConnectionMetricMap<'a> {
         }
     }
 
-    async fn set_connection_status(
+    fn set_connection_status(
         &mut self,
         status: &ConnectionStatus,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -594,9 +591,9 @@ impl<'a> ConnectionMetricMap<'a> {
         Ok(())
     }
 
-    async fn set_connection_conf(
+    async fn get_connection_conf(
         &mut self,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<ConnectionConfiguration, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection configuration");
 
         let body = self
@@ -619,15 +616,15 @@ impl<'a> ConnectionMetricMap<'a> {
             )));
         }
 
-        let conf = match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection/config response was empty".to_string(),
-                )))
-            }
-            Some(r) => r,
-        };
+        match res.result {
+            None => Err(Box::new(FreeboxResponseError::new(
+                "v4/connection/config response was empty".to_string(),
+            ))),
+            Some(r) => Ok(r),
+        }
+    }
 
+    fn set_connection_conf(&self, conf: ConnectionConfiguration) {
         self.ping_metric.set(conf.ping.unwrap_or_default().into());
         self.is_secure_pass_metric
             .set(conf.is_secure_pass.unwrap_or_default().into());
@@ -647,13 +644,11 @@ impl<'a> ConnectionMetricMap<'a> {
         self.remote_access_ip_metric
             .with_label_values(&[&conf.remote_access_ip.unwrap_or_else(|| String::new())])
             .set(conf.remote_access.is_some().into());
-
-        Ok(())
     }
 
-    async fn set_connection_ipv6_conf(
+    async fn get_connection_ipv6_conf(
         &mut self,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<ConnectionIpv6Configuration, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ipv6 configuration");
 
         let body = self
@@ -677,15 +672,28 @@ impl<'a> ConnectionMetricMap<'a> {
             )));
         }
 
-        let conf = match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection/ipv6/config response was empty".to_string(),
+        match res.result {
+            None => Err(Box::new(FreeboxResponseError::new(
+                "v4/connection/ipv6/config response was empty".to_string(),
+            ))),
+            // a delegation is exposed with both labels: an incomplete one fails the collection,
+            // which keeps the previous one
+            Some(r)
+                if r.delegations
+                    .iter()
+                    .flatten()
+                    .any(|d| d.prefix.is_none() || d.next_hop.is_none()) =>
+            {
+                Err(Box::new(FreeboxResponseError::new(
+                    "v4/connection/ipv6/config delegation is missing prefix or next_hop"
+                        .to_string(),
                 )))
             }
-            Some(r) => r,
-        };
+            Some(r) => Ok(r),
+        }
+    }
 
+    fn set_connection_ipv6_conf(&self, conf: ConnectionIpv6Configuration) {
         self.ipv6_enabled_metric
             .set(conf.ipv6_enabled.unwrap_or_default().into());
 
@@ -699,13 +707,11 @@ impl<'a> ConnectionMetricMap<'a> {
                     .set(1);
             }
         }
-
-        Ok(())
     }
 
     async fn get_xdsl_info(
         &mut self,
-    ) -> Result<XdslInfo, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(XdslStatus, XdslStats, XdslStats), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching xdsl info");
 
         let client = self.get_managed_client().await?;
@@ -717,19 +723,23 @@ impl<'a> ConnectionMetricMap<'a> {
             .json::<FreeboxResponse<XdslInfo>>()
             .await?;
 
-        result.result.ok_or_else(|| {
+        let info = result.result.ok_or_else(|| {
             Box::new(FreeboxResponseError::new(
                 "v4/connection/xdsl/status response was empty".to_string(),
             )) as Box<dyn std::error::Error + Send + Sync>
-        })
+        })?;
+
+        // the metrics are set from every part: an incomplete response fails the collection,
+        // which keeps the previous one
+        match (info.status, info.up, info.down) {
+            (Some(status), Some(up), Some(down)) => Ok((status, up, down)),
+            _ => Err(Box::new(FreeboxResponseError::new(
+                "v4/connection/xdsl response is missing status, up or down".to_string(),
+            ))),
+        }
     }
 
-    async fn set_xdsl_status(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        debug!("fetching xdsl status");
-
-        let info = self.get_xdsl_info().await?;
-        let status = info.status.unwrap();
-
+    fn set_xdsl_status(&self, status: XdslStatus, up: XdslStats, down: XdslStats) {
         self.xdsl_status_uptime
             .with_label_values(&[
                 &status.status.unwrap_or_default(),
@@ -737,9 +747,6 @@ impl<'a> ConnectionMetricMap<'a> {
                 &status.modulation.unwrap_or_default(),
             ])
             .set(status.uptime.unwrap_or_default().into());
-
-        let up = info.up.unwrap();
-        let down = info.down.unwrap();
 
         struct DirectionStats {
             direction: String,
@@ -804,8 +811,6 @@ impl<'a> ConnectionMetricMap<'a> {
                 .with_label_values(&[&stats.direction])
                 .set(stats.stats.rtx_uc.unwrap_or_default().into());
         }
-
-        Ok(())
     }
 
     fn reset_all(&mut self) {
@@ -880,31 +885,47 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // fetch everything before touching the metrics: a scrape during the requests
+        // still sees the previous collection, and a failed request keeps it
         let status = self.get_connection_status().await?;
-        self.set_connection_status(&status).await?;
+        let conf = self.get_connection_conf().await?;
+        let ipv6_conf = self.get_connection_ipv6_conf().await?;
 
-        self.set_connection_conf().await?;
-        self.set_connection_ipv6_conf().await?;
-
-        let media = status.media.unwrap_or("unknown".to_string()).to_lowercase();
+        let media = status
+            .media
+            .clone()
+            .unwrap_or("unknown".to_string())
+            .to_lowercase();
         let is_ftth = media == "ftth";
+
+        let (ftth, xdsl) = if is_ftth {
+            (Some(self.get_connection_ftth().await?), None)
+        } else {
+            (None, Some(self.get_xdsl_info().await?))
+        };
 
         if is_ftth != self.is_ftth.unwrap_or(true) {
             info!("network media has changed, now exposing metrics: {}", media);
             self.is_ftth = Some(is_ftth);
         }
 
-        if is_ftth {
-            self.set_connection_ftth_status().await?;
-        } else {
-            self.set_xdsl_status().await?;
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
+        self.reset_all();
+        self.set_connection_status(&status)?;
+        self.set_connection_conf(conf);
+        self.set_connection_ipv6_conf(ipv6_conf);
+        if let Some(ftth) = ftth {
+            self.set_connection_ftth_status(ftth);
+        }
+        if let Some((status, up, down)) = xdsl {
+            self.set_xdsl_status(status, up, down);
         }
 
         Ok(())
     }
 }
-
-

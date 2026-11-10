@@ -1,4 +1,3 @@
-
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
@@ -7,6 +6,7 @@ use crate::core::common::{
 use async_trait::async_trait;
 use log::{debug, warn};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -117,7 +117,9 @@ impl<'a> LanBrowserMetricMap<'a> {
         interface: &LanBrowserInterface,
     ) -> Result<Vec<LanHost>, Box<dyn std::error::Error + Send + Sync>> {
         let iface = interface.name.as_ref().ok_or_else(|| {
-            Box::new(FreeboxResponseError::new("interface has no name".to_string()))
+            Box::new(FreeboxResponseError::new(
+                "interface has no name".to_string(),
+            ))
         })?;
 
         debug!("fetching {} interface devices", iface);
@@ -226,85 +228,97 @@ impl<'a> LanBrowserMetricMap<'a> {
         self.iface_gauge.reset();
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let ifaces = self.get_ifaces().await?;
 
-        let ifaces = match self.get_ifaces().await {
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        };
-
+        // fetch every interface before touching the metrics: a scrape during the requests
+        // still sees the previous collection, and a failed listing keeps it
+        let mut fetched = vec![];
         let mut failed_ifaces = vec![];
 
         for iface in ifaces {
-            self.iface_gauge
-                .with_label_values(&[&iface.name.to_owned().unwrap_or_default()])
-                .set(iface.host_count.unwrap_or(0).into());
-
             if iface.host_count.unwrap_or(0) == 0 {
+                fetched.push((iface, vec![]));
                 continue;
             }
 
             match self.get_devices(&iface).await {
                 Err(e) => {
-                    let name = iface.name.to_owned().unwrap_or_else(|| "<unnamed>".to_string());
+                    let name = iface
+                        .name
+                        .to_owned()
+                        .unwrap_or_else(|| "<unnamed>".to_string());
                     warn!("cannot fetch devices of interface {name}: {e}");
                     failed_ifaces.push(name);
+                    fetched.push((iface, vec![]));
                 }
-                Ok(devs) => {
-                    for dev in devs {
-                        let l2ident = dev.l2ident.unwrap_or(LanHostL2Ident {
-                            id: None,
-                            _type: None,
-                        });
+                Ok(devs) => fetched.push((iface, devs)),
+            }
+        }
 
-                        self.device_gauge
-                            .with_label_values(&[
-                                &iface.name.to_owned().unwrap_or_default(),
-                                &dev.primary_name.to_owned().unwrap_or_default(),
-                                &dev.id.unwrap_or_default(),
-                                &dev.host_type.unwrap_or_default(),
-                                &dev.primary_name_manual.unwrap_or_default().to_string(),
-                                &l2ident.id.to_owned().unwrap_or_default(),
-                                &l2ident._type.to_owned().unwrap_or_default(),
-                                &dev.vendor_name.unwrap_or_default(),
-                            ])
-                            .set(dev.active.unwrap_or_default().into());
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
+        self.reset_all();
 
-                        self.device_last_activity
-                            .with_label_values(&[
-                                &iface.to_owned().name.unwrap_or_default(),
-                                &dev.primary_name.to_owned().unwrap_or_default(),
-                            ])
-                            .set(dev.last_activity.unwrap_or_default());
+        for (iface, devs) in fetched {
+            self.iface_gauge
+                .with_label_values(&[&iface.name.to_owned().unwrap_or_default()])
+                .set(iface.host_count.unwrap_or(0).into());
 
-                        let l3s = dev.l3connectivities.unwrap_or(vec![]);
+            for dev in devs {
+                let l2ident = dev.l2ident.unwrap_or(LanHostL2Ident {
+                    id: None,
+                    _type: None,
+                });
 
-                        for l3 in l3s {
-                            self.device_l3_connectivity_gauge
-                                .with_label_values(&[
-                                    &l2ident.id.to_owned().unwrap_or_default(),
-                                    &iface.name.to_owned().unwrap_or_default(),
-                                    &l3.addr.unwrap_or_default(),
-                                    &dev.primary_name.to_owned().unwrap_or_default(),
-                                    &l3.af.unwrap_or_default(),
-                                ])
-                                .set(l3.active.unwrap_or_default().into());
-                        }
+                self.device_gauge
+                    .with_label_values(&[
+                        &iface.name.to_owned().unwrap_or_default(),
+                        &dev.primary_name.to_owned().unwrap_or_default(),
+                        &dev.id.unwrap_or_default(),
+                        &dev.host_type.unwrap_or_default(),
+                        &dev.primary_name_manual.unwrap_or_default().to_string(),
+                        &l2ident.id.to_owned().unwrap_or_default(),
+                        &l2ident._type.to_owned().unwrap_or_default(),
+                        &dev.vendor_name.unwrap_or_default(),
+                    ])
+                    .set(dev.active.unwrap_or_default().into());
 
-                        let names = dev.names.unwrap_or(vec![]);
+                self.device_last_activity
+                    .with_label_values(&[
+                        &iface.to_owned().name.unwrap_or_default(),
+                        &dev.primary_name.to_owned().unwrap_or_default(),
+                    ])
+                    .set(dev.last_activity.unwrap_or_default());
 
-                        for name in names {
-                            self.device_name_gauge
-                                .with_label_values(&[
-                                    &name.name.unwrap_or_default(),
-                                    &name.source.unwrap_or_default(),
-                                    &l2ident.id.to_owned().unwrap_or_default(),
-                                    &iface.name.to_owned().unwrap_or_default(),
-                                ])
-                                .set(1);
-                        }
-                    }
+                let l3s = dev.l3connectivities.unwrap_or(vec![]);
+
+                for l3 in l3s {
+                    self.device_l3_connectivity_gauge
+                        .with_label_values(&[
+                            &l2ident.id.to_owned().unwrap_or_default(),
+                            &iface.name.to_owned().unwrap_or_default(),
+                            &l3.addr.unwrap_or_default(),
+                            &dev.primary_name.to_owned().unwrap_or_default(),
+                            &l3.af.unwrap_or_default(),
+                        ])
+                        .set(l3.active.unwrap_or_default().into());
+                }
+
+                let names = dev.names.unwrap_or(vec![]);
+
+                for name in names {
+                    self.device_name_gauge
+                        .with_label_values(&[
+                            &name.name.unwrap_or_default(),
+                            &name.source.unwrap_or_default(),
+                            &l2ident.id.to_owned().unwrap_or_default(),
+                            &iface.name.to_owned().unwrap_or_default(),
+                        ])
+                        .set(1);
                 }
             }
         }
@@ -327,8 +341,11 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_all().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match self.set_all(lock).await {
             Err(e) => return Err(e),
             _ => {}
         };
@@ -336,14 +353,16 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use prometheus_exporter::prometheus::core::Collector;
     use serde_json::json;
 
     use super::*;
-    use crate::mappers::test_support::{mock_api, serve};
+    use crate::mappers::test_support::{
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
+    };
 
     async fn serve_interfaces(server: &wiremock::MockServer) {
         serve(
@@ -371,7 +390,11 @@ mod tests {
             .iter()
             .flat_map(|family| family.get_metric())
             .find(|m| {
-                let labels: Vec<_> = m.get_label().iter().map(|l| (l.get_name(), l.get_value())).collect();
+                let labels: Vec<_> = m
+                    .get_label()
+                    .iter()
+                    .map(|l| (l.name(), l.value()))
+                    .collect();
                 labels.contains(&("iface", iface)) && labels.contains(&("primary_name", name))
             })
             .map(|m| m.get_gauge().get_value() as i64)
@@ -391,7 +414,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_partial".to_string());
 
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert!(err.to_string().contains("wifiguest"), "{err}");
         assert!(!err.to_string().contains("pub"), "{err}");
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
@@ -401,12 +424,17 @@ mod tests {
     async fn set_succeeds_when_every_interface_is_fetched() {
         let (server, authenticator) = mock_api().await;
         serve_interfaces(&server).await;
-        serve(&server, "/api/v4/lan/browser/wifiguest", json!({ "success": true, "result": [] })).await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
 
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_complete".to_string());
 
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
     }
 
@@ -434,11 +462,137 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_unnamed".to_string());
 
-        let err = map.set().await.unwrap_err();
-        assert_eq!("cannot fetch devices of interface(s) <unnamed>", err.to_string());
+        let err = map.set(update_lock()).await.unwrap_err();
+        assert_eq!(
+            "cannot fetch devices of interface(s) <unnamed>",
+            err.to_string()
+        );
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
         // the unnamed interface must not turn into a request on the interfaces root
         let requests = server.received_requests().await.unwrap();
-        assert!(requests.iter().all(|r| r.url.path() != "/api/v4/lan/browser/"));
+        assert!(requests
+            .iter()
+            .all(|r| r.url.path() != "/api/v4/lan/browser/"));
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_lanbrowser_scrape";
+        let mut map = LanBrowserMetricMap::new(&factory, prefix.to_string());
+        let interfaces = json!({ "success": true, "result": [
+            { "name": "pub", "host_count": 1 },
+            { "name": "wifiguest", "host_count": 1 }
+        ] });
+        let devices = |name: &str, active: bool| {
+            json!({ "success": true, "result": [
+            { "id": name, "primary_name": name, "active": active }
+        ] })
+        };
+
+        let first = [
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/interfaces",
+                interfaces.clone(),
+            )
+            .await,
+            serve_scoped(&server, "/api/v4/lan/browser/pub", devices("nas", true)).await,
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/wifiguest",
+                devices("phone", true),
+            )
+            .await,
+        ];
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("\"phone\"") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+        drop(first);
+
+        serve(&server, "/api/v4/lan/browser/interfaces", interfaces).await;
+        serve(&server, "/api/v4/lan/browser/pub", devices("nas", false)).await;
+        serve_slowly(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            devices("phone", false),
+        )
+        .await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_eq!(Some(0), device_active(&map, "wifiguest", "phone"));
+        assert_eq!(Some(0), device_active(&map, "pub", "nas"));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_lanbrowser_lock";
+        let mut map = LanBrowserMetricMap::new(&factory, prefix.to_string());
+        let interfaces = json!({ "success": true, "result": [
+            { "name": "pub", "host_count": 1 },
+            { "name": "wifiguest", "host_count": 1 }
+        ] });
+        let devices = |name: &str, active: bool| {
+            json!({ "success": true, "result": [
+            { "id": name, "primary_name": name, "active": active }
+        ] })
+        };
+
+        let first = [
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/interfaces",
+                interfaces.clone(),
+            )
+            .await,
+            serve_scoped(&server, "/api/v4/lan/browser/pub", devices("nas", true)).await,
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/wifiguest",
+                devices("phone", true),
+            )
+            .await,
+        ];
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("\"phone\"") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+        drop(first);
+
+        serve(&server, "/api/v4/lan/browser/interfaces", interfaces).await;
+        serve(&server, "/api/v4/lan/browser/pub", devices("nas", false)).await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            devices("phone", false),
+        )
+        .await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_eq!(Some(0), device_active(&map, "wifiguest", "phone"));
+        assert_eq!(Some(0), device_active(&map, "pub", "nas"));
     }
 }

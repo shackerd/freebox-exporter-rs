@@ -11,8 +11,24 @@ use crate::core::authenticator::SessionTokenProvider;
 
 const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 
-/// Upper bound of a request to the box, so an unresponsive box cannot stall startup or collection
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+/// Upper bounds of the requests to the box, set by `connect_timeout` and `request_timeout` in the
+/// `[api]` section of the configuration
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Timeouts {
+    /// Connection to the box, which answers in milliseconds on the local network
+    pub connect: Duration,
+    /// Whole request, so an unresponsive box cannot stall startup or collection
+    pub request: Duration,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Self {
+            connect: Duration::from_secs(2),
+            request: Duration::from_secs(5),
+        }
+    }
+}
 
 const FBX_ECC_ROOT: &str = "
 -----BEGIN CERTIFICATE-----
@@ -70,7 +86,7 @@ pub struct AuthenticatedHttpClientFactory<'a> {
     pub api_url: String,
     token_provider: SessionTokenProvider<'a>,
     pub expiration: TimeDelta,
-    request_timeout: Duration,
+    pub timeouts: Timeouts,
 }
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
@@ -79,17 +95,17 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
     pub fn new(api_url: String, token_provider: SessionTokenProvider<'a>) -> Self {
         Self {
             api_url,
+            timeouts: token_provider.timeouts,
             token_provider,
             expiration: TimeDelta::minutes(30),
-            request_timeout: REQUEST_TIMEOUT,
         }
     }
 
     /// Bounds every request to the box, including the logins renewing the session
     #[cfg(test)]
     pub fn set_request_timeout(&mut self, timeout: Duration) {
-        self.request_timeout = timeout;
-        self.token_provider.request_timeout = timeout;
+        self.timeouts.request = timeout;
+        self.token_provider.timeouts.request = timeout;
     }
 
     /// Creates a new managed HTTP client with the necessary headers and configurations.
@@ -136,7 +152,8 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             .default_headers(headers)
             .tcp_keepalive(Duration::from_secs(self.expiration.num_seconds() as u64))
             .user_agent(APP_USER_AGENT)
-            .timeout(self.request_timeout)
+            .connect_timeout(self.timeouts.connect)
+            .timeout(self.timeouts.request)
             .build()
             .expect("cannot create HTTP Client");
 
@@ -158,7 +175,7 @@ internal_error 	Internal error
  */
 
 pub fn http_client_factory(
-    timeout: Duration,
+    timeouts: Timeouts,
 ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
     debug!("creating HTTP client");
 
@@ -167,7 +184,8 @@ pub fn http_client_factory(
 
     let client = reqwest::ClientBuilder::new()
         .tls_certs_only([root_ca, ecc])
-        .timeout(timeout)
+        .connect_timeout(timeouts.connect)
+        .timeout(timeouts.request)
         .build()?;
     Ok(client)
 }

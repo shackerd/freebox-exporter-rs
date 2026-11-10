@@ -2,7 +2,18 @@
 mod tests_deserialize {
     use serde_json::from_str;
 
-    use crate::{core::common::transport::FreeboxResponse, mappers::{api_specs_provider::get_specs_data, wifi::{models::{ChannelSurveyHistory, ChannelUsage, NeighborsAccessPoint, Station, WifiConfig}, utils::calculate_avg_channel_survey_history}}};
+    use crate::{
+        core::common::transport::FreeboxResponse,
+        mappers::{
+            api_specs_provider::get_specs_data,
+            wifi::{
+                models::{
+                    ChannelSurveyHistory, ChannelUsage, NeighborsAccessPoint, Station, WifiConfig,
+                },
+                utils::calculate_avg_channel_survey_history,
+            },
+        },
+    };
 
     #[tokio::test]
     async fn deserialize_api_v2_wifi_config() {
@@ -87,8 +98,8 @@ mod tests_deserialize {
 #[cfg(test)]
 mod tests_collect {
     use chrono::Duration;
-    use serde_json::json;
     use prometheus_exporter::prometheus::core::Collector;
+    use serde_json::json;
     use wiremock::{
         matchers::{path, path_regex},
         Mock, ResponseTemplate,
@@ -98,7 +109,10 @@ mod tests_collect {
         core::configuration::sections::PoliciesConfiguration,
         mappers::{
             api_specs_provider::get_specs_data,
-            test_support::{mock_api, serve},
+            test_support::{
+                collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+                serve_scoped, serve_slowly, update_lock,
+            },
             wifi::WifiMetricMap,
             MetricMap,
         },
@@ -107,7 +121,12 @@ mod tests_collect {
     #[tokio::test]
     async fn set_fails_when_no_expected_access_point_can_be_fetched() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v4/wifi/ap", json!({ "success": true, "result": [] })).await;
+        serve(
+            &server,
+            "/api/v4/wifi/ap",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
         serve(
             &server,
             "/api/v4/wifi/config",
@@ -132,14 +151,23 @@ mod tests_collect {
             &policies,
         );
 
-        let err = map.set().await.unwrap_err();
-        assert!(err.to_string().contains("none of the 1 expected access points"), "{err}");
+        let err = map.set(update_lock()).await.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("none of the 1 expected access points"),
+            "{err}"
+        );
     }
 
     #[tokio::test]
     async fn set_collects_reachable_access_points_and_reports_the_failed_ones() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v4/wifi/ap", json!({ "success": true, "result": [] })).await;
+        serve(
+            &server,
+            "/api/v4/wifi/ap",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
         serve(
             &server,
             "/api/v4/wifi/config",
@@ -158,11 +186,15 @@ mod tests_collect {
             json!({ "success": true, "result": { "id": 1, "name": "5G", "config": { "band": "5g" } } }),
         )
         .await;
-        Mock::given(path_regex(r"^/api/v4/wifi/ap/1/channel_survey_history/\d+$"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
-            .mount(&server)
-            .await;
-        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get").await.unwrap();
+        Mock::given(path_regex(
+            r"^/api/v4/wifi/ap/1/channel_survey_history/\d+$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+        .mount(&server)
+        .await;
+        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get")
+            .await
+            .unwrap();
         Mock::given(path("/api/v4/wifi/ap/1/stations"))
             .respond_with(ResponseTemplate::new(200).set_body_raw(stations, "application/json"))
             .expect(1)
@@ -180,7 +212,7 @@ mod tests_collect {
             &policies,
         );
 
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert!(err.to_string().contains("phy_id 0"), "{err}");
         assert!(!err.to_string().contains("phy_id 0, 1"), "{err}");
 
@@ -189,8 +221,218 @@ mod tests_collect {
             .collect()
             .iter()
             .flat_map(|family| family.get_metric())
-            .filter(|m| m.get_label().iter().any(|l| l.get_name() == "ap_id" && l.get_value() == "1"))
+            .filter(|m| {
+                m.get_label()
+                    .iter()
+                    .any(|l| l.name() == "ap_id" && l.value() == "1")
+            })
             .count();
-        assert!(stations_of_ap_1 > 0, "stations of the reachable access point are not exposed");
+        assert!(
+            stations_of_ap_1 > 0,
+            "stations of the reachable access point are not exposed"
+        );
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let ap = json!({ "success": true, "result": [{ "id": 0, "name": "2G4", "config": { "band": "2d4g" } }] });
+        serve(&server, "/api/v4/wifi/ap", ap).await;
+        Mock::given(path_regex(
+            r"^/api/v4/wifi/ap/0/channel_survey_history/\d+$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+        .mount(&server)
+        .await;
+        let unavailable = json!({ "success": false, "error_code": "invalid_request" });
+        serve(
+            &server,
+            "/api/v4/wifi/ap/0/channel_usage",
+            unavailable.clone(),
+        )
+        .await;
+        serve(&server, "/api/v4/wifi/ap/0/neighbors", unavailable).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: Some("relabel".to_string()),
+        };
+        let prefix = "test_wifi_scrape";
+        let mut map = WifiMetricMap::new(
+            &factory,
+            prefix.to_string(),
+            Duration::seconds(5),
+            &policies,
+        );
+
+        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get")
+            .await
+            .unwrap();
+        let stations: serde_json::Value = serde_json::from_str(&stations).unwrap();
+        let first = serve_scoped(&server, "/api/v4/wifi/ap/0/stations", stations).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))),
+            "{before:?}"
+        );
+        drop(first);
+
+        // the last request of the collection is slow, and its stations are gone
+        serve_slowly(
+            &server,
+            "/api/v4/wifi/ap/0/stations",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/wifi/ap/0/stations",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(!scrape(prefix)
+            .iter()
+            .any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let ap = json!({ "success": true, "result": [{ "id": 0, "name": "2G4", "config": { "band": "2d4g" } }] });
+        serve(&server, "/api/v4/wifi/ap", ap).await;
+        Mock::given(path_regex(
+            r"^/api/v4/wifi/ap/0/channel_survey_history/\d+$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+        .mount(&server)
+        .await;
+        let unavailable = json!({ "success": false, "error_code": "invalid_request" });
+        serve(
+            &server,
+            "/api/v4/wifi/ap/0/channel_usage",
+            unavailable.clone(),
+        )
+        .await;
+        serve(&server, "/api/v4/wifi/ap/0/neighbors", unavailable).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: Some("relabel".to_string()),
+        };
+        let prefix = "test_wifi_lock";
+        let mut map = WifiMetricMap::new(
+            &factory,
+            prefix.to_string(),
+            Duration::seconds(5),
+            &policies,
+        );
+
+        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get")
+            .await
+            .unwrap();
+        let stations: serde_json::Value = serde_json::from_str(&stations).unwrap();
+        let first = serve_scoped(&server, "/api/v4/wifi/ap/0/stations", stations).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(
+            &server,
+            "/api/v4/wifi/ap/0/stations",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(!scrape(prefix)
+            .iter()
+            .any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))));
+    }
+
+    #[tokio::test]
+    async fn clearing_without_access_point_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        Mock::given(path_regex(
+            r"^/api/v4/wifi/ap/0/channel_survey_history/\d+$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+        .mount(&server)
+        .await;
+        let unavailable = json!({ "success": false, "error_code": "invalid_request" });
+        serve(
+            &server,
+            "/api/v4/wifi/ap/0/channel_usage",
+            unavailable.clone(),
+        )
+        .await;
+        serve(&server, "/api/v4/wifi/ap/0/neighbors", unavailable).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: Some("relabel".to_string()),
+        };
+        let prefix = "test_wifi_clear_lock";
+        let mut map = WifiMetricMap::new(
+            &factory,
+            prefix.to_string(),
+            Duration::seconds(5),
+            &policies,
+        );
+
+        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get")
+            .await
+            .unwrap();
+        let stations: serde_json::Value = serde_json::from_str(&stations).unwrap();
+        let ap = json!({ "success": true, "result": [{ "id": 0, "name": "2G4", "config": { "band": "2d4g" } }] });
+        let first = [
+            serve_scoped(&server, "/api/v4/wifi/ap", ap).await,
+            serve_scoped(&server, "/api/v4/wifi/ap/0/stations", stations).await,
+        ];
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.starts_with(&format!("{prefix}_wifi_station_active"))),
+            "{before:?}"
+        );
+        drop(first);
+
+        // the box no longer lists any access point, nor any expected one: the metrics are cleared
+        serve(
+            &server,
+            "/api/v4/wifi/ap",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
+        serve(
+            &server,
+            "/api/v4/wifi/config",
+            json!({ "success": true, "result": { "enabled": false } }),
+        )
+        .await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(scrape(prefix).is_empty());
     }
 }

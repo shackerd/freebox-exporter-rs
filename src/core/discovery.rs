@@ -9,7 +9,7 @@ use crate::{
     mappers::lan::LanConfig,
 };
 
-use super::common::http_client_factory::{http_client_factory, REQUEST_TIMEOUT};
+use super::common::http_client_factory::{http_client_factory, Timeouts};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApiVersion {
@@ -33,21 +33,23 @@ pub const DEFAULT_FBX_HOST: &str = "mafreebox.freebox.fr";
 /// * `host` - The host of the Freebox (e.g., "mafreebox.freebox.fr").
 /// * `port` - The port number to connect to the Freebox.
 /// * `use_ssl` - A boolean indicating whether to use SSL (HTTPS) or not.
+/// * `timeouts` - The upper bounds of the request.
 /// ## Returns
 /// * `Result<String, Box<dyn std::error::Error + Send + Sync>> - The API URL as a string if the request is successful.
 /// ## Errors
 /// * `Box<dyn std::error::Error + Send + Sync>` - If there is an error during the request or if the response cannot be parsed.
 /// ## Example
 /// ```
-/// let api_url = get_api_url("mafreebox.freebox.fr", 443, true).await;
+/// let api_url = get_api_url("mafreebox.freebox.fr", 443, true, Timeouts::default()).await;
 /// assert!(api_url.is_ok());
 /// ```
 async fn get_api_url(
     host: &str,
     port: u16,
     use_ssl: bool,
+    timeouts: Timeouts,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let client = http_client_factory(REQUEST_TIMEOUT)?;
+    let client = http_client_factory(timeouts)?;
 
     let protocol = if use_ssl { "https" } else { "http" };
 
@@ -164,7 +166,9 @@ pub async fn get_url<'a>(
             get_static_api_url().unwrap()
         }
         "router" => {
-            let url = get_api_url(DEFAULT_FBX_HOST, 443, true).await.unwrap();
+            let url = get_api_url(DEFAULT_FBX_HOST, 443, true, factory.timeouts)
+                .await
+                .unwrap();
             info!("network mode: {mode}, resolved api url {url}");
             url
         }
@@ -183,7 +187,7 @@ mod tests {
         Mock, MockServer,
     };
 
-    use crate::core::discovery;
+    use crate::core::{common::http_client_factory::Timeouts, discovery};
 
     #[tokio::test]
     async fn get_api_url_test() {
@@ -208,8 +212,13 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let api_url =
-            discovery::get_api_url("127.0.0.1", mock_server.address().port(), false).await;
+        let api_url = discovery::get_api_url(
+            "127.0.0.1",
+            mock_server.address().port(),
+            false,
+            Timeouts::default(),
+        )
+        .await;
 
         match api_url {
             Ok(z) => {

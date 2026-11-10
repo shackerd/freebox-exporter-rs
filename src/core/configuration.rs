@@ -1,4 +1,4 @@
-use sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration};
+use sections::{ApiConfiguration, CapabilitiesConfiguration, CoreConfiguration, LogConfiguration};
 use serde::Deserialize;
 use std::{
     fs::{self},
@@ -96,6 +96,11 @@ fn assert_configuration_is_valid(
     if let Err(e) = prefix {
         println!("{e:#?}");
         return Err("metrics prefix cannot be empty".into());
+    }
+
+    // a zero timeout fails every request to the box without telling why
+    if c.api.connect_timeout == Some(0) || c.api.request_timeout == Some(0) {
+        return Err("connect_timeout and request_timeout must be greater than 0".into());
     }
 
     let data_dir = c.core.data_directory.to_owned();

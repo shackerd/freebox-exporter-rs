@@ -9,7 +9,7 @@ use crate::core::{
         common::{ChallengeResult, SessionPayload},
     },
     common::{
-        http_client_factory::{http_client_factory, REQUEST_TIMEOUT},
+        http_client_factory::{http_client_factory, Timeouts},
         transport::{FreeboxResponse, FreeboxResponseError},
     },
 };
@@ -20,15 +20,19 @@ use super::{application_token_provider::ApplicationTokenProvider, common::Sessio
 pub struct SessionTokenProvider<'a> {
     app_token_provider: &'a dyn ApplicationTokenProvider,
     api_url: String,
-    pub(crate) request_timeout: std::time::Duration,
+    pub(crate) timeouts: Timeouts,
 }
 
 impl<'a> SessionTokenProvider<'a> {
-    pub fn new(app_token_storage: &'a dyn ApplicationTokenProvider, api_url: String) -> Self {
+    pub fn new(
+        app_token_storage: &'a dyn ApplicationTokenProvider,
+        api_url: String,
+        timeouts: Timeouts,
+    ) -> Self {
         Self {
             app_token_provider: app_token_storage,
             api_url,
-            request_timeout: REQUEST_TIMEOUT,
+            timeouts,
         }
     }
 
@@ -77,7 +81,7 @@ impl<'a> SessionTokenProvider<'a> {
     ) -> Result<ChallengeResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching challenge");
 
-        let client = http_client_factory(self.request_timeout)?;
+        let client = http_client_factory(self.timeouts)?;
 
         let body = match (match client
             .get(format!("{}v4/login/", self.api_url))
@@ -121,7 +125,7 @@ impl<'a> SessionTokenProvider<'a> {
     ) -> Result<SessionResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("negociating session token");
 
-        let client = http_client_factory(self.request_timeout)?;
+        let client = http_client_factory(self.timeouts)?;
 
         let payload = SessionPayload {
             app_id: String::from("fr.freebox.prometheus.exporter"),
