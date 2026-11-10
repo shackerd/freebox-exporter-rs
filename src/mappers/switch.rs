@@ -503,8 +503,6 @@ impl<'a> SwitchMetricMap<'a> {
     }
 
     async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.reset_all();
-
         let body_status = self.get_ports_status_json().await;
 
         if body_status.is_err() {
@@ -520,6 +518,9 @@ impl<'a> SwitchMetricMap<'a> {
             Ok(r) => r,
         };
 
+        // fetch every port before touching the metrics: a scrape during the requests
+        // still sees the previous collection, and a failed request keeps it
+        let mut fetched = Vec::with_capacity(port_statuses.len());
         for port_status in port_statuses {
             
             let body_stats = self.get_port_stats_json(&port_status)
@@ -537,6 +538,11 @@ impl<'a> SwitchMetricMap<'a> {
                 Err(e) => return Err(e),
                 Ok(r) => r,
             };
+            fetched.push((port_status, stats));
+        }
+
+        self.reset_all();
+        for (port_status, stats) in fetched {
 
             self.rx_packets_rate_gauge
                 .with_label_values(&[&port_status.id.unwrap_or_default().to_string()])
@@ -763,5 +769,50 @@ mod non_reg_tests {
         // check is the replacement is done correctly
         let reg = Regex::new(r#""mac_list".+\[\s{0,}\]"#).unwrap();
         assert!(reg.is_match(&res.unwrap()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{
+        mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly,
+    };
+
+    fn stats(rx_good_bytes: i64) -> Value {
+        json!({ "success": true, "result": { "rx_good_bytes": rx_good_bytes } })
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        serve(&server, "/api/v4/switch/status/", json!({ "success": true, "result": [
+            { "id": 1, "link": "up", "speed": "1000", "mac_list": [] },
+            { "id": 2, "link": "up", "speed": "1000", "mac_list": [] }
+        ] })).await;
+        serve(&server, "/api/v4/switch/port/1/stats", stats(1)).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_switch_scrape";
+        let mut map = SwitchMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/switch/port/2/stats", stats(100)).await;
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        let port_2 = |lines: &[String]| {
+            lines.iter().find(|l| l.contains("rx_good_bytes{") && l.contains("\"2\"")).cloned()
+        };
+        assert!(port_2(&before).is_some_and(|l| l.ends_with(" 100")), "{before:?}");
+        drop(first);
+
+        // the last request of the collection is slow, and returns new stats
+        serve_slowly(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(port_2(&scrape(prefix)).is_some_and(|l| l.ends_with(" 200")));
     }
 }
