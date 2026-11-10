@@ -281,13 +281,11 @@ impl<'a> DhcpMetricMap<'a> {
     }
 
     async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let leases = self.fetch_dhcp_leases().await;
+        // fetch every lease before touching the metrics: a scrape during the requests
+        // still sees the previous collection, and a failed request keeps it
+        let leases = self.fetch_dhcp_leases().await?;
 
-        if let Err(e) = leases {
-            return Err(e);
-        }
-
-        let leases = leases.unwrap();
+        self.reset_all();
 
         for lease in leases {
             self.lease_remaining_gauge
@@ -334,8 +332,6 @@ impl<'a> DhcpMetricMap<'a> {
 #[async_trait]
 impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
     async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-        self.reset_all();
-
         if let Err(e) = self.set_all().await {
             return Err(e);
         }
@@ -353,7 +349,10 @@ impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
 mod tests {
     use super::*;
     use crate::mappers::api_specs_provider::get_specs_data;
-    use serde_json::from_str;
+    use crate::mappers::test_support::{
+        mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly,
+    };
+    use serde_json::{from_str, json, Value};
 
     #[tokio::test]
     async fn test_deserialize_dhcp_static_leases() {
@@ -383,5 +382,33 @@ mod tests {
         }
 
         assert!(data.is_ok());
+    }
+
+    #[tokio::test]
+    async fn scrape_during_collection_sees_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let fixture = |name| async move {
+            from_str::<Value>(&get_specs_data("dhcp", name).await.unwrap()).unwrap()
+        };
+        serve(&server, "/api/v4/dhcp/dynamic_lease/", fixture("api_v2_dhcp_dynamic_lease-get").await).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_dhcp_scrape";
+        let mut map = DhcpMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/dhcp/static_lease/", fixture("api_v2_dhcp_static_lease-get").await).await;
+        map.set().await.unwrap();
+        let before = scrape(prefix);
+        assert!(before.iter().any(|l| l.contains("is_static=\"true\"")), "{before:?}");
+        drop(first);
+
+        // the last request of the collection is slow, and the static leases are gone
+        serve_slowly(&server, "/api/v4/dhcp/static_lease/", json!({ "success": true, "result": [] })).await;
+        let (result, during) = scrape_during(map.set(), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        let after = scrape(prefix);
+        assert!(!after.is_empty() && !after.iter().any(|l| l.contains("is_static=\"true\"")), "{after:?}");
     }
 }
