@@ -83,355 +83,347 @@ impl<'a> ConnectionMetricMap<'a> {
                 format!("{prefix}_connection_bytes_down"),
                 format!("{prefix}_connection_bytes_down")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_bytes_down gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_bytes_down gauge: {e}")),
             bytes_up_metric: register_int_gauge!(
                 format!("{prefix}_connection_bytes_up"),
                 format!("{prefix}_connection_bytes_up")
             )
-            .expect(&format!("cannot create {prefix}_connection_bytes_up gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_bytes_up gauge: {e}")),
             rate_down_metric: register_int_gauge!(
                 format!("{prefix}_connection_rate_down"),
                 format!("{prefix}_connection_rate_down")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_rate_down gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_rate_down gauge: {e}")),
             rate_up_metric: register_int_gauge!(
                 format!("{prefix}_connection_rate_up"),
                 format!("{prefix}_connection_rate_up")
             )
-            .expect(&format!("cannot create {prefix}_connection_rate_up gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_rate_up gauge: {e}")),
             bandwidth_down_metric: register_int_gauge!(
                 format!("{prefix}_connection_bandwidth_down"),
                 format!("{prefix}_connection_bandwidth_down")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_bandwidth_down gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_bandwidth_down gauge: {e}")
+            }),
             bandwidth_up_metric: register_int_gauge!(
                 format!("{prefix}_connection_bandwidth_up"),
                 format!("{prefix}_connection_bandwidth_up")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_bandwidth_up gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_bandwidth_up gauge: {e}")
+            }),
             type_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_type"),
                 format!("{prefix}_connection_type"),
                 &["type"]
             )
-            .expect(&format!("cannot create {prefix}_connection_type gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_type gauge: {e}")),
             media_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_media"),
                 format!("{prefix}_connection_media"),
                 &["media"]
             )
-            .expect(&format!("cannot create {prefix}_connection_media gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_media gauge: {e}")),
             state_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_state"),
                 format!("{prefix}_connection_state"),
                 &["state"]
             )
-            .expect(&format!("cannot create {prefix}_connection_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_state gauge: {e}")),
             ipv4_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_ipv4"),
                 format!("{prefix}_connection_ipv4"),
                 &["ipv4"]
             )
-            .expect(&format!("cannot create {prefix}_connection_ipv4 gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_ipv4 gauge: {e}")),
             ipv6_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_ipv6"),
                 format!("{prefix}_connection_ipv6"),
                 &["ipv6"]
             )
-            .expect(&format!("cannot create {prefix}_connection_ipv6 gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_ipv6 gauge: {e}")),
             ping_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_ping"),
                 format!("{prefix}_connection_conf_ping")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_ping gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_conf_ping gauge: {e}")),
             is_secure_pass_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_is_secure_pass"),
                 format!("{prefix}_connection_conf_is_secure_pass")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_is_secure_pass gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_is_secure_pass gauge: {e}")
+            }),
             remote_access_port_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_remote_access_port"),
                 format!("{prefix}_connection_conf_remote_access_port")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_remote_access_port gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_remote_access_port gauge: {e}")
+            }),
             remote_access_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_remote_access"),
                 format!("{prefix}_connection_conf_remote_access")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_remote_access gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_remote_access gauge: {e}")
+            }),
             wol_metric: register_int_gauge!(
                 format!("{prefix}_connection_wol_conf"),
                 format!("{prefix}_connection_conf_wol")
             )
-            .expect(&format!("cannot create {prefix}_connection_conf_wol gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_conf_wol gauge: {e}")),
             adblock_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_adblock"),
                 format!("{prefix}_connection_conf_adblock")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_adblock gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_adblock gauge: {e}")
+            }),
             adblock_not_set_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_adblock_not_set"),
                 format!("{prefix}_connection_conf_adblock_not_set")
             )
-            .expect(&format!(
-                "cannot {prefix}_create connection_conf_adblock_not_set"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot {prefix}_create connection_conf_adblock_not_set: {e}")
+            }),
             api_remote_access_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_api_remote_access"),
                 format!("{prefix}_connection_conf_api_remote_access")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_api_remote_access gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_api_remote_access gauge: {e}")
+            }),
             allow_token_request_metric: register_int_gauge!(
                 format!("{prefix}_connection_conf_allow_token_request"),
                 format!("{prefix}_connection_conf_allow_token_request")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_allow_token_request gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_allow_token_request gauge: {e}")
+            }),
             remote_access_ip_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_conf_remote_access_ip"),
                 format!("{prefix}_connection_conf_remote_access_ip"),
                 &["remote_access_ip"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_conf_remote_access_ip gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_conf_remote_access_ip gauge: {e}")
+            }),
             ipv6_enabled_metric: register_int_gauge!(
                 format!("{prefix}_connection_ipv6_conf_ipv6_enabled"),
                 format!("{prefix}_connection_ipv6_conf_ipv6_enabled")
             )
-            .expect(&format!(
-                "cannot create {prefix}_create connection_ipv6_conf_ipv6_enabled"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_create connection_ipv6_conf_ipv6_enabled: {e}")
+            }),
             delegations_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_ipv6_conf_delegations"),
                 format!("{prefix}_connection_ipv6_conf_delegations"),
                 &["prefix", "next_hop"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_create connection_ipv6_conf_delegations"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_create connection_ipv6_conf_delegations: {e}")
+            }),
             sfp_has_power_report_metric: register_int_gauge!(
                 format!("{prefix}_connection_ftth_sfp_has_power_report"),
                 format!("{prefix}_connection_ftth_sfp_has_power_report")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_has_power_report gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_has_power_report gauge: {e}")
+            }),
             sfp_has_signal_metric: register_int_gauge!(
                 format!("{prefix}_connection_ftth_sfp_has_signal"),
                 format!("{prefix}_connection_ftth_sfp_has_signal")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_has_signal gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_has_signal gauge: {e}")
+            }),
             sfp_model_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_ftth_sfp_model"),
                 format!("{prefix}_connection_ftth_sfp_model"),
                 &["sfp_model"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_model gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_model gauge: {e}")
+            }),
             sfp_vendor_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_ftth_sfp_vendor"),
                 format!("{prefix}_connection_ftth_sfp_vendor"),
                 &["sfp_vendor"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_vendor gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_vendor gauge: {e}")
+            }),
             sfp_pwr_tx_metric: register_int_gauge!(
                 format!("{prefix}_connection_ftth_sfp_pwr_tx"),
                 format!("{prefix}_connection_ftth_sfp_pwr_tx")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_pwr_tx gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_pwr_tx gauge: {e}")
+            }),
             sfp_pwr_rx_metric: register_int_gauge!(
                 format!("{prefix}_connection_ftth_sfp_pwr_rx"),
                 format!("{prefix}_connection_ftth_sfp_pwr_rx")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_pwr_rx gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_pwr_rx gauge: {e}")
+            }),
             link_metric: register_int_gauge!(
                 format!("{prefix}_connection_ftth_link"),
                 format!("{prefix}_connection_ftth_link")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_link gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_ftth_link gauge: {e}")),
             sfp_alim_ok_metric: register_int_gauge!(
                 format!("{prefix}_connection_ffth_sfp_alim_ok"),
                 format!("{prefix}_connection_ffth_sfp_alim_ok")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ffth_sfp_alim_ok gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ffth_sfp_alim_ok gauge: {e}")
+            }),
             sfp_serial_metric: register_int_gauge_vec!(
                 format!("{prefix}_connection_ftth_sfp_serial"),
                 format!("{prefix}_connection_ftth_sfp_serial"),
                 &["sfp_serial"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ftth_sfp_serial gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ftth_sfp_serial gauge: {e}")
+            }),
             sfp_present_metric: register_int_gauge!(
                 format!("{prefix}_connection_ffth_sfp_present"),
                 format!("{prefix}_connection_ffth_sfp_present")
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_ffth_sfp_present gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_ffth_sfp_present gauge: {e}")
+            }),
             xdsl_status_uptime: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_status_uptime"),
                 format!("{prefix}_connection_xdsl_status_uptime"),
                 &["status", "protocol", "modulation"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_status_uptime gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_status_uptime gauge: {e}")
+            }),
             xdsl_stats_maxrate: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_maxrate"),
                 format!("{prefix}_connection_xdsl_stats_maxrate"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_maxrate gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_maxrate gauge: {e}")
+            }),
             xdsl_stats_rate: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rate"),
                 format!("{prefix}_connection_xdsl_stats_rate"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rate gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rate gauge: {e}")
+            }),
             xdsl_stats_snr: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_snr"),
                 format!("{prefix}_connection_xdsl_stats_snr"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_snr gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_snr gauge: {e}")
+            }),
             xdsl_stats_attn: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_attn"),
                 format!("{prefix}_connection_xdsl_stats_attn"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_attn gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_attn gauge: {e}")
+            }),
             xdsl_stats_fec: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_fec"),
                 format!("{prefix}_connection_xdsl_stats_fec"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_fec gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_fec gauge: {e}")
+            }),
             xdsl_stats_crc: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_crc"),
                 format!("{prefix}_connection_xdsl_stats_crc"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_crc gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_crc gauge: {e}")
+            }),
             xdsl_stats_hec: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_hec"),
                 format!("{prefix}_connection_xdsl_stats_hec"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_hec gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_hec gauge: {e}")
+            }),
             xdsl_stats_es: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_es"),
                 format!("{prefix}_connection_xdsl_stats_es"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_es gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_es gauge: {e}")
+            }),
             xdsl_stats_ses: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_ses"),
                 format!("{prefix}_connection_xdsl_stats_ses"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_ses gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_ses gauge: {e}")
+            }),
             xdsl_stats_rxmt: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rxmt"),
                 format!("{prefix}_connection_xdsl_stats_rxmt"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rxmt gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rxmt gauge: {e}")
+            }),
             xdsl_stats_rxmt_corr: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rxmt_corr"),
                 format!("{prefix}_connection_xdsl_stats_rxmt_corr"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rxmt_corr gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rxmt_corr gauge: {e}")
+            }),
             xdsl_stats_rxmt_uncorr: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rxmt_uncorr"),
                 format!("{prefix}_connection_xdsl_stats_rxmt_uncorr"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rxmt_uncorr gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rxmt_uncorr gauge: {e}")
+            }),
             xdsl_stats_rtx_tx: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rtx_tx"),
                 format!("{prefix}_connection_xdsl_stats_rtx_tx"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rtx_tx gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rtx_tx gauge: {e}")
+            }),
             xdsl_stats_rtx_c: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rtx_c"),
                 format!("{prefix}_connection_xdsl_stats_rtx_c"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rtx_c gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rtx_c gauge: {e}")
+            }),
             xdsl_stats_rtx_uc: register_int_gauge_vec!(
                 format!("{prefix}_connection_xdsl_stats_rtx_uc"),
                 format!("{prefix}_connection_xdsl_stats_rtx_uc"),
                 &["direction"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_connection_xdsl_stats_rtx_uc gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_connection_xdsl_stats_rtx_uc gauge: {e}")
+            }),
         }
     }
 

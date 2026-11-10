@@ -63,63 +63,63 @@ impl<'a> VmMetricMap<'a> {
                 "1 if the virtual machine is running, 0 otherwise",
                 &["id", "name"]
             )
-            .expect(&format!("cannot create {prefix}_vm_running gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_running gauge: {e}")),
             status_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_status"),
                 "virtual machine status (stopped, running, starting, stopping), always 1",
                 &["id", "name", "status"]
             )
-            .expect(&format!("cannot create {prefix}_vm_status gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_status gauge: {e}")),
             memory_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_memory_allocated_bytes"),
                 "memory allocated to the virtual machine",
                 &["id", "name"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vm_memory_allocated_bytes gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vm_memory_allocated_bytes gauge: {e}")
+            }),
             vcpus_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_vcpus"),
                 "virtual CPUs allocated to the virtual machine",
                 &["id", "name"]
             )
-            .expect(&format!("cannot create {prefix}_vm_vcpus gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_vcpus gauge: {e}")),
             info_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_info"),
                 "virtual machine configuration, always 1",
                 &["id", "name", "os", "disk_type"]
             )
-            .expect(&format!("cannot create {prefix}_vm_info gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_info gauge: {e}")),
             host_memory_total_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_host_memory_total_bytes"),
                 "memory available to virtual machines",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vm_host_memory_total_bytes gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vm_host_memory_total_bytes gauge: {e}")
+            }),
             host_memory_used_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_host_memory_allocated_bytes"),
                 "memory allocated to virtual machines",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vm_host_memory_allocated_bytes gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vm_host_memory_allocated_bytes gauge: {e}")
+            }),
             host_cpus_total_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_host_vcpus"),
                 "virtual CPUs available to virtual machines",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vm_host_vcpus gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_host_vcpus gauge: {e}")),
             host_cpus_used_metric: register_int_gauge_vec!(
                 format!("{prefix}_vm_host_vcpus_allocated"),
                 "virtual CPUs allocated to virtual machines",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vm_host_vcpus_allocated gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vm_host_vcpus_allocated gauge: {e}")
+            }),
         }
     }
 

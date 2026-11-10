@@ -128,21 +128,19 @@ impl<'a> DhcpMetricMap<'a> {
                 "Lease remaining time in milliseconds".to_string(),
                 &["id", "hostname", "ip", "mac", "is_static"],
             )
-            .expect(&format!(
-                "Failed to create gauge for {prfx}_lease_remaining"
-            )),
+            .unwrap_or_else(|e| panic!("Failed to create gauge for {prfx}_lease_remaining: {e}")),
             refresh_time_gauge: register_int_gauge_vec!(
                 format!("{prfx}_refresh_time"),
                 "Refresh time in milliseconds".to_string(),
                 &["id", "hostname", "ip", "mac", "is_static"],
             )
-            .expect(&format!("Failed to create gauge for {prfx}_refresh_time")),
+            .unwrap_or_else(|e| panic!("Failed to create gauge for {prfx}_refresh_time: {e}")),
             assign_time_gauge: register_int_gauge_vec!(
                 format!("{prfx}_assign_time"),
                 "Assign time in milliseconds".to_string(),
                 &["id", "hostname", "ip", "mac", "is_static"],
             )
-            .expect(&format!("Failed to create gauge for {prfx}_assign_time")),
+            .unwrap_or_else(|e| panic!("Failed to create gauge for {prfx}_assign_time: {e}")),
         }
     }
 

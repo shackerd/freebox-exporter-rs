@@ -46,31 +46,31 @@ impl<'a> DdnsMetricMap<'a> {
                 "dynamic DNS provider status (disabled, ok, wait, reqfail, authfail, ...), always 1",
                 &["provider", "status"]
             )
-            .expect(&format!("cannot create {prefix}_ddns_status gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_ddns_status gauge: {e}")),
             last_refresh_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_ddns_last_refresh_timestamp_seconds"),
                 "timestamp of the last dynamic DNS refresh",
                 &["provider"]
             )
-            .expect(&format!("cannot create {prefix}_ddns_last_refresh_timestamp_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_ddns_last_refresh_timestamp_seconds gauge: {e}")),
             next_refresh_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_ddns_next_refresh_timestamp_seconds"),
                 "timestamp of the next dynamic DNS refresh",
                 &["provider"]
             )
-            .expect(&format!("cannot create {prefix}_ddns_next_refresh_timestamp_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_ddns_next_refresh_timestamp_seconds gauge: {e}")),
             last_error_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_ddns_last_error_timestamp_seconds"),
                 "timestamp of the last dynamic DNS error",
                 &["provider"]
             )
-            .expect(&format!("cannot create {prefix}_ddns_last_error_timestamp_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_ddns_last_error_timestamp_seconds gauge: {e}")),
             next_retry_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_ddns_next_retry_timestamp_seconds"),
                 "timestamp of the next dynamic DNS retry after an error",
                 &["provider"]
             )
-            .expect(&format!("cannot create {prefix}_ddns_next_retry_timestamp_seconds gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_ddns_next_retry_timestamp_seconds gauge: {e}")),
         }
     }
 

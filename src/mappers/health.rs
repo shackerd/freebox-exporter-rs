@@ -21,7 +21,7 @@ impl CollectorHealth {
                 ),
                 &["collector"],
             )
-            .expect(&format!("cannot create {prefix}_collector_success gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_collector_success gauge: {e}")),
             last_success: IntGaugeVec::new(
                 Opts::new(
                     format!("{prefix}_collector_last_success_timestamp_seconds"),
@@ -29,9 +29,9 @@ impl CollectorHealth {
                 ),
                 &["collector"],
             )
-            .expect(&format!(
-                "cannot create {prefix}_collector_last_success_timestamp_seconds gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_collector_last_success_timestamp_seconds gauge: {e}")
+            }),
             duration: GaugeVec::new(
                 Opts::new(
                     format!("{prefix}_collector_duration_seconds"),
@@ -39,9 +39,9 @@ impl CollectorHealth {
                 ),
                 &["collector"],
             )
-            .expect(&format!(
-                "cannot create {prefix}_collector_duration_seconds gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_collector_duration_seconds gauge: {e}")
+            }),
         }
     }
 
@@ -49,13 +49,13 @@ impl CollectorHealth {
     pub fn register(prefix: &str) -> Self {
         let health = Self::new(prefix);
         prometheus::register(Box::new(health.success.clone()))
-            .expect(&format!("cannot register {prefix}_collector_success gauge"));
-        prometheus::register(Box::new(health.last_success.clone())).expect(&format!(
-            "cannot register {prefix}_collector_last_success_timestamp_seconds gauge"
-        ));
-        prometheus::register(Box::new(health.duration.clone())).expect(&format!(
-            "cannot register {prefix}_collector_duration_seconds gauge"
-        ));
+            .unwrap_or_else(|e| panic!("cannot register {prefix}_collector_success gauge: {e}"));
+        prometheus::register(Box::new(health.last_success.clone())).unwrap_or_else(|e| {
+            panic!("cannot register {prefix}_collector_last_success_timestamp_seconds gauge: {e}")
+        });
+        prometheus::register(Box::new(health.duration.clone())).unwrap_or_else(|e| {
+            panic!("cannot register {prefix}_collector_duration_seconds gauge: {e}")
+        });
         health
     }
 

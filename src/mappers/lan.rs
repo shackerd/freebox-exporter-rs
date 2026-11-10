@@ -43,33 +43,33 @@ impl<'a> LanMetricMap<'a> {
                 format!("{prfx}_name_dns"),
                 &["name_dns"]
             )
-            .expect(&format!("cannot create {prfx}_name_dns gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name_dns gauge: {e}")),
             name_mdns_metric: register_int_gauge_vec!(
                 format!("{prfx}_name_mdns"),
                 format!("{prfx}_name_mdns"),
                 &["name_mdns"]
             )
-            .expect(&format!("cannot create {prfx}_name_mdns gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name_mdns gauge: {e}")),
             name_metric: register_int_gauge_vec!(
                 format!("{prfx}_name"),
                 format!("{prfx}_name"),
                 &["name"]
             )
-            .expect(&format!("cannot create {prfx}_name gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name gauge: {e}")),
             mode_metric: register_int_gauge_vec!(
                 format!("{prfx}_mode"),
                 format!("{prfx}_mode"),
                 &["mode"]
             )
-            .expect(&format!("cannot create {prfx}_mode gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_mode gauge: {e}")),
             name_netbios_metric: register_int_gauge_vec!(
                 format!("{prfx}_name_netbios"),
                 format!("{prfx}_name_netbios"),
                 &["name_netbios"]
             )
-            .expect(&format!("cannot create {prfx}_name_netbios gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name_netbios gauge: {e}")),
             ip_metric: register_int_gauge_vec!(format!("{prfx}_ip"), format!("{prfx}_ip"), &["ip"])
-                .expect(&format!("cannot create {prfx}_ip gauge")),
+                .unwrap_or_else(|e| panic!("cannot create {prfx}_ip gauge: {e}")),
         }
     }
 

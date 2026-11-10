@@ -82,111 +82,107 @@ impl<'a> VpnMetricMap<'a> {
                 "VPN server state, always 1",
                 &["name", "type", "state"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_server_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_server_state gauge: {e}")),
             server_started_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_server_started"),
                 "1 if the VPN server is started, 0 otherwise",
                 &["name", "type"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_server_started gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_server_started gauge: {e}")),
             server_connections_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_server_connections"),
                 "number of active VPN server connections",
                 &["name", "type"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_server_connections gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_server_connections gauge: {e}")),
             server_authenticated_connections_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_server_authenticated_connections"),
                 "number of authenticated VPN server connections",
                 &["name", "type"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_server_authenticated_connections gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_server_authenticated_connections gauge: {e}")
+            }),
             connections_rx_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_connections_rx_bytes"),
                 "bytes received by the VPN connections currently open, drops when one closes",
                 &["vpn"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_connections_rx_bytes gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_connections_rx_bytes gauge: {e}")
+            }),
             connections_tx_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_connections_tx_bytes"),
                 "bytes sent by the VPN connections currently open, drops when one closes",
                 &["vpn"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_connections_tx_bytes gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_connections_tx_bytes gauge: {e}")
+            }),
             client_enabled_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_enabled"),
                 "1 if the VPN client is enabled, 0 otherwise",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_enabled gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_enabled gauge: {e}")),
             client_up_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_up"),
                 "1 if the VPN client is up, 0 otherwise",
                 &[]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_up gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_up gauge: {e}")),
             client_state_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_state"),
                 "VPN client state, always 1",
                 &["state"]
             )
-            .expect(&format!("cannot create {prefix}_vpn_client_state gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_state gauge: {e}")),
             client_last_error_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_last_error"),
                 "VPN client last error, always 1",
                 &["last_error"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_client_last_error gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_last_error gauge: {e}")),
             client_rate_up_bytes_per_second_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_rate_up_bytes_per_second"),
                 "VPN client upload rate in bytes per second",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_client_rate_up_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_client_rate_up_bytes_per_second gauge: {e}")
+            }),
             client_rate_down_bytes_per_second_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_rate_down_bytes_per_second"),
                 "VPN client download rate in bytes per second",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_client_rate_down_bytes_per_second gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_client_rate_down_bytes_per_second gauge: {e}")
+            }),
             client_bytes_up_metric: register_int_counter_vec!(
                 format!("{prefix}_vpn_client_uploaded_bytes_total"),
                 "total bytes uploaded by the VPN client, as reported by the box",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_client_uploaded_bytes_total counter"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_client_uploaded_bytes_total counter: {e}")
+            }),
             client_bytes_down_metric: register_int_counter_vec!(
                 format!("{prefix}_vpn_client_downloaded_bytes_total"),
                 "total bytes downloaded by the VPN client, as reported by the box",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_client_downloaded_bytes_total counter"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_client_downloaded_bytes_total counter: {e}")
+            }),
             client_last_up_timestamp_seconds_metric: register_int_gauge_vec!(
                 format!("{prefix}_vpn_client_last_up_timestamp_seconds"),
                 "timestamp of the last successful VPN client connection",
                 &[]
             )
-            .expect(&format!(
-                "cannot create {prefix}_vpn_client_last_up_timestamp_seconds gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_vpn_client_last_up_timestamp_seconds gauge: {e}")
+            }),
         }
     }
 

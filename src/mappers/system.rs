@@ -79,121 +79,119 @@ impl<'a> SystemMetricMap<'a> {
                 format!("{prefix}_system_mac"),
                 &["mac"]
             )
-            .expect(&format!("cannot create {prefix}_system_mac gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_mac gauge: {e}")),
             box_flavor_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_box_flavor"),
                 format!("{prefix}_system_box_flavor"),
                 &["box_flavor"]
             )
-            .expect(&format!("cannot create {prefix}_system_box_flavor gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_box_flavor gauge: {e}")),
             box_model_name_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_box_model_name"),
                 format!("{prefix}_system_box_model_name"),
                 &["model_name"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_system_box_model_name gauge"
-            )),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_box_model_name gauge: {e}")),
             device_name_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_device_name"),
                 format!("{prefix}_system_device_name"),
                 &["device_name"]
             )
-            .expect(&format!("cannot create {prefix}_system_device_name gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_device_name gauge: {e}")),
             api_version_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_api_version"),
                 format!("{prefix}_system_api_version"),
                 &["api_version"]
             )
-            .expect(&format!("cannot create {prefix}_system_api_version gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_api_version gauge: {e}")),
             temp_hdd_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_hdd"),
                 format!("{prefix}_system_temp_hdd")
             )
-            .expect(&format!("cannot create {prefix}_system_temp_hdd gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_hdd gauge: {e}")),
             temp_t1_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_t1"),
                 format!("{prefix}_system_temp_t1")
             )
-            .expect(&format!("cannot create {prefix}_system_temp_t1 gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_t1 gauge: {e}")),
             temp_t2_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_t2"),
                 format!("{prefix}_system_temp_t2")
             )
-            .expect(&format!("cannot create {prefix}_system_temp_t2 gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_t2 gauge: {e}")),
             temp_cpu_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_temp_cpu"),
                 format!("{prefix}_system_temp_cpu CPU core temperature"),
                 &["core"]
             )
-            .expect(&format!("cannot create {prefix}_system_temp_cpu gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpu gauge: {e}")),
             // Legacy metrics for backward compatibility
             temp_cpub_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_cpub"),
                 format!("{prefix}_system_temp_cpub")
             )
-            .expect(&format!("cannot create {prefix}_system_temp_cpub gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpub gauge: {e}")),
             temp_cpum_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_cpum"),
                 format!("{prefix}_system_temp_cpum")
             )
-            .expect(&format!("cannot create {prefix}_system_temp_cpum gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpum gauge: {e}")),
             disk_status_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_disk_status"),
                 format!("{prefix}_system_disk_status"),
                 &["disk_status"]
             )
-            .expect(&format!("cannot create {prefix}_system_disk_status gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_disk_status gauge: {e}")),
             box_authenticated_metric: register_int_gauge!(
                 format!("{prefix}_system_box_authenticated"),
                 format!("{prefix}_system_box_authenticated")
             )
-            .expect(&format!(
-                "cannot create {prefix}_system_box_authenticated gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_system_box_authenticated gauge: {e}")
+            }),
             board_name_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_board_name"),
                 format!("{prefix}_system_board_name"),
                 &["board_name"]
             )
-            .expect(&format!("cannot create {prefix}_system_board_name gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_board_name gauge: {e}")),
             fan_rpm_metric: register_int_gauge!(
                 format!("{prefix}_system_fan_rpm"),
                 format!("{prefix}_system_fan_rpm")
             )
-            .expect(&format!("cannot create {prefix}_system_fan_rpm gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_fan_rpm gauge: {e}")),
             temp_sw_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_sw"),
                 format!("{prefix}_system_temp_sw")
             )
-            .expect(&format!("cannot create {prefix}_system_temp_sw gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_sw gauge: {e}")),
             uptime_val_metric: register_int_gauge!(
                 format!("{prefix}_system_uptime_val"),
                 format!("{prefix}_system_uptime_val")
             )
-            .expect(&format!("cannot create {prefix}_system_uptime_val gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_uptime_val gauge: {e}")),
             user_main_storage_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_user_main_storage"),
                 format!("{prefix}_system_user_main_storage"),
                 &["user_main_storage"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_system_user_main_storage gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_system_user_main_storage gauge: {e}")
+            }),
             serial_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_serial"),
                 format!("{prefix}_system_serial"),
                 &["serial"]
             )
-            .expect(&format!("cannot create {prefix}_system_serial gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_serial gauge: {e}")),
             firmware_version_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_firmware_version"),
                 format!("{prefix}_system_firmware_version"),
                 &["firmware_version"]
             )
-            .expect(&format!(
-                "cannot create {prefix}_system_firmware_version gauge"
-            )),
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_system_firmware_version gauge: {e}")
+            }),
         }
     }
 

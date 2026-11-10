@@ -84,31 +84,31 @@ impl<'a> LanBrowserMetricMap<'a> {
                     "vendor_name"
                 ]
             )
-            .expect(&format!("cannot create {prfx}_devices gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_devices gauge: {e}")),
             device_l3_connectivity_gauge: register_int_gauge_vec!(
                 format!("{prfx}_device_l3_connectivity"),
                 "device l3 connectivity, 1 for active",
                 &["ident", "iface", "addr", "name", "af"]
             )
-            .expect(&format!("cannot create {prfx}_device_l3 gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_device_l3 gauge: {e}")),
             device_last_activity: register_int_gauge_vec!(
                 format!("{prfx}_device_last_activity"),
                 "device last activity timestamp",
                 &["iface", "name"]
             )
-            .expect(&format!("cannot create {prfx}_device_last_activity gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_device_last_activity gauge: {e}")),
             device_name_gauge: register_int_gauge_vec!(
                 format!("{prfx}_device_name"),
                 "device name",
                 &["name", "source", "ident", "iface"]
             )
-            .expect(&format!("cannot create {prfx}_name gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_name gauge: {e}")),
             iface_gauge: register_int_gauge_vec!(
                 format!("{prfx}_iface_hosts"),
                 "network interfaces",
                 &["name"]
             )
-            .expect(&format!("cannot create {prfx}_ifaces gauge")),
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_ifaces gauge: {e}")),
         }
     }
 
