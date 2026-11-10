@@ -53,10 +53,11 @@ pub fn get_recent_channel_entries(
             if l <= max_range as u32 {
                 histories.to_vec()
             } else {
-                // take only the last x entries
+                // take only the most recent x entries, entries without timestamp sort last
                 let mut hist = histories.to_vec();
-                hist.sort_by(|a, b| b.timestamp.unwrap().cmp(&a.timestamp.unwrap()));
-                hist.split_at(len as usize - max_range).1.to_vec()
+                hist.sort_by_key(|h| std::cmp::Reverse(h.timestamp));
+                hist.truncate(max_range);
+                hist
             }
         }
     }

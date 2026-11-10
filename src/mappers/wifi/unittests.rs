@@ -436,3 +436,53 @@ mod tests_collect {
         assert!(scrape(prefix).is_empty());
     }
 }
+
+#[cfg(test)]
+mod tests_recent_channel_entries {
+    use crate::mappers::wifi::{models::ChannelSurveyHistory, utils::get_recent_channel_entries};
+
+    fn entry(timestamp: Option<u64>) -> ChannelSurveyHistory {
+        ChannelSurveyHistory {
+            timestamp,
+            busy_percent: Some(0),
+            tx_percent: Some(0),
+            rx_bss_percent: Some(0),
+            rx_percent: Some(0),
+        }
+    }
+
+    fn sorted_timestamps(entries: &[ChannelSurveyHistory]) -> Vec<Option<u64>> {
+        let mut timestamps: Vec<Option<u64>> = entries.iter().map(|e| e.timestamp).collect();
+        timestamps.sort();
+        timestamps
+    }
+
+    #[test]
+    fn keeps_the_most_recent_entries_when_history_exceeds_max_range() {
+        let histories: Vec<ChannelSurveyHistory> =
+            [2, 5, 1, 4, 3].into_iter().map(|ts| entry(Some(ts))).collect();
+
+        let recent = get_recent_channel_entries(&histories, 3);
+
+        assert_eq!(sorted_timestamps(&recent), vec![Some(3), Some(4), Some(5)]);
+    }
+
+    #[test]
+    fn keeps_every_entry_when_history_fits_max_range() {
+        let histories: Vec<ChannelSurveyHistory> =
+            [2, 1, 3].into_iter().map(|ts| entry(Some(ts))).collect();
+
+        let recent = get_recent_channel_entries(&histories, 3);
+
+        assert_eq!(sorted_timestamps(&recent), vec![Some(1), Some(2), Some(3)]);
+    }
+
+    #[test]
+    fn drops_entries_without_timestamp_first_instead_of_panicking() {
+        let histories = vec![entry(Some(1)), entry(None), entry(Some(3)), entry(Some(2))];
+
+        let recent = get_recent_channel_entries(&histories, 2);
+
+        assert_eq!(sorted_timestamps(&recent), vec![Some(2), Some(3)]);
+    }
+}
