@@ -362,6 +362,8 @@ impl<'a> Mapper<'a> {
                 error!("collector {name} failed: {e}");
             }
 
+            // a scrape waits for the health update to complete instead of returning part of it
+            let _update = lock.lock();
             self.health.observe(
                 name,
                 res.is_ok(),
@@ -382,7 +384,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::mappers::test_support::update_lock;
+    use crate::mappers::test_support::{
+        collect_while_locked, new_update_lock, scrape, update_lock,
+    };
 
     /// Collector returning a scripted sequence of outcomes and counting its runs
     struct ScriptedMap {
@@ -539,6 +543,33 @@ mod tests {
         assert_eq!(Some(0.0), mapper.health.success("ko"));
         assert!(mapper.health.last_success("ok").unwrap() > 0.0);
         assert_eq!(None, mapper.health.last_success("ko"));
+    }
+
+    #[tokio::test]
+    async fn health_update_waits_for_a_scrape_in_progress() {
+        let prefix = "test_mapper_lock";
+        let (map, _) = ScriptedMap::new(&[true, false]);
+        let mut mapper = Mapper {
+            maps: vec![("scripted", Box::new(map))],
+            health: CollectorHealth::register(prefix),
+        };
+
+        mapper.set_all(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("_collector_success{") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+
+        // the collector now fails
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, mapper.set_all(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_eq!(Some(0.0), mapper.health.success("scripted"));
     }
 
     #[tokio::test]
