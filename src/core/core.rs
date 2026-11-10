@@ -67,7 +67,8 @@ pub async fn auto_register_and_serve(
         Box::new(FileSystemProvider::new(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
-    );
+    )
+    .with_timeouts(conf.api.timeouts());
 
     let factory = authenticator.login().await?;
     let cap_agent = CapabilitiesAgent::new(&factory);
@@ -193,7 +194,8 @@ pub async fn serve(
         Box::new(FileSystemProvider::new(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
-    );
+    )
+    .with_timeouts(conf.api.timeouts());
 
     let factory = match authenticator.login().await {
         Err(e) => return Err(e),
@@ -231,7 +233,8 @@ async fn create_network_agnostic_authenticator(
         Box::new(FileSystemProvider::new(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
-    ))
+    )
+    .with_timeouts(conf.api.timeouts()))
 }
 
 /// ### Session diagnostic
@@ -282,7 +285,8 @@ pub async fn session_diagnostic(
             Box::new(FileSystemProvider::new(
                 conf.core.data_directory.as_ref().unwrap().to_owned(),
             )),
-        );
+        )
+        .with_timeouts(conf.api.timeouts());
 
         authenticator.diagnostic(show_token).await?;
     } else {

@@ -1,5 +1,5 @@
 use crate::core::common::{
-    http_client_factory::{http_client_factory, REQUEST_TIMEOUT},
+    http_client_factory::{http_client_factory, Timeouts},
     transport::{FreeboxResponse, FreeboxResponseError},
 };
 use application_token_provider::ApplicationTokenProvider;
@@ -22,6 +22,7 @@ use super::common::http_client_factory::AuthenticatedHttpClientFactory;
 pub struct Authenticator {
     api_url: String,
     token_store: Box<dyn ApplicationTokenProvider>,
+    timeouts: Timeouts,
 }
 
 impl Authenticator {
@@ -29,7 +30,14 @@ impl Authenticator {
         Self {
             api_url,
             token_store: store,
+            timeouts: Timeouts::default(),
         }
+    }
+
+    /// Bounds every request to the box made from this authenticator and its sessions
+    pub fn with_timeouts(mut self, timeouts: Timeouts) -> Self {
+        self.timeouts = timeouts;
+        self
     }
 
     pub async fn is_registered(&self) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
@@ -75,7 +83,11 @@ impl Authenticator {
     ) -> Result<AuthenticatedHttpClientFactory<'_>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("login in");
 
-        let provider = SessionTokenProvider::new(self.token_store.as_ref(), self.api_url.clone());
+        let provider = SessionTokenProvider::new(
+            self.token_store.as_ref(),
+            self.api_url.clone(),
+            self.timeouts,
+        );
 
         match provider.login().await {
             Ok(_) => Ok(AuthenticatedHttpClientFactory::new(
@@ -89,7 +101,7 @@ impl Authenticator {
     async fn prompt(&self) -> Result<PromptResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("prompting for registration");
 
-        let client = http_client_factory(REQUEST_TIMEOUT)?;
+        let client = http_client_factory(self.timeouts)?;
         let hostname = hostname::get().unwrap();
 
         let payload = PromptPayload::new(
@@ -196,7 +208,7 @@ impl Authenticator {
     ) -> Result<AuthorizationResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("checking authorization status");
 
-        let client = http_client_factory(REQUEST_TIMEOUT)?;
+        let client = http_client_factory(self.timeouts)?;
 
         let resp = match client
             .get(format!("{}v4/login/authorize/{}", self.api_url, track_id))
@@ -235,7 +247,11 @@ impl Authenticator {
         &self,
         show_token: bool,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let provider = SessionTokenProvider::new(self.token_store.as_ref(), self.api_url.clone());
+        let provider = SessionTokenProvider::new(
+            self.token_store.as_ref(),
+            self.api_url.clone(),
+            self.timeouts,
+        );
         let token_result = provider.login().await;
 
         if token_result.is_ok() && show_token {

@@ -194,7 +194,7 @@ fbx_exporter_collector_last_success_timestamp_seconds{collector="vm"} 1794097253
 fbx_exporter_collector_duration_seconds{collector="vm"} 0.064
 ```
 
-`collector_success` is 0 when the collector failed. The lan_browser and wifi collectors also report 0 when the devices of an interface or an expected access point could not be fetched, while still exposing the others; failures of the optional wifi channel usage and neighbors endpoints, unavailable on some models, are only logged at debug level. Each collector fetches everything from the box before replacing its metrics, so a scrape during these requests still sees the previous collection, and a failed collector keeps exposing its last known values and its last success timestamp. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Connecting to the box times out after 2 seconds, and each request after 5 seconds.
+`collector_success` is 0 when the collector failed. The lan_browser and wifi collectors also report 0 when the devices of an interface or an expected access point could not be fetched, while still exposing the others; failures of the optional wifi channel usage and neighbors endpoints, unavailable on some models, are only logged at debug level. Each collector fetches everything from the box before replacing its metrics, so a scrape during these requests still sees the previous collection, and a failed collector keeps exposing its last known values and its last success timestamp. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Connecting to the box times out after 2 seconds, and each request after 5 seconds: raise `connect_timeout` and `request_timeout` in the `[api]` section if the box is reached through a slow link, such as a VPN.
 
 A collector that never succeeded has no last success timestamp, so alert on both failing and stale collectors, for instance:
 
@@ -322,6 +322,10 @@ services:
 #   more you set API exposition (c.f: [metrics] section) more requests will be sent,
 #   setting a too low interval between refreshs could lead to request rate limiting from freebox host
 refresh = 5
+# Upper bounds in seconds of the connection to the freebox host, and of each request
+#   raise them if the freebox host is reached through a slow link, such as a VPN
+connect_timeout = 2
+request_timeout = 5
 
 [metrics]
 # Exposes connection

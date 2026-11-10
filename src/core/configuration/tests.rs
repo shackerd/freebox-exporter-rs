@@ -93,6 +93,8 @@ unresolved_station_hostnames = \"ignore\"";
         let conf = Configuration {
             api: ApiConfiguration {
                 refresh: None,
+                connect_timeout: None,
+                request_timeout: None,
             },
             core: CoreConfiguration {
                 data_directory: Some("nowhere".to_string()),
@@ -126,6 +128,8 @@ unresolved_station_hostnames = \"ignore\"";
         let conf2 = Configuration {
             api: ApiConfiguration {                
                 refresh: None,
+                connect_timeout: None,
+                request_timeout: None,
             },
             core: CoreConfiguration {
                 data_directory: Some("".to_string()),
@@ -159,6 +163,8 @@ unresolved_station_hostnames = \"ignore\"";
         let conf3 = Configuration {
             api: ApiConfiguration {
                 refresh: None,
+                connect_timeout: None,
+                request_timeout: None,
             },
             core: CoreConfiguration {
                 data_directory: Some(".".to_string()),
@@ -199,6 +205,8 @@ unresolved_station_hostnames = \"ignore\"";
         let conf = Configuration {
             api: ApiConfiguration {
                 refresh: None,
+                connect_timeout: None,
+                request_timeout: None,
             },
             core: CoreConfiguration {
                 data_directory: None,
@@ -232,6 +240,8 @@ unresolved_station_hostnames = \"ignore\"";
         let conf2 = Configuration {
             api: ApiConfiguration {
                 refresh: None,
+                connect_timeout: None,
+                request_timeout: None,
             },
             core: CoreConfiguration {
                 data_directory: None,
@@ -265,6 +275,8 @@ unresolved_station_hostnames = \"ignore\"";
         let conf3 = Configuration {
             api: ApiConfiguration {
                 refresh: None,
+                connect_timeout: None,
+                request_timeout: None,
             },
             core: CoreConfiguration {
                 data_directory: None,
@@ -298,5 +310,50 @@ unresolved_station_hostnames = \"ignore\"";
         assert_eq!(Err(()), conf.assert_metrics_prefix_is_not_empty());
         assert_eq!(Err(()), conf2.assert_metrics_prefix_is_not_empty());
         assert_eq!(Ok(()), conf3.assert_metrics_prefix_is_not_empty());
+    }
+}
+
+#[cfg(test)]
+mod timeouts {
+    use std::time::Duration;
+
+    use crate::core::{
+        common::http_client_factory::Timeouts,
+        configuration::{assert_configuration_is_valid, Configuration},
+    };
+
+    fn parse(api: &str) -> Configuration {
+        toml::from_str(&format!(
+            "[api]\n{api}\n[metrics]\nprefix = \"fbx\"\n[core]\ndata_directory = \".\"\n[log]\n"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn timeouts_default_to_2_seconds_to_connect_and_5_seconds_per_request() {
+        let expected = Timeouts {
+            connect: Duration::from_secs(2),
+            request: Duration::from_secs(5),
+        };
+        assert_eq!(expected, parse("refresh = 5").api.timeouts());
+    }
+
+    #[test]
+    fn timeouts_follow_the_configuration() {
+        let expected = Timeouts {
+            connect: Duration::from_secs(3),
+            request: Duration::from_secs(7),
+        };
+        assert_eq!(
+            expected,
+            parse("connect_timeout = 3\nrequest_timeout = 7").api.timeouts()
+        );
+    }
+
+    #[test]
+    fn a_zero_timeout_is_rejected() {
+        assert!(assert_configuration_is_valid(&parse("connect_timeout = 1\nrequest_timeout = 1")).is_ok());
+        assert!(assert_configuration_is_valid(&parse("connect_timeout = 0")).is_err());
+        assert!(assert_configuration_is_valid(&parse("request_timeout = 0")).is_err());
     }
 }

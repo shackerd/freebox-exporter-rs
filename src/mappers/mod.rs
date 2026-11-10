@@ -432,7 +432,7 @@ mod tests {
         let caps: Capabilities =
             serde_json::from_str(r#"{ "vm": null, "raid": null, "vpn": null, "ddns": null }"#).unwrap();
 
-        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5), connect_timeout: None, request_timeout: None }, None);
 
         assert!(mapper.maps.is_empty());
         for name in ["vm", "raid", "vpn", "ddns"] {
@@ -452,7 +452,7 @@ mod tests {
         let caps: Capabilities =
             serde_json::from_str(r#"{ "vm": true, "raid": true, "vpn": true, "ddns": true }"#).unwrap();
 
-        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5), connect_timeout: None, request_timeout: None }, None);
 
         let names: Vec<&str> = mapper.maps.iter().map(|(name, _)| *name).collect();
         assert_eq!(vec!["vm", "raid", "vpn", "ddns"], names);
@@ -467,7 +467,7 @@ mod tests {
         let caps: Capabilities =
             serde_json::from_str(r#"{ "vm": false, "raid": false, "vpn": false, "ddns": false }"#).unwrap();
 
-        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5) }, None);
+        let mapper = Mapper::new(&factory, conf, caps, ApiConfiguration { refresh: Some(5), connect_timeout: None, request_timeout: None }, None);
 
         assert!(mapper.maps.is_empty());
         // unlike undetected support, a known lack of support is not a failure
