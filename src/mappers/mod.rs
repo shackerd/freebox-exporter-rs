@@ -8,6 +8,7 @@ use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
 use nas::NasMetricMap;
+use prometheus_exporter::UpdateLock;
 use raid::RaidMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
@@ -39,7 +40,12 @@ pub mod wifi;
 
 #[async_trait]
 pub trait MetricMap<'a> {
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    /// Collects the values from the box, then updates the metrics while holding `lock`,
+    /// the lock the exporter takes to return them
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
@@ -344,10 +350,13 @@ impl<'a> Mapper<'a> {
 
     /// Runs every collector; a failing collector does not stop the others nor the exporter,
     /// its outcome is exposed through the health metrics
-    pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for (name, map) in self.maps.iter_mut() {
             let started = std::time::Instant::now();
-            let res = map.set().await;
+            let res = map.set(lock).await;
 
             if let Err(e) = &res {
                 error!("collector {name} failed: {e}");
@@ -373,6 +382,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::mappers::test_support::update_lock;
 
     /// Collector returning a scripted sequence of outcomes and counting its runs
     struct ScriptedMap {
@@ -397,7 +407,10 @@ mod tests {
 
     #[async_trait]
     impl<'a> MetricMap<'a> for ScriptedMap {
-        async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn set(
+            &mut self,
+            _lock: &UpdateLock,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             *self.runs.lock().unwrap() += 1;
             match self.outcomes.pop_front() {
                 Some(true) => Ok(()),
@@ -520,7 +533,7 @@ mod tests {
         let (ko, _) = ScriptedMap::new(&[false]);
         let mut mapper = mapper(vec![("ok", Box::new(ok)), ("ko", Box::new(ko))]);
 
-        assert!(mapper.set_all().await.is_ok());
+        assert!(mapper.set_all(update_lock()).await.is_ok());
 
         assert_eq!(Some(1.0), mapper.health.success("ok"));
         assert_eq!(Some(0.0), mapper.health.success("ko"));
@@ -533,9 +546,9 @@ mod tests {
         let (flaky, _) = ScriptedMap::new(&[true, false]);
         let mut mapper = mapper(vec![("flaky", Box::new(flaky))]);
 
-        mapper.set_all().await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
         let first_success = mapper.health.last_success("flaky");
-        mapper.set_all().await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
 
         assert_eq!(Some(0.0), mapper.health.success("flaky"));
         assert!(first_success.is_some());
@@ -548,7 +561,7 @@ mod tests {
         let (ok, ok_runs) = ScriptedMap::new(&[true]);
         let mut mapper = mapper(vec![("ko", Box::new(ko)), ("ok", Box::new(ok))]);
 
-        mapper.set_all().await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
 
         assert_eq!(1, *ko_runs.lock().unwrap());
         assert_eq!(1, *ok_runs.lock().unwrap());
@@ -619,7 +632,7 @@ mod tests {
         // a panic here would stop every collector of the exporter
         for (name, mut map) in existing_collectors(&factory, "test_expired_client") {
             assert!(
-                map.set().await.is_err(),
+                map.set(update_lock()).await.is_err(),
                 "{name} succeeded with an expired client"
             );
         }
@@ -666,7 +679,10 @@ mod tests {
                 .mount(&server)
                 .await;
 
-            assert!(map.set().await.is_err(), "{name} succeeded without session");
+            assert!(
+                map.set(update_lock()).await.is_err(),
+                "{name} succeeded without session"
+            );
             let challenges = server
                 .received_requests()
                 .await
@@ -721,7 +737,7 @@ mod tests {
         let mut map = LanMetricMap::new(&factory, "test_slow_renewal".to_string());
 
         let started = std::time::Instant::now();
-        assert!(map.set().await.is_err());
+        assert!(map.set(update_lock()).await.is_err());
         assert!(
             started.elapsed() < std::time::Duration::from_secs(2),
             "{:?}",

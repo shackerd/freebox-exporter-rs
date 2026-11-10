@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -104,7 +105,10 @@ impl<'a> LanMetricMap<'a> {
         }
     }
 
-    async fn set_lan_config(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_lan_config(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching lan config");
 
         let body = self
@@ -138,6 +142,8 @@ impl<'a> LanMetricMap<'a> {
 
         // reset only once the response is valid: a scrape during the request still sees
         // the previous collection, and a failed request keeps it
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
 
         self.name_dns_metric
@@ -178,8 +184,11 @@ impl<'a> MetricMap<'a> for LanMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = self.set_lan_config().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Err(e) = self.set_lan_config(lock).await {
             return Err(e);
         };
         Ok(())
@@ -192,7 +201,8 @@ mod tests_collect {
 
     use super::*;
     use crate::mappers::test_support::{
-        mock_api, scrape, scrape_during, serve_scoped, serve_slowly,
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
     };
 
     fn lan_config(name: &str) -> Value {
@@ -207,7 +217,7 @@ mod tests_collect {
         let mut map = LanMetricMap::new(&factory, prefix.to_string());
 
         let first = serve_scoped(&server, "/api/v4/lan/config", lan_config("before")).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = scrape(prefix);
         assert!(
             before.iter().any(|l| l.contains("\"before\"")),
@@ -217,8 +227,44 @@ mod tests_collect {
 
         // the only request of the collection is slow, and returns a new name
         serve_slowly(&server, "/api/v4/lan/config", lan_config("after")).await;
-        let (result, during) =
-            scrape_during(&server, "/api/v4/lan/config", map.set(), prefix).await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/lan/config",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        let after = scrape(prefix);
+        assert!(
+            after.iter().any(|l| l.contains("\"after\""))
+                && !after.iter().any(|l| l.contains("\"before\"")),
+            "{after:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_lan_lock";
+        let mut map = LanMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/lan/config", lan_config("before")).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before.iter().any(|l| l.contains("\"before\"")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(&server, "/api/v4/lan/config", lan_config("after")).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

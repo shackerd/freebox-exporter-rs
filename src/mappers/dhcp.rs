@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -279,11 +280,16 @@ impl<'a> DhcpMetricMap<'a> {
         Ok(leases)
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // fetch every lease before touching the metrics: a scrape during the requests
         // still sees the previous collection, and a failed request keeps it
         let leases = self.fetch_dhcp_leases().await?;
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
 
         for lease in leases {
@@ -330,8 +336,11 @@ impl<'a> DhcpMetricMap<'a> {
 
 #[async_trait]
 impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-        if let Err(e) = self.set_all().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+        if let Err(e) = self.set_all(lock).await {
             return Err(e);
         }
 
@@ -349,7 +358,8 @@ mod tests {
     use super::*;
     use crate::mappers::api_specs_provider::get_specs_data;
     use crate::mappers::test_support::{
-        mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly,
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
     };
     use serde_json::{from_str, json, Value};
 
@@ -406,7 +416,7 @@ mod tests {
             fixture("api_v2_dhcp_static_lease-get").await,
         )
         .await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = scrape(prefix);
         assert!(
             before.iter().any(|l| l.contains("is_static=\"true\"")),
@@ -421,8 +431,63 @@ mod tests {
             json!({ "success": true, "result": [] }),
         )
         .await;
-        let (result, during) =
-            scrape_during(&server, "/api/v4/dhcp/static_lease/", map.set(), prefix).await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/dhcp/static_lease/",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        let after = scrape(prefix);
+        assert!(
+            !after.is_empty() && !after.iter().any(|l| l.contains("is_static=\"true\"")),
+            "{after:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let fixture = |name| async move {
+            from_str::<Value>(&get_specs_data("dhcp", name).await.unwrap()).unwrap()
+        };
+        serve(
+            &server,
+            "/api/v4/dhcp/dynamic_lease/",
+            fixture("api_v2_dhcp_dynamic_lease-get").await,
+        )
+        .await;
+
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_dhcp_lock";
+        let mut map = DhcpMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(
+            &server,
+            "/api/v4/dhcp/static_lease/",
+            fixture("api_v2_dhcp_static_lease-get").await,
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before.iter().any(|l| l.contains("is_static=\"true\"")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(
+            &server,
+            "/api/v4/dhcp/static_lease/",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

@@ -6,6 +6,7 @@ use crate::core::common::{
 use async_trait::async_trait;
 use log::{debug, warn};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -227,7 +228,10 @@ impl<'a> LanBrowserMetricMap<'a> {
         self.iface_gauge.reset();
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let ifaces = self.get_ifaces().await?;
 
         // fetch every interface before touching the metrics: a scrape during the requests
@@ -255,6 +259,8 @@ impl<'a> LanBrowserMetricMap<'a> {
             }
         }
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
 
         for (iface, devs) in fetched {
@@ -335,8 +341,11 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_all().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match self.set_all(lock).await {
             Err(e) => return Err(e),
             _ => {}
         };
@@ -351,7 +360,8 @@ mod tests {
 
     use super::*;
     use crate::mappers::test_support::{
-        mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly,
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
     };
 
     async fn serve_interfaces(server: &wiremock::MockServer) {
@@ -404,7 +414,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_partial".to_string());
 
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert!(err.to_string().contains("wifiguest"), "{err}");
         assert!(!err.to_string().contains("pub"), "{err}");
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
@@ -424,7 +434,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_complete".to_string());
 
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
     }
 
@@ -452,7 +462,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_unnamed".to_string());
 
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert_eq!(
             "cannot fetch devices of interface(s) <unnamed>",
             err.to_string()
@@ -496,7 +506,7 @@ mod tests {
             )
             .await,
         ];
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = scrape(prefix);
         assert!(
             before
@@ -514,8 +524,71 @@ mod tests {
             devices("phone", false),
         )
         .await;
-        let (result, during) =
-            scrape_during(&server, "/api/v4/lan/browser/wifiguest", map.set(), prefix).await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_eq!(Some(0), device_active(&map, "wifiguest", "phone"));
+        assert_eq!(Some(0), device_active(&map, "pub", "nas"));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_lanbrowser_lock";
+        let mut map = LanBrowserMetricMap::new(&factory, prefix.to_string());
+        let interfaces = json!({ "success": true, "result": [
+            { "name": "pub", "host_count": 1 },
+            { "name": "wifiguest", "host_count": 1 }
+        ] });
+        let devices = |name: &str, active: bool| {
+            json!({ "success": true, "result": [
+            { "id": name, "primary_name": name, "active": active }
+        ] })
+        };
+
+        let first = [
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/interfaces",
+                interfaces.clone(),
+            )
+            .await,
+            serve_scoped(&server, "/api/v4/lan/browser/pub", devices("nas", true)).await,
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/wifiguest",
+                devices("phone", true),
+            )
+            .await,
+        ];
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("\"phone\"") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+        drop(first);
+
+        serve(&server, "/api/v4/lan/browser/interfaces", interfaces).await;
+        serve(&server, "/api/v4/lan/browser/pub", devices("nas", false)).await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            devices("phone", false),
+        )
+        .await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

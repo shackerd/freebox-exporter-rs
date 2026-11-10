@@ -7,6 +7,7 @@ use models::{
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 
 use super::MetricMap;
@@ -552,7 +553,7 @@ impl<'a> ConnectionMetricMap<'a> {
         }
     }
 
-    async fn set_connection_status(
+    fn set_connection_status(
         &mut self,
         status: &ConnectionStatus,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -884,7 +885,10 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // fetch everything before touching the metrics: a scrape during the requests
         // still sees the previous collection, and a failed request keeps it
         let status = self.get_connection_status().await?;
@@ -909,8 +913,10 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
             self.is_ftth = Some(is_ftth);
         }
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
-        self.set_connection_status(&status).await?;
+        self.set_connection_status(&status)?;
         self.set_connection_conf(conf);
         self.set_connection_ipv6_conf(ipv6_conf);
         if let Some(ftth) = ftth {

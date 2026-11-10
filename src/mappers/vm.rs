@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -186,7 +187,10 @@ impl<'a> VmMetricMap<'a> {
         }
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
         let api_url = self.factory.api_url.clone();
 
@@ -202,6 +206,8 @@ impl<'a> VmMetricMap<'a> {
             .unwrap_or_default();
 
         // reset only once both calls succeeded, so a failure keeps the last known values
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
 
         self.set_host_metrics(&info);
@@ -219,8 +225,11 @@ impl<'a> MetricMap<'a> for VmMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_all().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_all(lock).await
     }
 }
 
@@ -232,7 +241,9 @@ mod tests {
     use super::*;
     use crate::mappers::{
         api_specs_provider::get_specs_data,
-        test_support::{mock_api, serve},
+        test_support::{
+            collect_while_locked, mock_api, new_update_lock, scrape, serve, update_lock,
+        },
     };
 
     /// Value exposed for the series matching all `labels`, None when it does not exist
@@ -262,7 +273,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_real".to_string());
 
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         let vm = [("id", "0"), ("name", "name_vm-1")];
         assert_eq!(Some(1.0), exposed(&map.running_metric, &vm));
@@ -295,7 +306,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_stopped".to_string());
 
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         assert_eq!(Some(0.0), exposed(&map.running_metric, &[("id", "3")]));
         // an empty vm/info object must not be exposed as zero resources
@@ -315,7 +326,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_none".to_string());
 
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         assert!(map.running_metric.collect()[0].get_metric().is_empty());
         assert_eq!(Some(3.0), exposed(&map.host_cpus_total_metric, &[]));
@@ -328,13 +339,13 @@ mod tests {
         serve(&server, "/api/v7/vm/info/", fixture("api_v7_vm_info-get").await).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_info_missing".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         server.reset().await;
         serve(&server, "/api/v7/vm/", fixture("api_v7_vm-get").await).await;
         serve(&server, "/api/v7/vm/info/", json!({ "success": true })).await;
 
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
 
         assert!(err.to_string().contains("vm/info"), "{err}");
         assert_eq!(Some(3.0), exposed(&map.host_cpus_total_metric, &[]));
@@ -353,7 +364,7 @@ mod tests {
         let factory = authenticator.login().await.unwrap();
         let mut map = VmMetricMap::new(&factory, "test_vm_rights".to_string());
 
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
 
         assert!(err.to_string().contains("insufficient_rights"), "{err}");
     }
@@ -373,7 +384,7 @@ mod tests {
             .up_to_n_times(1)
             .mount_as_scoped(&server)
             .await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         drop(first);
 
         // cycle 2: API failure, last known values are kept
@@ -383,13 +394,42 @@ mod tests {
             ))
             .mount_as_scoped(&server)
             .await;
-        assert!(map.set().await.is_err());
+        assert!(map.set(update_lock()).await.is_err());
         assert_eq!(Some(1.0), exposed(&map.running_metric, &[("id", "1")]));
         drop(failing);
 
         // cycle 3: VM deleted, its series disappear
         serve(&server, "/api/v7/vm/", json!({ "success": true })).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
+        assert_eq!(None, exposed(&map.running_metric, &[("id", "1")]));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        serve(&server, "/api/v7/vm/info/", json!({ "success": true, "result": {} })).await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_vm_lock";
+        let mut map = VmMetricMap::new(&factory, prefix.to_string());
+
+        let first = wiremock::Mock::given(wiremock::matchers::path("/api/v7/vm/"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                json!({ "success": true, "result": [{ "id": 1, "name": "a", "status": "running" }] }),
+            ))
+            .mount_as_scoped(&server)
+            .await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert_eq!(Some(1.0), exposed(&map.running_metric, &[("id", "1")]));
+        drop(first);
+
+        // the VM was deleted
+        serve(&server, "/api/v7/vm/", json!({ "success": true })).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
         assert_eq!(None, exposed(&map.running_metric, &[("id", "1")]));
     }
 }

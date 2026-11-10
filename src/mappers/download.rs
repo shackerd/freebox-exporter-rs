@@ -3,6 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -230,6 +231,7 @@ impl<'a> DownloadMetricMap<'a> {
 
     async fn set_download_metrics(
         &mut self,
+        lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let body = self
             .get_managed_client()
@@ -260,6 +262,8 @@ impl<'a> DownloadMetricMap<'a> {
             }
         };
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.rx_rate_metric.set(stats.rx_rate.unwrap_or_default());
         self.tx_rate_metric.set(stats.tx_rate.unwrap_or_default());
         self.nb_tasks_metric.set(stats.nb_tasks.unwrap_or_default());
@@ -324,8 +328,11 @@ impl<'a> MetricMap<'a> for DownloadMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_download_metrics().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_download_metrics(lock).await
     }
 }
 
@@ -386,5 +393,52 @@ mod tests {
         let rate = stats.throttling_rate.unwrap();
         assert_eq!(rate.rx_rate.unwrap(), 0);
         assert_eq!(rate.tx_rate.unwrap(), 0);
+    }
+}
+
+#[cfg(test)]
+mod tests_collect {
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::mappers::test_support::{
+        collect_while_locked, mock_api, new_update_lock, scrape, serve, serve_scoped, update_lock,
+    };
+
+    fn stats(nb_peer: i64) -> Value {
+        json!({ "success": true, "result": { "nb_peer": nb_peer, "throttling_mode": "normal" } })
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_download_lock";
+        let mut map = DownloadMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/downloads/stats", stats(1)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("_peers_total") && l.ends_with(" 1")),
+            "{before:?}"
+        );
+        drop(first);
+
+        serve(&server, "/api/v4/downloads/stats", stats(2)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        let after = scrape(prefix);
+        assert!(
+            after
+                .iter()
+                .any(|l| l.contains("_peers_total") && l.ends_with(" 2")),
+            "{after:?}"
+        );
     }
 }

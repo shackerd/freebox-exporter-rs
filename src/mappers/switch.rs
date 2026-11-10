@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
@@ -500,7 +501,10 @@ impl<'a> SwitchMetricMap<'a> {
         self.port_mac_list_gauge.reset();
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let body_status = self.get_ports_status_json().await;
 
         if body_status.is_err() {
@@ -540,6 +544,8 @@ impl<'a> SwitchMetricMap<'a> {
             fetched.push((port_status, stats));
         }
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
         for (port_status, stats) in fetched {
             self.rx_packets_rate_gauge
@@ -696,8 +702,11 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = self.set_all().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Err(e) = self.set_all(lock).await {
             return Err(e);
         }
 
@@ -774,7 +783,8 @@ mod tests {
 
     use super::*;
     use crate::mappers::test_support::{
-        mock_api, scrape, scrape_during, serve, serve_scoped, serve_slowly,
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
     };
 
     fn stats(rx_good_bytes: i64) -> Value {
@@ -800,7 +810,7 @@ mod tests {
         let mut map = SwitchMetricMap::new(&factory, prefix.to_string());
 
         let first = serve_scoped(&server, "/api/v4/switch/port/2/stats", stats(100)).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = scrape(prefix);
         let port_2 = |lines: &[String]| {
             lines
@@ -816,8 +826,56 @@ mod tests {
 
         // the last request of the collection is slow, and returns new stats
         serve_slowly(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
-        let (result, during) =
-            scrape_during(&server, "/api/v4/switch/port/2/stats", map.set(), prefix).await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/switch/port/2/stats",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(port_2(&scrape(prefix)).is_some_and(|l| l.ends_with(" 200")));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        serve(
+            &server,
+            "/api/v4/switch/status/",
+            json!({ "success": true, "result": [
+            { "id": 1, "link": "up", "speed": "1000", "mac_list": [] },
+            { "id": 2, "link": "up", "speed": "1000", "mac_list": [] }
+        ] }),
+        )
+        .await;
+        serve(&server, "/api/v4/switch/port/1/stats", stats(1)).await;
+
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_switch_lock";
+        let mut map = SwitchMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/switch/port/2/stats", stats(100)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        let port_2 = |lines: &[String]| {
+            lines
+                .iter()
+                .find(|l| l.contains("rx_good_bytes{") && l.contains("\"2\""))
+                .cloned()
+        };
+        assert!(
+            port_2(&before).is_some_and(|l| l.ends_with(" 100")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

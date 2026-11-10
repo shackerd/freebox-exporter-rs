@@ -5,6 +5,7 @@ use chrono::Duration;
 use log::{debug, warn};
 use models::{AccessPoint, ChannelSurveyHistory, ChannelUsage, NeighborsAccessPoint, Station};
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use utils::{calculate_avg_channel_survey_history, get_recent_channel_entries};
 
@@ -473,7 +474,7 @@ impl<'a> WifiMetricMap<'a> {
         }
     }
 
-    pub async fn set_stations_gauges(
+    pub fn set_stations_gauges(
         &self,
         stations: &[Station],
         ap: &AccessPoint,
@@ -515,8 +516,7 @@ impl<'a> WifiMetricMap<'a> {
                     // Normal path with all data available
                     self.set_station_metrics_with_data(
                         station, host, ap, l3, last_rx, last_tx, flags,
-                    )
-                    .await;
+                    );
                 }
                 "relabel" | _ => {
                     // In relabel mode, we process all stations and use default values for missing fields
@@ -550,30 +550,26 @@ impl<'a> WifiMetricMap<'a> {
                                             // Full data path
                                             self.set_station_metrics_with_data(
                                                 station, host, ap, l3, last_rx, last_tx, flags,
-                                            )
-                                            .await;
+                                            );
                                         }
                                         None => {
                                             // No IPv4 connectivity, use default values
                                             self.set_station_metrics_with_defaults(
                                                 station, host, ap, None,
-                                            )
-                                            .await;
+                                            );
                                         }
                                     }
                                 }
                                 None => {
                                     // No l3connectivities, use default values
-                                    self.set_station_metrics_with_defaults(station, host, ap, None)
-                                        .await;
+                                    self.set_station_metrics_with_defaults(station, host, ap, None);
                                 }
                             }
                         }
                         _ => {
                             // Missing some essential fields, but still try to process with host if available
                             if let Some(host) = station.host.as_ref() {
-                                self.set_station_metrics_with_defaults(station, host, ap, None)
-                                    .await;
+                                self.set_station_metrics_with_defaults(station, host, ap, None);
                             } else {
                                 // No host at all, skip this station even in relabel mode
                                 continue;
@@ -586,7 +582,7 @@ impl<'a> WifiMetricMap<'a> {
 
         Ok(())
     }
-    async fn set_station_metrics_with_data(
+    fn set_station_metrics_with_data(
         &self,
         station: &Station,
         host: &models::Host,
@@ -731,7 +727,7 @@ impl<'a> WifiMetricMap<'a> {
             .set(last_time_reachable);
     }
 
-    async fn set_station_metrics_with_defaults(
+    fn set_station_metrics_with_defaults(
         &self,
         station: &Station,
         host: &models::Host,
@@ -985,7 +981,10 @@ impl<'a> WifiMetricMap<'a> {
         }
     }
 
-    pub async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let aps = self.get_access_points().await?;
         let mut failed_phys = vec![];
 
@@ -997,6 +996,8 @@ impl<'a> WifiMetricMap<'a> {
                     debug!(
                         "no expected_phys found in /wifi/config endpoint, skipping WiFi metrics"
                     );
+                    // a scrape waits for the update to complete instead of returning part of it
+                    let _update = lock.lock();
                     self.reset_all();
                     return Ok(());
                 }
@@ -1058,6 +1059,8 @@ impl<'a> WifiMetricMap<'a> {
             fetched.push((history, channel_usage, neighbors, stations));
         }
 
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
         for (ap, (history, channel_usage, neighbors, stations)) in aps.iter().zip(fetched) {
             if let Some(history) = history {
@@ -1069,7 +1072,7 @@ impl<'a> WifiMetricMap<'a> {
             if let Some(neighbors) = neighbors {
                 self.set_neighbors_access_points(&neighbors)?;
             }
-            self.set_stations_gauges(&stations, ap).await?;
+            self.set_stations_gauges(&stations, ap)?;
         }
 
         // the reachable access points stay exposed, but the collection is incomplete
@@ -1088,7 +1091,10 @@ impl<'a> MetricMap<'a> for WifiMetricMap<'a> {
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_all().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_all(lock).await
     }
 }

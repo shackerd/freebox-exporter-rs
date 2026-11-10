@@ -1,3 +1,6 @@
+use std::sync::OnceLock;
+
+use prometheus_exporter::{prometheus::Registry, Exporter, UpdateLock};
 use serde_json::{json, Value};
 use wiremock::{
     matchers::{method, path},
@@ -101,6 +104,50 @@ pub async fn scrape_during<F: std::future::Future>(
         .unwrap_or_else(|_| panic!("{endpoint} was not requested during the collection"));
         scrape(prefix)
     })
+}
+
+/// Update lock of an exporter shared by the tests that do not check it
+pub fn update_lock() -> &'static UpdateLock {
+    static LOCK: OnceLock<UpdateLock> = OnceLock::new();
+    LOCK.get_or_init(new_update_lock)
+}
+
+/// Update lock of a new exporter, listening on a free local port with its own registry
+pub fn new_update_lock() -> UpdateLock {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("cannot bind a local port");
+    Exporter::builder_listener(listener)
+        .with_registry(&Registry::new())
+        .start()
+        .expect("cannot start the exporter")
+        .update_lock()
+}
+
+/// How long `collect_while_locked` holds the update lock
+pub const LOCK_HOLD: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Runs `collect` while another thread holds `lock` for `LOCK_HOLD`, as the exporter does
+/// while it returns the metrics, and scrapes `prefix` from that thread just before releasing it
+pub async fn collect_while_locked<F: std::future::Future>(
+    lock: &UpdateLock,
+    collect: F,
+    prefix: &str,
+) -> (F::Output, Vec<String>) {
+    let (locked, is_locked) = std::sync::mpsc::channel();
+    let holder = {
+        let lock = lock.clone();
+        let prefix = prefix.to_string();
+        std::thread::spawn(move || {
+            let _guard = lock.lock();
+            locked.send(()).unwrap();
+            std::thread::sleep(LOCK_HOLD);
+            scrape(&prefix)
+        })
+    };
+    is_locked.recv().unwrap();
+
+    // blocks this thread once the collection waits for the lock: the holder runs on its own
+    let output = collect.await;
+    (output, holder.join().unwrap())
 }
 
 /// Serves `body` on GET `endpoint` until the returned guard is dropped

@@ -3,6 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_gauge_vec, register_int_gauge_vec, GaugeVec, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -235,7 +236,10 @@ impl<'a> RaidMetricMap<'a> {
         }
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
         let api_url = self.factory.api_url.clone();
         let arrays = get_api_result::<Vec<RaidArray>>(
@@ -247,6 +251,8 @@ impl<'a> RaidMetricMap<'a> {
             .unwrap_or_default();
 
         // Keep the last known values if the API call fails.
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
         for array in &arrays {
             self.set_array_metrics(array);
@@ -261,8 +267,11 @@ impl<'a> MetricMap<'a> for RaidMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_all().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_all(lock).await
     }
 }
 
@@ -274,7 +283,9 @@ mod tests {
     use super::*;
     use crate::mappers::{
         api_specs_provider::get_specs_data,
-        test_support::{mock_api, serve},
+        test_support::{
+            collect_while_locked, mock_api, new_update_lock, scrape, serve, update_lock,
+        },
     };
 
     fn exposed(vec: &impl Collector, labels: &[(&str, &str)]) -> Option<f64> {
@@ -339,7 +350,7 @@ mod tests {
         serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid-get").await).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_doc".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         let labels = [("id", "0"), ("name", "Freebox"), ("level", "raid5")];
         assert_eq!(Some(0.0), exposed(&map.degraded_metric, &labels));
@@ -388,7 +399,7 @@ mod tests {
         serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid_empty-get").await).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_empty".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert!(snapshot(&map).is_empty());
     }
 
@@ -407,7 +418,7 @@ mod tests {
         })).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_degraded".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let labels = [("id", "7"), ("name", "rebuilding"), ("level", "raid1")];
         assert_eq!(Some(1.0), exposed(&map.degraded_metric, &labels));
         assert_eq!(Some(0.42), exposed(&map.sync_completed_ratio_metric, &labels));
@@ -433,7 +444,7 @@ mod tests {
         ]})).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_timestamps".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert_eq!(Some(1576082428.0), exposed(&map.last_check_timestamp_seconds_metric, &[("id", "1")]));
         assert_eq!(None, exposed(&map.next_check_timestamp_seconds_metric, &[("id", "1")]));
         assert_eq!(None, exposed(&map.last_check_timestamp_seconds_metric, &[("id", "2")]));
@@ -448,7 +459,7 @@ mod tests {
         })).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = RaidMetricMap::new(&factory, "test_raid_rights".to_string());
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert!(err.to_string().contains("insufficient_rights"), "{err}");
     }
 
@@ -463,7 +474,7 @@ mod tests {
             .and(wiremock::matchers::path("/api/v8/storage/raid/"))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(body))
             .mount_as_scoped(&server).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = snapshot(&map);
         assert_eq!(25, before.len());
         assert!(collectors(&map).iter().all(|c|
@@ -476,12 +487,12 @@ mod tests {
                 "success": false, "error_code": "internal_error"
             })))
             .mount_as_scoped(&server).await;
-        assert!(map.set().await.is_err());
+        assert!(map.set(update_lock()).await.is_err());
         assert_eq!(before, snapshot(&map));
         drop(failure);
 
         serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid_empty-get").await).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert!(snapshot(&map).is_empty());
     }
 
@@ -495,7 +506,7 @@ mod tests {
             .respond_with(wiremock::ResponseTemplate::new(200)
                 .set_body_json(fixture("api_v8_storage_raid-get").await))
             .mount_as_scoped(&server).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert_eq!(24, snapshot(&map).len());
         drop(first);
 
@@ -506,7 +517,34 @@ mod tests {
                 {"id": 3000, "device_location": "sata-internal-p2", "disk": {"temp": null}}
             ]
         }]})).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
+        assert!(snapshot(&map).is_empty());
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_raid_lock";
+        let mut map = RaidMetricMap::new(&factory, prefix.to_string());
+
+        let first = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/v8/storage/raid/"))
+            .respond_with(wiremock::ResponseTemplate::new(200)
+                .set_body_json(fixture("api_v8_storage_raid-get").await))
+            .mount_as_scoped(&server).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(!before.is_empty());
+        drop(first);
+
+        // the array disappeared
+        serve(&server, "/api/v8/storage/raid/", fixture("api_v8_storage_raid_empty-get").await).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
         assert!(snapshot(&map).is_empty());
     }
 }

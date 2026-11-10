@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -302,6 +303,7 @@ impl<'a> NasMetricMap<'a> {
 
     async fn set_storage_metrics(
         &mut self,
+        lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching storage disks");
 
@@ -336,6 +338,8 @@ impl<'a> NasMetricMap<'a> {
 
         // reset only once the response is valid: a scrape during the request still sees
         // the previous collection, and a failed request keeps it
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
 
         for disk in disks {
@@ -590,8 +594,11 @@ impl<'a> MetricMap<'a> for NasMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_storage_metrics().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match self.set_storage_metrics(lock).await {
             Err(e) => return Err(e),
             _ => {}
         };
@@ -772,7 +779,8 @@ mod tests_collect {
 
     use super::*;
     use crate::mappers::test_support::{
-        mock_api, scrape, scrape_during, serve_scoped, serve_slowly,
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
     };
 
     fn disks(total_bytes: i64) -> Value {
@@ -793,7 +801,7 @@ mod tests_collect {
         };
 
         let first = serve_scoped(&server, "/api/v4/storage/disk", disks(1000)).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = scrape(prefix);
         assert!(
             total(&before).is_some_and(|l| l.ends_with(" 1000")),
@@ -803,8 +811,45 @@ mod tests_collect {
 
         // the only request of the collection is slow, and returns a new size
         serve_slowly(&server, "/api/v4/storage/disk", disks(2000)).await;
-        let (result, during) =
-            scrape_during(&server, "/api/v4/storage/disk", map.set(), prefix).await;
+        let (result, during) = scrape_during(
+            &server,
+            "/api/v4/storage/disk",
+            map.set(update_lock()),
+            prefix,
+        )
+        .await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(total(&scrape(prefix)).is_some_and(|l| l.ends_with(" 2000")));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_nas_lock";
+        let mut map = NasMetricMap::new(&factory, prefix.to_string());
+        let total = |lines: &[String]| {
+            lines
+                .iter()
+                .find(|l| l.starts_with(&format!("{prefix}_nas_disk_total_bytes{{")))
+                .cloned()
+        };
+
+        let first = serve_scoped(&server, "/api/v4/storage/disk", disks(1000)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            total(&before).is_some_and(|l| l.ends_with(" 1000")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(&server, "/api/v4/storage/disk", disks(2000)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

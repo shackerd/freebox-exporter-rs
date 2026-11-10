@@ -3,6 +3,7 @@ use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -252,7 +253,10 @@ impl<'a> SystemMetricMap<'a> {
         self.firmware_version_metric.reset();
     }
 
-    async fn set_system_config(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_system_config(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching system config");
 
         let body = self
@@ -286,6 +290,8 @@ impl<'a> SystemMetricMap<'a> {
 
         // reset only once the response is valid: a scrape during the request still sees
         // the previous collection, and a failed request keeps it
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
 
         self.mac_metric
@@ -414,8 +420,11 @@ impl<'a> MetricMap<'a> for SystemMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match self.set_system_config().await {
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match self.set_system_config(lock).await {
             Err(e) => return Err(e),
             _ => {}
         };
@@ -652,7 +661,8 @@ mod tests_collect {
 
     use super::*;
     use crate::mappers::test_support::{
-        mock_api, scrape, scrape_during, serve_scoped, serve_slowly,
+        collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,
+        serve_scoped, serve_slowly, update_lock,
     };
 
     fn system(uptime_val: i64) -> Value {
@@ -667,7 +677,7 @@ mod tests_collect {
         let mut map = SystemMetricMap::new(&factory, prefix.to_string());
 
         let first = serve_scoped(&server, "/api/v4/system", system(100)).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         let before = scrape(prefix);
         assert!(
             before.contains(&format!("{prefix}_system_uptime_val 100")),
@@ -677,7 +687,34 @@ mod tests_collect {
 
         // the only request of the collection is slow, and returns a new uptime
         serve_slowly(&server, "/api/v4/system", system(200)).await;
-        let (result, during) = scrape_during(&server, "/api/v4/system", map.set(), prefix).await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/system", map.set(update_lock()), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_lock";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        let first = serve_scoped(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(
+            before.contains(&format!("{prefix}_system_uptime_val 100")),
+            "{before:?}"
+        );
+        drop(first);
+
+        // a scrape holds the lock while the collection gets a new response
+        serve(&server, "/api/v4/system", system(200)).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

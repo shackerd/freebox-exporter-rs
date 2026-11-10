@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -115,7 +116,10 @@ impl<'a> DdnsMetricMap<'a> {
         }
     }
 
-    async fn set_all(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_all(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
         let api_url = self.factory.api_url.clone();
         let mut statuses = Vec::with_capacity(PROVIDERS.len());
@@ -131,6 +135,8 @@ impl<'a> DdnsMetricMap<'a> {
         }
 
         // Keep the previous snapshot until all API calls have succeeded.
+        // a scrape waits for the update to complete instead of returning part of it
+        let _update = lock.lock();
         self.reset_all();
         for (provider, status) in &statuses {
             self.set_provider_metrics(provider, status);
@@ -145,8 +151,11 @@ impl<'a> MetricMap<'a> for DdnsMetricMap<'a> {
         Ok(())
     }
 
-    async fn set(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.set_all().await
+    async fn set(
+        &mut self,
+        lock: &UpdateLock,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.set_all(lock).await
     }
 }
 
@@ -158,7 +167,9 @@ mod tests {
     use super::*;
     use crate::mappers::{
         api_specs_provider::get_specs_data,
-        test_support::{mock_api, serve},
+        test_support::{
+            collect_while_locked, mock_api, new_update_lock, scrape, serve, update_lock,
+        },
     };
 
     /// Value of the first series matching all `labels`, None when it does not exist
@@ -211,7 +222,7 @@ mod tests {
         .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = DdnsMetricMap::new(&factory, "test_ddns_real".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         assert_eq!(3, series_count(&map.status_metric));
         assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "ovh"), ("status", "ok")]));
@@ -239,7 +250,7 @@ mod tests {
         .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = DdnsMetricMap::new(&factory, "test_ddns_doc".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "dyndns"), ("status", "hostinval")]));
         assert_eq!(Some(1354127350.0), exposed(&map.last_error_timestamp_seconds_metric, &[("provider", "dyndns")]));
@@ -264,7 +275,7 @@ mod tests {
         .await;
         let factory = authenticator.login().await.unwrap();
         let mut map = DdnsMetricMap::new(&factory, "test_ddns_rights".to_string());
-        let err = map.set().await.unwrap_err();
+        let err = map.set(update_lock()).await.unwrap_err();
         assert!(err.to_string().contains("insufficient_rights"), "{err}");
     }
 
@@ -280,7 +291,7 @@ mod tests {
             fixture("api_v4_connection_ddns_disabled_status-get").await,
         )
         .await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         // fail each provider in turn, with an error or a response without result
         for (failing, provider) in PROVIDERS.iter().enumerate() {
@@ -297,7 +308,7 @@ mod tests {
                 ];
                 bodies[failing] = failure;
                 serve_cycle(&server, bodies[0].clone(), bodies[1].clone(), bodies[2].clone()).await;
-                let err = map.set().await.unwrap_err();
+                let err = map.set(update_lock()).await.unwrap_err();
                 assert!(err.to_string().contains(expected), "{err}");
                 assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "ovh"), ("status", "ok")]));
                 assert_eq!(Some(1.0), exposed(&map.status_metric, &[("provider", "dyndns"), ("status", "hostinval")]));
@@ -310,7 +321,7 @@ mod tests {
         server.reset().await;
         let disabled = fixture("api_v4_connection_ddns_disabled_status-get").await;
         serve_cycle(&server, disabled.clone(), disabled.clone(), disabled).await;
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
         assert_eq!(3, series_count(&map.status_metric));
         assert_eq!(None, exposed(&map.status_metric, &[("status", "ok")]));
         assert_eq!(None, exposed(&map.status_metric, &[("status", "hostinval")]));
@@ -326,11 +337,41 @@ mod tests {
         serve_cycle(&server, empty(), empty(), empty()).await;
         let factory = authenticator.login().await.unwrap();
         let mut map = DdnsMetricMap::new(&factory, "test_ddns_missing".to_string());
-        map.set().await.unwrap();
+        map.set(update_lock()).await.unwrap();
 
         assert_eq!(0, series_count(&map.status_metric));
         for metric in timestamps(&map) {
             assert_eq!(0, series_count(metric));
         }
+    }
+
+    #[tokio::test]
+    async fn collection_waits_for_a_scrape_in_progress() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_ddns_lock";
+        let mut map = DdnsMetricMap::new(&factory, prefix.to_string());
+        let disabled = fixture("api_v4_connection_ddns_disabled_status-get").await;
+
+        serve_cycle(
+            &server,
+            fixture("api_v4_connection_ddns_ovh_status-get").await,
+            fixture("api_v4_connection_ddns_dyndns_status_doc-get").await,
+            disabled.clone(),
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        assert!(!before.is_empty());
+
+        // every provider is now disabled
+        server.reset().await;
+        serve_cycle(&server, disabled.clone(), disabled.clone(), disabled).await;
+        let lock = new_update_lock();
+        let (result, during) = collect_while_locked(&lock, map.set(&lock), prefix).await;
+        result.unwrap();
+
+        assert_eq!(before, during);
+        assert_ne!(before, scrape(prefix));
     }
 }
