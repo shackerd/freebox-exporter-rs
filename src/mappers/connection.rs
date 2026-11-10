@@ -445,18 +445,16 @@ impl<'a> ConnectionMetricMap<'a> {
         }
 
         let client = self.managed_client.as_ref().unwrap();
-        let res = client.get();
-
-        if res.is_ok() {
-            Ok(res.unwrap())
-        } else {
-            debug!("renewing managed client");
-
-            let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client?);
-
-            self.managed_client.as_ref().unwrap().get()
+        if let Ok(client) = client.get() {
+            return Ok(client);
         }
+
+        debug!("renewing managed client");
+
+        let client = self.factory.create_managed_client().await;
+        self.managed_client = Some(client?);
+
+        self.managed_client.as_ref().unwrap().get()
     }
 
     async fn get_connection_ftth(
@@ -689,8 +687,8 @@ impl<'a> ConnectionMetricMap<'a> {
         self.ipv6_enabled_metric
             .set(conf.ipv6_enabled.unwrap_or_default().into());
 
-        if conf.delegations.is_some() {
-            for delegation in conf.delegations.unwrap() {
+        if let Some(delegations) = conf.delegations {
+            for delegation in delegations {
                 self.delegations_metric
                     .with_label_values(&[
                         &delegation.prefix.unwrap(),

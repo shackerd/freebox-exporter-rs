@@ -55,10 +55,11 @@ impl Authenticator {
             Err(e) => return Err(e),
         };
 
-        if let Err(_) = self
+        if self
             .token_store
             .store(prompt_result.to_owned().app_token)
             .await
+            .is_err()
         {
             warn!("storing applicaton token failed, you can still save it by yourself (token.dat): {}", prompt_result.app_token)
         }
@@ -254,8 +255,8 @@ impl Authenticator {
         );
         let token_result = provider.login().await;
 
-        if token_result.is_ok() && show_token {
-            println!("SESSION_TOKEN: {}", token_result.unwrap());
+        if let (Ok(token), true) = (token_result, show_token) {
+            println!("SESSION_TOKEN: {}", token);
         }
 
         Ok(())

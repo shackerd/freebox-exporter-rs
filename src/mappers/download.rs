@@ -215,18 +215,16 @@ impl<'a> DownloadMetricMap<'a> {
         }
 
         let client = self.managed_client.as_ref().unwrap();
-        let res = client.get();
-
-        if res.is_ok() {
-            Ok(res.unwrap())
-        } else {
-            debug!("renewing managed client");
-
-            let client = self.factory.create_managed_client().await;
-            self.managed_client = Some(client?);
-
-            self.managed_client.as_ref().unwrap().get()
+        if let Ok(client) = client.get() {
+            return Ok(client);
         }
+
+        debug!("renewing managed client");
+
+        let client = self.factory.create_managed_client().await;
+        self.managed_client = Some(client?);
+
+        self.managed_client.as_ref().unwrap().get()
     }
 
     async fn set_download_metrics(

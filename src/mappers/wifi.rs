@@ -1,5 +1,3 @@
-use std::usize;
-
 use async_trait::async_trait;
 use chrono::Duration;
 use log::{debug, warn};
@@ -515,7 +513,7 @@ impl<'a> WifiMetricMap<'a> {
                         station, host, ap, l3, last_rx, last_tx, flags,
                     );
                 }
-                "relabel" | _ => {
+                _ => {
                     // In relabel mode, we process all stations and use default values for missing fields
                     match (
                         station.last_rx.as_ref(),
@@ -575,6 +573,8 @@ impl<'a> WifiMetricMap<'a> {
 
         Ok(())
     }
+    // every argument is a part of the station the caller has already checked
+    #[allow(clippy::too_many_arguments)]
     fn set_station_metrics_with_data(
         &self,
         station: &Station,
