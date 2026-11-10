@@ -9,13 +9,10 @@ use prometheus_exporter::prometheus::{
 };
 use reqwest::Client;
 
-
 use super::MetricMap;
-use crate::{
-    core::common::{
-        http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-        transport::{FreeboxResponse, FreeboxResponseError},
-    },
+use crate::core::common::{
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
+    transport::{FreeboxResponse, FreeboxResponseError},
 };
 mod models;
 mod unittests;
@@ -687,7 +684,8 @@ impl<'a> ConnectionMetricMap<'a> {
                     .any(|d| d.prefix.is_none() || d.next_hop.is_none()) =>
             {
                 Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection/ipv6/config delegation is missing prefix or next_hop".to_string(),
+                    "v4/connection/ipv6/config delegation is missing prefix or next_hop"
+                        .to_string(),
                 )))
             }
             Some(r) => Ok(r),
@@ -893,7 +891,11 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         let conf = self.get_connection_conf().await?;
         let ipv6_conf = self.get_connection_ipv6_conf().await?;
 
-        let media = status.media.clone().unwrap_or("unknown".to_string()).to_lowercase();
+        let media = status
+            .media
+            .clone()
+            .unwrap_or("unknown".to_string())
+            .to_lowercase();
         let is_ftth = media == "ftth";
 
         let (ftth, xdsl) = if is_ftth {
@@ -921,5 +923,3 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         Ok(())
     }
 }
-
-

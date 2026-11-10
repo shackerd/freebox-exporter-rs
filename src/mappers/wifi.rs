@@ -1,4 +1,3 @@
-
 use std::usize;
 
 use async_trait::async_trait;
@@ -21,7 +20,6 @@ use crate::{
 };
 
 use super::MetricMap;
-
 
 pub mod models;
 pub mod unittests;
@@ -73,7 +71,7 @@ impl<'a> WifiMetricMap<'a> {
             .unresolved_station_hostnames
             .clone()
             .unwrap_or_else(|| "ignore".to_string());
-        
+
         Self {
             factory,
             managed_client: None,
@@ -338,7 +336,11 @@ impl<'a> WifiMetricMap<'a> {
         Ok(res.result)
     }
 
-    fn set_channel_survey_history_gauges(&self, ap: &AccessPoint, history: &[ChannelSurveyHistory]) {
+    fn set_channel_survey_history_gauges(
+        &self,
+        ap: &AccessPoint,
+        history: &[ChannelSurveyHistory],
+    ) {
         let ap_id = ap.id.as_ref().unwrap().to_string();
         let band = ap.config.as_ref().unwrap().band.as_ref().unwrap();
         let ap_name = ap.name.as_deref().unwrap_or("unknown");
@@ -480,12 +482,22 @@ impl<'a> WifiMetricMap<'a> {
             match self.unresolved_hostname_policy.as_str() {
                 "ignore" => {
                     // Skip station if essential fields are missing
-                    let Some(last_rx) = station.last_rx.as_ref() else { continue };
-                    let Some(last_tx) = station.last_tx.as_ref() else { continue };
-                    let Some(flags) = station.flags.as_ref() else { continue };
-                    let Some(host) = station.host.as_ref() else { continue };
+                    let Some(last_rx) = station.last_rx.as_ref() else {
+                        continue;
+                    };
+                    let Some(last_tx) = station.last_tx.as_ref() else {
+                        continue;
+                    };
+                    let Some(flags) = station.flags.as_ref() else {
+                        continue;
+                    };
+                    let Some(host) = station.host.as_ref() else {
+                        continue;
+                    };
 
-                    let Some(l3connectivities) = host.l3connectivities.as_ref() else { continue };
+                    let Some(l3connectivities) = host.l3connectivities.as_ref() else {
+                        continue;
+                    };
                     let mut l3s = l3connectivities.to_vec();
                     l3s.sort_by(|a, b| {
                         b.last_time_reachable
@@ -501,11 +513,19 @@ impl<'a> WifiMetricMap<'a> {
                     let Some(l3) = l3 else { continue }; // Skip this station if no IPv4 connectivity found
 
                     // Normal path with all data available
-                    self.set_station_metrics_with_data(station, host, ap, l3, last_rx, last_tx, flags).await;
+                    self.set_station_metrics_with_data(
+                        station, host, ap, l3, last_rx, last_tx, flags,
+                    )
+                    .await;
                 }
                 "relabel" | _ => {
                     // In relabel mode, we process all stations and use default values for missing fields
-                    match (station.last_rx.as_ref(), station.last_tx.as_ref(), station.flags.as_ref(), station.host.as_ref()) {
+                    match (
+                        station.last_rx.as_ref(),
+                        station.last_tx.as_ref(),
+                        station.flags.as_ref(),
+                        station.host.as_ref(),
+                    ) {
                         (Some(last_rx), Some(last_tx), Some(flags), Some(host)) => {
                             // We have all the required data, try to get l3 connectivity
                             match host.l3connectivities.as_ref() {
@@ -519,30 +539,41 @@ impl<'a> WifiMetricMap<'a> {
 
                                     let l3 = l3s
                                         .iter()
-                                        .filter(|l| l.af.as_ref().unwrap_or(&"unknown".to_string()) == "ipv4")
+                                        .filter(|l| {
+                                            l.af.as_ref().unwrap_or(&"unknown".to_string())
+                                                == "ipv4"
+                                        })
                                         .next();
 
                                     match l3 {
                                         Some(l3) => {
                                             // Full data path
-                                            self.set_station_metrics_with_data(station, host, ap, l3, last_rx, last_tx, flags).await;
+                                            self.set_station_metrics_with_data(
+                                                station, host, ap, l3, last_rx, last_tx, flags,
+                                            )
+                                            .await;
                                         }
                                         None => {
                                             // No IPv4 connectivity, use default values
-                                            self.set_station_metrics_with_defaults(station, host, ap, None).await;
+                                            self.set_station_metrics_with_defaults(
+                                                station, host, ap, None,
+                                            )
+                                            .await;
                                         }
                                     }
                                 }
                                 None => {
-                                    // No l3connectivities, use default values  
-                                    self.set_station_metrics_with_defaults(station, host, ap, None).await;
+                                    // No l3connectivities, use default values
+                                    self.set_station_metrics_with_defaults(station, host, ap, None)
+                                        .await;
                                 }
                             }
                         }
                         _ => {
                             // Missing some essential fields, but still try to process with host if available
                             if let Some(host) = station.host.as_ref() {
-                                self.set_station_metrics_with_defaults(station, host, ap, None).await;
+                                self.set_station_metrics_with_defaults(station, host, ap, None)
+                                    .await;
                             } else {
                                 // No host at all, skip this station even in relabel mode
                                 continue;
@@ -719,7 +750,10 @@ impl<'a> WifiMetricMap<'a> {
             .band
             .to_owned()
             .unwrap_or("unknown".to_string());
-        let vendor_name = host.to_owned().vendor_name.unwrap_or("unresolved".to_string());
+        let vendor_name = host
+            .to_owned()
+            .vendor_name
+            .unwrap_or("unresolved".to_string());
 
         // Set metrics with default/unresolved values
         self.station_active_gauge
@@ -791,7 +825,15 @@ impl<'a> WifiMetricMap<'a> {
             .set(station.inactive.unwrap_or(i64::MIN));
 
         self.station_state_gauge
-            .with_label_values(&[&primary_name, &addr, &ap_name, &band, &ap_id, &mac, &station.state.to_owned().unwrap_or("unknown".to_string())])
+            .with_label_values(&[
+                &primary_name,
+                &addr,
+                &ap_name,
+                &band,
+                &ap_id,
+                &mac,
+                &station.state.to_owned().unwrap_or("unknown".to_string()),
+            ])
             .set(1);
 
         // Set flags with default values (all false for unresolved stations)
@@ -952,7 +994,9 @@ impl<'a> WifiMetricMap<'a> {
                 debug!("no access points found in /wifi/ap endpoint, trying /wifi/config fallback");
                 let config = self.get_wifi_config().await?;
                 if config.expected_phys.is_none() {
-                    debug!("no expected_phys found in /wifi/config endpoint, skipping WiFi metrics");
+                    debug!(
+                        "no expected_phys found in /wifi/config endpoint, skipping WiFi metrics"
+                    );
                     self.reset_all();
                     return Ok(());
                 }
@@ -1048,5 +1092,3 @@ impl<'a> MetricMap<'a> for WifiMetricMap<'a> {
         self.set_all().await
     }
 }
-
-

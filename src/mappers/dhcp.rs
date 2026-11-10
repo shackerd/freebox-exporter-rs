@@ -1,4 +1,3 @@
-
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
@@ -390,25 +389,47 @@ mod tests {
         let fixture = |name| async move {
             from_str::<Value>(&get_specs_data("dhcp", name).await.unwrap()).unwrap()
         };
-        serve(&server, "/api/v4/dhcp/dynamic_lease/", fixture("api_v2_dhcp_dynamic_lease-get").await).await;
+        serve(
+            &server,
+            "/api/v4/dhcp/dynamic_lease/",
+            fixture("api_v2_dhcp_dynamic_lease-get").await,
+        )
+        .await;
 
         let factory = authenticator.login().await.unwrap();
         let prefix = "test_dhcp_scrape";
         let mut map = DhcpMetricMap::new(&factory, prefix.to_string());
 
-        let first = serve_scoped(&server, "/api/v4/dhcp/static_lease/", fixture("api_v2_dhcp_static_lease-get").await).await;
+        let first = serve_scoped(
+            &server,
+            "/api/v4/dhcp/static_lease/",
+            fixture("api_v2_dhcp_static_lease-get").await,
+        )
+        .await;
         map.set().await.unwrap();
         let before = scrape(prefix);
-        assert!(before.iter().any(|l| l.contains("is_static=\"true\"")), "{before:?}");
+        assert!(
+            before.iter().any(|l| l.contains("is_static=\"true\"")),
+            "{before:?}"
+        );
         drop(first);
 
         // the last request of the collection is slow, and the static leases are gone
-        serve_slowly(&server, "/api/v4/dhcp/static_lease/", json!({ "success": true, "result": [] })).await;
-        let (result, during) = scrape_during(&server, "/api/v4/dhcp/static_lease/", map.set(), prefix).await;
+        serve_slowly(
+            &server,
+            "/api/v4/dhcp/static_lease/",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/dhcp/static_lease/", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);
         let after = scrape(prefix);
-        assert!(!after.is_empty() && !after.iter().any(|l| l.contains("is_static=\"true\"")), "{after:?}");
+        assert!(
+            !after.is_empty() && !after.iter().any(|l| l.contains("is_static=\"true\"")),
+            "{after:?}"
+        );
     }
 }

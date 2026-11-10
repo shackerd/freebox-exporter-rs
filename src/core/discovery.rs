@@ -212,8 +212,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let api_url =
-            discovery::get_api_url(
+        let api_url = discovery::get_api_url(
             "127.0.0.1",
             mock_server.address().port(),
             false,

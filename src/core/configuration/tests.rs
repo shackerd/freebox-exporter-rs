@@ -9,7 +9,10 @@ mod test {
 
     use crate::core::configuration::{
         get_configuration,
-        sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
+        sections::{
+            ApiConfiguration, CapabilitiesConfiguration, CoreConfiguration, LogConfiguration,
+            PoliciesConfiguration,
+        },
         Configuration,
     };
 
@@ -23,8 +26,7 @@ mod test {
         let mut file = File::create(path)
             .await
             .expect("cannot create sample configuration file");
-        let content =
-"[api]
+        let content = "[api]
 # interval in seconds
 refresh = 5
 
@@ -126,7 +128,7 @@ unresolved_station_hostnames = \"ignore\"";
         };
 
         let conf2 = Configuration {
-            api: ApiConfiguration {                
+            api: ApiConfiguration {
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
@@ -346,13 +348,18 @@ mod timeouts {
         };
         assert_eq!(
             expected,
-            parse("connect_timeout = 3\nrequest_timeout = 7").api.timeouts()
+            parse("connect_timeout = 3\nrequest_timeout = 7")
+                .api
+                .timeouts()
         );
     }
 
     #[test]
     fn a_zero_timeout_is_rejected() {
-        assert!(assert_configuration_is_valid(&parse("connect_timeout = 1\nrequest_timeout = 1")).is_ok());
+        assert!(
+            assert_configuration_is_valid(&parse("connect_timeout = 1\nrequest_timeout = 1"))
+                .is_ok()
+        );
         assert!(assert_configuration_is_valid(&parse("connect_timeout = 0")).is_err());
         assert!(assert_configuration_is_valid(&parse("request_timeout = 0")).is_err());
     }

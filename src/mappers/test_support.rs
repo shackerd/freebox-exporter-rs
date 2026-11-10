@@ -31,8 +31,7 @@ pub async fn mock_api() -> (MockServer, Authenticator) {
     let mut store = MockApplicationTokenProvider::new();
     store.expect_get().returning(|| Ok("foo.bar".to_string()));
 
-    let authenticator =
-        Authenticator::new(format!("{}/api/", server.uri()), Box::new(store));
+    let authenticator = Authenticator::new(format!("{}/api/", server.uri()), Box::new(store));
 
     (server, authenticator)
 }

@@ -379,9 +379,8 @@ impl<'a> SwitchMetricMap<'a> {
 
     async fn get_ports_status(
         &mut self,
-        body: &str
-    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {      
-
+        body: &str,
+    ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
         let fixed_body = SwitchMetricMap::handle_malformed_mac_list(&body)?;
 
         let res = match serde_json::from_str::<FreeboxResponse<Vec<SwitchPortStatus>>>(&fixed_body)
@@ -440,10 +439,9 @@ impl<'a> SwitchMetricMap<'a> {
 
     async fn get_port_stats(
         &mut self,
-        body: &str, 
+        body: &str,
         port_id: &i16,
     ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
-
         let res = match serde_json::from_str::<FreeboxResponse<SwitchPortStats>>(body) {
             Err(e) => return Err(Box::new(e)),
             Ok(r) => r,
@@ -511,7 +509,7 @@ impl<'a> SwitchMetricMap<'a> {
             )));
         }
 
-        let body_status = body_status.unwrap(); 
+        let body_status = body_status.unwrap();
 
         let port_statuses = match self.get_ports_status(&body_status).await {
             Err(e) => return Err(e),
@@ -522,10 +520,8 @@ impl<'a> SwitchMetricMap<'a> {
         // still sees the previous collection, and a failed request keeps it
         let mut fetched = Vec::with_capacity(port_statuses.len());
         for port_status in port_statuses {
-            
-            let body_stats = self.get_port_stats_json(&port_status)
-                .await;
-            
+            let body_stats = self.get_port_stats_json(&port_status).await;
+
             if body_stats.is_err() {
                 return Err(Box::new(FreeboxResponseError::new(
                     "v4/switch/port/{}/stats failed".to_string(),
@@ -534,7 +530,10 @@ impl<'a> SwitchMetricMap<'a> {
 
             let body_stats = body_stats.unwrap();
 
-            let stats = match self.get_port_stats(&body_stats, port_status.id.as_ref().unwrap()).await {
+            let stats = match self
+                .get_port_stats(&body_stats, port_status.id.as_ref().unwrap())
+                .await
+            {
                 Err(e) => return Err(e),
                 Ok(r) => r,
             };
@@ -543,7 +542,6 @@ impl<'a> SwitchMetricMap<'a> {
 
         self.reset_all();
         for (port_status, stats) in fetched {
-
             self.rx_packets_rate_gauge
                 .with_label_values(&[&port_status.id.unwrap_or_default().to_string()])
                 .set(stats.rx_packets_rate.unwrap_or_default());
@@ -707,8 +705,6 @@ impl<'a> MetricMap<'a> for SwitchMetricMap<'a> {
     }
 }
 
-
-
 lazy_static! {
     // for performance reasons, we compile the regex only once
     static ref REG_MAC: Regex = Regex::new(r#""mac_list"[^\[]+\{\s{0,}}"#).unwrap();
@@ -788,10 +784,15 @@ mod tests {
     #[tokio::test]
     async fn scrape_during_collection_sees_the_previous_collection() {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v4/switch/status/", json!({ "success": true, "result": [
+        serve(
+            &server,
+            "/api/v4/switch/status/",
+            json!({ "success": true, "result": [
             { "id": 1, "link": "up", "speed": "1000", "mac_list": [] },
             { "id": 2, "link": "up", "speed": "1000", "mac_list": [] }
-        ] })).await;
+        ] }),
+        )
+        .await;
         serve(&server, "/api/v4/switch/port/1/stats", stats(1)).await;
 
         let factory = authenticator.login().await.unwrap();
@@ -802,14 +803,21 @@ mod tests {
         map.set().await.unwrap();
         let before = scrape(prefix);
         let port_2 = |lines: &[String]| {
-            lines.iter().find(|l| l.contains("rx_good_bytes{") && l.contains("\"2\"")).cloned()
+            lines
+                .iter()
+                .find(|l| l.contains("rx_good_bytes{") && l.contains("\"2\""))
+                .cloned()
         };
-        assert!(port_2(&before).is_some_and(|l| l.ends_with(" 100")), "{before:?}");
+        assert!(
+            port_2(&before).is_some_and(|l| l.ends_with(" 100")),
+            "{before:?}"
+        );
         drop(first);
 
         // the last request of the collection is slow, and returns new stats
         serve_slowly(&server, "/api/v4/switch/port/2/stats", stats(200)).await;
-        let (result, during) = scrape_during(&server, "/api/v4/switch/port/2/stats", map.set(), prefix).await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/switch/port/2/stats", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use log::debug;
-use prometheus_exporter::prometheus::{
-    register_int_gauge_vec, IntGaugeVec,
-};
+use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -13,14 +11,14 @@ use crate::core::common::{
 };
 
 /// NAS Storage Metrics for Freebox API
-/// 
+///
 /// This module provides metrics collection for Freebox storage devices (NAS functionality).
 /// It implements the Storage API as documented at: https://dev.freebox.fr/sdk/os/storage/
-/// 
+///
 /// The implementation uses the `/api/v4/storage/disk/` endpoint to retrieve information about:
 /// - Storage disks (internal, USB, SATA)
 /// - Disk partitions and their usage
-/// 
+///
 /// All data structures and field types match the official API specification.
 /// Note: The Storage API is marked as [UNSTABLE] in the official documentation
 /// and may change without notice in future releases.
@@ -72,7 +70,7 @@ pub struct StorageDisk {
 pub struct NasMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
     managed_client: Option<ManagedHttpClient>,
-    
+
     // Disk metrics
     disk_total_bytes_metric: IntGaugeVec,
     disk_state_metric: IntGaugeVec,
@@ -87,7 +85,7 @@ pub struct NasMetricMap<'a> {
     disk_firmware_info_metric: IntGaugeVec,
     disk_operation_progress_metric: IntGaugeVec,
     disk_operation_steps_metric: IntGaugeVec,
-    
+
     // Partition metrics
     partition_total_bytes_metric: IntGaugeVec,
     partition_used_bytes_metric: IntGaugeVec,
@@ -103,7 +101,7 @@ impl<'a> NasMetricMap<'a> {
         Self {
             factory,
             managed_client: None,
-            
+
             // Disk metrics with labels for disk identification
             disk_total_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_total_bytes"),
@@ -111,91 +109,91 @@ impl<'a> NasMetricMap<'a> {
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_total_bytes gauge")),
-            
+
             disk_state_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_state"),
                 format!("{prefix}_nas_disk_state Disk state (1=enabled, 0=disabled, -1=error, 2=formatting)"),
                 &["disk_id", "disk_type", "model", "serial", "state"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_state gauge")),
-            
+
             disk_temperature_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_temperature_celsius"),
                 format!("{prefix}_nas_disk_temperature_celsius Disk temperature in Celsius"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_temperature_celsius gauge")),
-            
+
             disk_spinning_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_spinning"),
                 format!("{prefix}_nas_disk_spinning Disk spinning status (1=spinning, 0=not spinning)"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_spinning gauge")),
-            
+
             disk_idle_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_idle"),
                 format!("{prefix}_nas_disk_idle Disk idle status (1=idle, 0=active)"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_idle gauge")),
-            
+
             disk_idle_duration_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_idle_duration_seconds"),
                 format!("{prefix}_nas_disk_idle_duration_seconds Disk idle duration in seconds"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_idle_duration_seconds gauge")),
-            
+
             disk_active_duration_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_active_duration_seconds"),
                 format!("{prefix}_nas_disk_active_duration_seconds Disk active duration in seconds"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_active_duration_seconds gauge")),
-            
+
             disk_time_before_spindown_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_time_before_spindown_seconds"),
                 format!("{prefix}_nas_disk_time_before_spindown_seconds Time before disk spindown in seconds"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_time_before_spindown_seconds gauge")),
-            
+
             disk_connector_info_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_connector_info"),
                 format!("{prefix}_nas_disk_connector_info Disk physical connector ID"),
                 &["disk_id", "disk_type", "model", "serial", "connector"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_connector_info gauge")),
-            
+
             disk_table_type_info_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_table_type_info"),
                 format!("{prefix}_nas_disk_table_type_info Disk partition table type"),
                 &["disk_id", "disk_type", "model", "serial", "table_type"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_table_type_info gauge")),
-            
+
             disk_firmware_info_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_firmware_info"),
                 format!("{prefix}_nas_disk_firmware_info Disk firmware version"),
                 &["disk_id", "disk_type", "model", "serial", "firmware"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_firmware_info gauge")),
-            
+
             disk_operation_progress_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_operation_progress_percent"),
                 format!("{prefix}_nas_disk_operation_progress_percent Disk operation progress percentage"),
                 &["disk_id", "disk_type", "model", "serial"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_operation_progress_percent gauge")),
-            
+
             disk_operation_steps_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_disk_operation_steps"),
                 format!("{prefix}_nas_disk_operation_steps Disk operation steps (done/total)"),
                 &["disk_id", "disk_type", "model", "serial", "step_type"]
             )
             .expect(&format!("cannot create {prefix}_nas_disk_operation_steps gauge")),
-            
+
             // Partition metrics with labels for partition identification
             partition_total_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_total_bytes"),
@@ -203,42 +201,42 @@ impl<'a> NasMetricMap<'a> {
                 &["partition_id", "disk_id", "label", "fstype"]
             )
             .expect(&format!("cannot create {prefix}_nas_partition_total_bytes gauge")),
-            
+
             partition_used_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_used_bytes"),
                 format!("{prefix}_nas_partition_used_bytes Partition used space in bytes"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
             .expect(&format!("cannot create {prefix}_nas_partition_used_bytes gauge")),
-            
+
             partition_free_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_free_bytes"),
                 format!("{prefix}_nas_partition_free_bytes Partition free space in bytes"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
             .expect(&format!("cannot create {prefix}_nas_partition_free_bytes gauge")),
-            
+
             partition_state_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_state"),
                 format!("{prefix}_nas_partition_state Partition state (1=mounted, 0=unmounted, -1=error, 2=checking, 3=formatting, 4=mounting, 5=maintenance, 6=umounting, 7=ejecting)"),
                 &["partition_id", "disk_id", "label", "fstype", "state"]
             )
             .expect(&format!("cannot create {prefix}_nas_partition_state gauge")),
-            
+
             partition_fsck_result_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_fsck_result"),
                 format!("{prefix}_nas_partition_fsck_result File system check result (0=no_run_yet, 1=running, 2=fs_clean, 3=fs_corrected, 4=fs_needs_correction, -1=failed)"),
                 &["partition_id", "disk_id", "label", "fstype", "fsck_result"]
             )
             .expect(&format!("cannot create {prefix}_nas_partition_fsck_result gauge")),
-            
+
             partition_operation_progress_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_operation_progress_percent"),
                 format!("{prefix}_nas_partition_operation_progress_percent Partition operation progress percentage"),
                 &["partition_id", "disk_id", "label", "fstype"]
             )
             .expect(&format!("cannot create {prefix}_nas_partition_operation_progress_percent gauge")),
-            
+
             partition_operation_steps_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_operation_steps"),
                 format!("{prefix}_nas_partition_operation_steps Partition operation steps (done/total)"),
@@ -302,7 +300,9 @@ impl<'a> NasMetricMap<'a> {
         self.partition_operation_steps_metric.reset();
     }
 
-    async fn set_storage_metrics(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_storage_metrics(
+        &mut self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching storage disks");
 
         let body = self
@@ -343,7 +343,7 @@ impl<'a> NasMetricMap<'a> {
             let disk_type = disk.disk_type.unwrap_or_else(|| "unknown".to_string());
             let model = disk.model.unwrap_or_else(|| "unknown".to_string());
             let serial = disk.serial.unwrap_or_else(|| "unknown".to_string());
-            
+
             // Set disk metrics
             if let Some(total_bytes) = disk.total_bytes {
                 self.disk_total_bytes_metric
@@ -403,7 +403,13 @@ impl<'a> NasMetricMap<'a> {
             // Set connector information
             if let Some(connector) = disk.connector {
                 self.disk_connector_info_metric
-                    .with_label_values(&[&disk_id, &disk_type, &model, &serial, &connector.to_string()])
+                    .with_label_values(&[
+                        &disk_id,
+                        &disk_type,
+                        &model,
+                        &serial,
+                        &connector.to_string(),
+                    ])
                     .set(1);
             }
 
@@ -430,14 +436,14 @@ impl<'a> NasMetricMap<'a> {
                         .with_label_values(&[&disk_id, &disk_type, &model, &serial])
                         .set(percent);
                 }
-                
+
                 // Set disk operation steps (done/total)
                 if let Some(done_steps) = operation_pct.done_steps {
                     self.disk_operation_steps_metric
                         .with_label_values(&[&disk_id, &disk_type, &model, &serial, "done"])
                         .set(done_steps);
                 }
-                
+
                 if let Some(max_steps) = operation_pct.max_steps {
                     self.disk_operation_steps_metric
                         .with_label_values(&[&disk_id, &disk_type, &model, &serial, "total"])
@@ -455,19 +461,34 @@ impl<'a> NasMetricMap<'a> {
 
                     if let Some(total_bytes) = partition.total_bytes {
                         self.partition_total_bytes_metric
-                            .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype])
+                            .with_label_values(&[
+                                &partition_id,
+                                &partition_disk_id,
+                                &label,
+                                &fstype,
+                            ])
                             .set(total_bytes);
                     }
 
                     if let Some(used_bytes) = partition.used_bytes {
                         self.partition_used_bytes_metric
-                            .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype])
+                            .with_label_values(&[
+                                &partition_id,
+                                &partition_disk_id,
+                                &label,
+                                &fstype,
+                            ])
                             .set(used_bytes);
                     }
 
                     if let Some(free_bytes) = partition.free_bytes {
                         self.partition_free_bytes_metric
-                            .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype])
+                            .with_label_values(&[
+                                &partition_id,
+                                &partition_disk_id,
+                                &label,
+                                &fstype,
+                            ])
                             .set(free_bytes);
                     }
 
@@ -486,7 +507,13 @@ impl<'a> NasMetricMap<'a> {
                     };
                     let partition_state = partition.state.unwrap_or_else(|| "unknown".to_string());
                     self.partition_state_metric
-                        .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype, &partition_state])
+                        .with_label_values(&[
+                            &partition_id,
+                            &partition_disk_id,
+                            &label,
+                            &fstype,
+                            &partition_state,
+                        ])
                         .set(partition_state_value);
 
                     // Set fsck result
@@ -501,7 +528,13 @@ impl<'a> NasMetricMap<'a> {
                             _ => 0,
                         };
                         self.partition_fsck_result_metric
-                            .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype, fsck_result])
+                            .with_label_values(&[
+                                &partition_id,
+                                &partition_disk_id,
+                                &label,
+                                &fstype,
+                                fsck_result,
+                            ])
                             .set(fsck_result_value);
                     }
 
@@ -509,20 +542,37 @@ impl<'a> NasMetricMap<'a> {
                     if let Some(operation_pct) = &partition.operation_pct {
                         if let Some(percent) = operation_pct.percent {
                             self.partition_operation_progress_metric
-                                .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype])
+                                .with_label_values(&[
+                                    &partition_id,
+                                    &partition_disk_id,
+                                    &label,
+                                    &fstype,
+                                ])
                                 .set(percent);
                         }
-                        
+
                         // Set partition operation steps (done/total)
                         if let Some(done_steps) = operation_pct.done_steps {
                             self.partition_operation_steps_metric
-                                .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype, "done"])
+                                .with_label_values(&[
+                                    &partition_id,
+                                    &partition_disk_id,
+                                    &label,
+                                    &fstype,
+                                    "done",
+                                ])
                                 .set(done_steps);
                         }
-                        
+
                         if let Some(max_steps) = operation_pct.max_steps {
                             self.partition_operation_steps_metric
-                                .with_label_values(&[&partition_id, &partition_disk_id, &label, &fstype, "total"])
+                                .with_label_values(&[
+                                    &partition_id,
+                                    &partition_disk_id,
+                                    &label,
+                                    &fstype,
+                                    "total",
+                                ])
                                 .set(max_steps);
                         }
                     }
@@ -608,7 +658,7 @@ mod tests {
 
         let partitions = disk.partitions.unwrap();
         assert_eq!(partitions.len(), 1);
-        
+
         let partition = &partitions[0];
         assert_eq!(partition.id, 3);
         assert_eq!(partition.disk_id, 1);
@@ -673,7 +723,7 @@ mod tests {
 
         let partitions = disk.partitions.unwrap();
         assert_eq!(partitions.len(), 1);
-        
+
         let partition = &partitions[0];
         assert_eq!(partition.id, 1002);
         assert_eq!(partition.disk_id, 1001);
@@ -721,7 +771,9 @@ mod tests_collect {
     use serde_json::{json, Value};
 
     use super::*;
-    use crate::mappers::test_support::{mock_api, scrape, scrape_during, serve_scoped, serve_slowly};
+    use crate::mappers::test_support::{
+        mock_api, scrape, scrape_during, serve_scoped, serve_slowly,
+    };
 
     fn disks(total_bytes: i64) -> Value {
         json!({ "success": true, "result": [{ "id": 1, "type": "sata", "total_bytes": total_bytes }] })
@@ -734,18 +786,25 @@ mod tests_collect {
         let prefix = "test_nas_scrape";
         let mut map = NasMetricMap::new(&factory, prefix.to_string());
         let total = |lines: &[String]| {
-            lines.iter().find(|l| l.starts_with(&format!("{prefix}_nas_disk_total_bytes{{"))).cloned()
+            lines
+                .iter()
+                .find(|l| l.starts_with(&format!("{prefix}_nas_disk_total_bytes{{")))
+                .cloned()
         };
 
         let first = serve_scoped(&server, "/api/v4/storage/disk", disks(1000)).await;
         map.set().await.unwrap();
         let before = scrape(prefix);
-        assert!(total(&before).is_some_and(|l| l.ends_with(" 1000")), "{before:?}");
+        assert!(
+            total(&before).is_some_and(|l| l.ends_with(" 1000")),
+            "{before:?}"
+        );
         drop(first);
 
         // the only request of the collection is slow, and returns a new size
         serve_slowly(&server, "/api/v4/storage/disk", disks(2000)).await;
-        let (result, during) = scrape_during(&server, "/api/v4/storage/disk", map.set(), prefix).await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/storage/disk", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);

@@ -105,7 +105,9 @@ mod timeouts {
 
     use crate::{
         core::{
-            authenticator::{application_token_provider::MockApplicationTokenProvider, Authenticator},
+            authenticator::{
+                application_token_provider::MockApplicationTokenProvider, Authenticator,
+            },
             common::http_client_factory::Timeouts,
         },
         mappers::test_support::mock_api,
@@ -139,16 +141,19 @@ mod timeouts {
             .await;
         Mock::given(method("POST"))
             .and(path("/api/v4/login/session"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                json!({ "result": { "session_token": "4321" }, "success": true }),
-            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({ "result": { "session_token": "4321" }, "success": true }),
+                ),
+            )
             .mount(&server)
             .await;
 
         let authenticator = |timeouts: Timeouts| {
             let mut store = MockApplicationTokenProvider::new();
             store.expect_get().returning(|| Ok("fake".to_string()));
-            Authenticator::new(format!("{}/api/", server.uri()), Box::new(store)).with_timeouts(timeouts)
+            Authenticator::new(format!("{}/api/", server.uri()), Box::new(store))
+                .with_timeouts(timeouts)
         };
 
         let short = Timeouts {

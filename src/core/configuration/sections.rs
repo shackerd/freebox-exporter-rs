@@ -22,8 +22,12 @@ impl ApiConfiguration {
     pub fn timeouts(&self) -> Timeouts {
         let default = Timeouts::default();
         Timeouts {
-            connect: self.connect_timeout.map_or(default.connect, Duration::from_secs),
-            request: self.request_timeout.map_or(default.request, Duration::from_secs),
+            connect: self
+                .connect_timeout
+                .map_or(default.connect, Duration::from_secs),
+            request: self
+                .request_timeout
+                .map_or(default.request, Duration::from_secs),
         }
     }
 }

@@ -1,4 +1,4 @@
-use sections::{ApiConfiguration, CoreConfiguration, LogConfiguration, CapabilitiesConfiguration};
+use sections::{ApiConfiguration, CapabilitiesConfiguration, CoreConfiguration, LogConfiguration};
 use serde::Deserialize;
 use std::{
     fs::{self},

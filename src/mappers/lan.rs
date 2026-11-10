@@ -4,13 +4,10 @@ use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
 use reqwest::Client;
 use serde::Deserialize;
 
-
 use super::MetricMap;
-use crate::{
-    core::common::{
-        http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-        transport::{FreeboxResponse, FreeboxResponseError},
-    },
+use crate::core::common::{
+    http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
+    transport::{FreeboxResponse, FreeboxResponseError},
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -194,7 +191,9 @@ mod tests_collect {
     use serde_json::{json, Value};
 
     use super::*;
-    use crate::mappers::test_support::{mock_api, scrape, scrape_during, serve_scoped, serve_slowly};
+    use crate::mappers::test_support::{
+        mock_api, scrape, scrape_during, serve_scoped, serve_slowly,
+    };
 
     fn lan_config(name: &str) -> Value {
         json!({ "success": true, "result": { "name": name, "mode": "router" } })
@@ -210,16 +209,24 @@ mod tests_collect {
         let first = serve_scoped(&server, "/api/v4/lan/config", lan_config("before")).await;
         map.set().await.unwrap();
         let before = scrape(prefix);
-        assert!(before.iter().any(|l| l.contains("\"before\"")), "{before:?}");
+        assert!(
+            before.iter().any(|l| l.contains("\"before\"")),
+            "{before:?}"
+        );
         drop(first);
 
         // the only request of the collection is slow, and returns a new name
         serve_slowly(&server, "/api/v4/lan/config", lan_config("after")).await;
-        let (result, during) = scrape_during(&server, "/api/v4/lan/config", map.set(), prefix).await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/lan/config", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);
         let after = scrape(prefix);
-        assert!(after.iter().any(|l| l.contains("\"after\"")) && !after.iter().any(|l| l.contains("\"before\"")), "{after:?}");
+        assert!(
+            after.iter().any(|l| l.contains("\"after\""))
+                && !after.iter().any(|l| l.contains("\"before\"")),
+            "{after:?}"
+        );
     }
 }

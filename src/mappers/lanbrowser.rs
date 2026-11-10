@@ -1,4 +1,3 @@
-
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
@@ -117,7 +116,9 @@ impl<'a> LanBrowserMetricMap<'a> {
         interface: &LanBrowserInterface,
     ) -> Result<Vec<LanHost>, Box<dyn std::error::Error + Send + Sync>> {
         let iface = interface.name.as_ref().ok_or_else(|| {
-            Box::new(FreeboxResponseError::new("interface has no name".to_string()))
+            Box::new(FreeboxResponseError::new(
+                "interface has no name".to_string(),
+            ))
         })?;
 
         debug!("fetching {} interface devices", iface);
@@ -242,7 +243,10 @@ impl<'a> LanBrowserMetricMap<'a> {
 
             match self.get_devices(&iface).await {
                 Err(e) => {
-                    let name = iface.name.to_owned().unwrap_or_else(|| "<unnamed>".to_string());
+                    let name = iface
+                        .name
+                        .to_owned()
+                        .unwrap_or_else(|| "<unnamed>".to_string());
                     warn!("cannot fetch devices of interface {name}: {e}");
                     failed_ifaces.push(name);
                     fetched.push((iface, vec![]));
@@ -340,7 +344,6 @@ impl<'a> MetricMap<'a> for LanBrowserMetricMap<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use prometheus_exporter::prometheus::core::Collector;
@@ -377,7 +380,11 @@ mod tests {
             .iter()
             .flat_map(|family| family.get_metric())
             .find(|m| {
-                let labels: Vec<_> = m.get_label().iter().map(|l| (l.get_name(), l.get_value())).collect();
+                let labels: Vec<_> = m
+                    .get_label()
+                    .iter()
+                    .map(|l| (l.get_name(), l.get_value()))
+                    .collect();
                 labels.contains(&("iface", iface)) && labels.contains(&("primary_name", name))
             })
             .map(|m| m.get_gauge().get_value() as i64)
@@ -407,7 +414,12 @@ mod tests {
     async fn set_succeeds_when_every_interface_is_fetched() {
         let (server, authenticator) = mock_api().await;
         serve_interfaces(&server).await;
-        serve(&server, "/api/v4/lan/browser/wifiguest", json!({ "success": true, "result": [] })).await;
+        serve(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            json!({ "success": true, "result": [] }),
+        )
+        .await;
 
         let factory = authenticator.login().await.unwrap();
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_complete".to_string());
@@ -441,11 +453,16 @@ mod tests {
         let mut map = LanBrowserMetricMap::new(&factory, "test_lanbrowser_unnamed".to_string());
 
         let err = map.set().await.unwrap_err();
-        assert_eq!("cannot fetch devices of interface(s) <unnamed>", err.to_string());
+        assert_eq!(
+            "cannot fetch devices of interface(s) <unnamed>",
+            err.to_string()
+        );
         assert_eq!(Some(1), device_active(&map, "pub", "nas"));
         // the unnamed interface must not turn into a request on the interfaces root
         let requests = server.received_requests().await.unwrap();
-        assert!(requests.iter().all(|r| r.url.path() != "/api/v4/lan/browser/"));
+        assert!(requests
+            .iter()
+            .all(|r| r.url.path() != "/api/v4/lan/browser/"));
     }
 
     #[tokio::test]
@@ -458,24 +475,47 @@ mod tests {
             { "name": "pub", "host_count": 1 },
             { "name": "wifiguest", "host_count": 1 }
         ] });
-        let devices = |name: &str, active: bool| json!({ "success": true, "result": [
+        let devices = |name: &str, active: bool| {
+            json!({ "success": true, "result": [
             { "id": name, "primary_name": name, "active": active }
-        ] });
+        ] })
+        };
 
         let first = [
-            serve_scoped(&server, "/api/v4/lan/browser/interfaces", interfaces.clone()).await,
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/interfaces",
+                interfaces.clone(),
+            )
+            .await,
             serve_scoped(&server, "/api/v4/lan/browser/pub", devices("nas", true)).await,
-            serve_scoped(&server, "/api/v4/lan/browser/wifiguest", devices("phone", true)).await,
+            serve_scoped(
+                &server,
+                "/api/v4/lan/browser/wifiguest",
+                devices("phone", true),
+            )
+            .await,
         ];
         map.set().await.unwrap();
         let before = scrape(prefix);
-        assert!(before.iter().any(|l| l.contains("\"phone\"") && l.ends_with(" 1")), "{before:?}");
+        assert!(
+            before
+                .iter()
+                .any(|l| l.contains("\"phone\"") && l.ends_with(" 1")),
+            "{before:?}"
+        );
         drop(first);
 
         serve(&server, "/api/v4/lan/browser/interfaces", interfaces).await;
         serve(&server, "/api/v4/lan/browser/pub", devices("nas", false)).await;
-        serve_slowly(&server, "/api/v4/lan/browser/wifiguest", devices("phone", false)).await;
-        let (result, during) = scrape_during(&server, "/api/v4/lan/browser/wifiguest", map.set(), prefix).await;
+        serve_slowly(
+            &server,
+            "/api/v4/lan/browser/wifiguest",
+            devices("phone", false),
+        )
+        .await;
+        let (result, during) =
+            scrape_during(&server, "/api/v4/lan/browser/wifiguest", map.set(), prefix).await;
         result.unwrap();
 
         assert_eq!(before, during);
