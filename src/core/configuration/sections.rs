@@ -27,6 +27,10 @@ pub struct CapabilitiesConfiguration {
     pub dhcp: Option<bool>,
     pub nas: Option<bool>,
     pub download: Option<bool>,
+    pub vm: Option<bool>,
+    pub raid: Option<bool>,
+    pub vpn: Option<bool>,
+    pub ddns: Option<bool>,
     pub prefix: Option<String>,
 }
 

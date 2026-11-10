@@ -1,0 +1,40 @@
+{
+  "result": [
+    {
+      "auth_connection_count": 0,
+      "connection_count": 0,
+      "name": "pptp",
+      "state": "stopped",
+      "type": "pptp"
+    },
+    {
+      "auth_connection_count": 0,
+      "connection_count": 0,
+      "name": "openvpn_routed",
+      "state": "stopped",
+      "type": "openvpn"
+    },
+    {
+      "auth_connection_count": 0,
+      "connection_count": 0,
+      "name": "ipsec",
+      "state": "stopped",
+      "type": "ipsec"
+    },
+    {
+      "auth_connection_count": 0,
+      "connection_count": 0,
+      "name": "openvpn_bridge",
+      "state": "stopped",
+      "type": "openvpn"
+    },
+    {
+      "auth_connection_count": 0,
+      "connection_count": 0,
+      "name": "wireguard",
+      "state": "stopped",
+      "type": "wireguard"
+    }
+  ],
+  "success": true
+}

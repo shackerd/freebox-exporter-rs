@@ -11,6 +11,9 @@ use crate::core::authenticator::SessionTokenProvider;
 
 const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 
+/// Upper bound of a request to the box, so an unresponsive box cannot stall startup or collection
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
 const FBX_ECC_ROOT: &str = "
 -----BEGIN CERTIFICATE-----
 MIICWTCCAd+gAwIBAgIJAMaRcLnIgyukMAoGCCqGSM49BAMCMGExCzAJBgNVBAYT
@@ -67,6 +70,7 @@ pub struct AuthenticatedHttpClientFactory<'a> {
     pub api_url: String,
     token_provider: SessionTokenProvider<'a>,
     pub expiration: TimeDelta,
+    request_timeout: Duration,
 }
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
@@ -77,7 +81,15 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             api_url,
             token_provider,
             expiration: TimeDelta::minutes(30),
+            request_timeout: REQUEST_TIMEOUT,
         }
+    }
+
+    /// Bounds every request to the box, including the logins renewing the session
+    #[cfg(test)]
+    pub fn set_request_timeout(&mut self, timeout: Duration) {
+        self.request_timeout = timeout;
+        self.token_provider.request_timeout = timeout;
     }
 
     /// Creates a new managed HTTP client with the necessary headers and configurations.
@@ -124,6 +136,7 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             .default_headers(headers)
             .tcp_keepalive(Duration::from_secs(self.expiration.num_seconds() as u64))
             .user_agent(APP_USER_AGENT)
+            .timeout(self.request_timeout)
             .build()
             .expect("cannot create HTTP Client");
 
@@ -144,7 +157,9 @@ apps_denied 	API access from apps has been disabled
 internal_error 	Internal error
  */
 
-pub fn http_client_factory() -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
+pub fn http_client_factory(
+    timeout: Duration,
+) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
     debug!("creating HTTP client");
 
     let root_ca = Certificate::from_pem(FBX_ROOT_CA.as_bytes())?;
@@ -152,6 +167,7 @@ pub fn http_client_factory() -> Result<Client, Box<dyn std::error::Error + Send 
 
     let client = reqwest::ClientBuilder::new()
         .tls_certs_only([root_ca, ecc])
+        .timeout(timeout)
         .build()?;
     Ok(client)
 }

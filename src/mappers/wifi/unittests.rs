@@ -83,3 +83,114 @@ mod tests_deserialize {
         assert!(data.is_ok());
     }
 }
+
+#[cfg(test)]
+mod tests_collect {
+    use chrono::Duration;
+    use serde_json::json;
+    use prometheus_exporter::prometheus::core::Collector;
+    use wiremock::{
+        matchers::{path, path_regex},
+        Mock, ResponseTemplate,
+    };
+
+    use crate::{
+        core::configuration::sections::PoliciesConfiguration,
+        mappers::{
+            api_specs_provider::get_specs_data,
+            test_support::{mock_api, serve},
+            wifi::WifiMetricMap,
+            MetricMap,
+        },
+    };
+
+    #[tokio::test]
+    async fn set_fails_when_no_expected_access_point_can_be_fetched() {
+        let (server, authenticator) = mock_api().await;
+        serve(&server, "/api/v4/wifi/ap", json!({ "success": true, "result": [] })).await;
+        serve(
+            &server,
+            "/api/v4/wifi/config",
+            json!({ "success": true, "result": { "enabled": true, "expected_phys": [{ "phy_id": 0 }] } }),
+        )
+        .await;
+        serve(
+            &server,
+            "/api/v4/wifi/ap/0",
+            json!({ "success": false, "error_code": "internal_error", "msg": "boom" }),
+        )
+        .await;
+
+        let factory = authenticator.login().await.unwrap();
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: Some("ignore".to_string()),
+        };
+        let mut map = WifiMetricMap::new(
+            &factory,
+            "test_wifi_no_ap".to_string(),
+            Duration::seconds(5),
+            &policies,
+        );
+
+        let err = map.set().await.unwrap_err();
+        assert!(err.to_string().contains("none of the 1 expected access points"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn set_collects_reachable_access_points_and_reports_the_failed_ones() {
+        let (server, authenticator) = mock_api().await;
+        serve(&server, "/api/v4/wifi/ap", json!({ "success": true, "result": [] })).await;
+        serve(
+            &server,
+            "/api/v4/wifi/config",
+            json!({ "success": true, "result": { "enabled": true, "expected_phys": [{ "phy_id": 0 }, { "phy_id": 1 }] } }),
+        )
+        .await;
+        serve(
+            &server,
+            "/api/v4/wifi/ap/0",
+            json!({ "success": false, "error_code": "internal_error", "msg": "boom" }),
+        )
+        .await;
+        serve(
+            &server,
+            "/api/v4/wifi/ap/1",
+            json!({ "success": true, "result": { "id": 1, "name": "5G", "config": { "band": "5g" } } }),
+        )
+        .await;
+        Mock::given(path_regex(r"^/api/v4/wifi/ap/1/channel_survey_history/\d+$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+            .mount(&server)
+            .await;
+        let stations = get_specs_data("wifi", "api_v2_wifi_ap_0_stations-get").await.unwrap();
+        Mock::given(path("/api/v4/wifi/ap/1/stations"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(stations, "application/json"))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let factory = authenticator.login().await.unwrap();
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: Some("relabel".to_string()),
+        };
+        let mut map = WifiMetricMap::new(
+            &factory,
+            "test_wifi_partial_ap".to_string(),
+            Duration::seconds(5),
+            &policies,
+        );
+
+        let err = map.set().await.unwrap_err();
+        assert!(err.to_string().contains("phy_id 0"), "{err}");
+        assert!(!err.to_string().contains("phy_id 0, 1"), "{err}");
+
+        let stations_of_ap_1 = map
+            .station_active_gauge
+            .collect()
+            .iter()
+            .flat_map(|family| family.get_metric())
+            .filter(|m| m.get_label().iter().any(|l| l.get_name() == "ap_id" && l.get_value() == "1"))
+            .count();
+        assert!(stations_of_ap_1 > 0, "stations of the reachable access point are not exposed");
+    }
+}

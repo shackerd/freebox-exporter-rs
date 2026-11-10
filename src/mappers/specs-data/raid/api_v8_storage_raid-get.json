@@ -1,0 +1,107 @@
+{
+    "success": true,
+    "result": [
+        {
+            "degraded": false,
+            "raid_disks": 4,
+            "next_check": 0,
+            "sync_action": "idle",
+            "level": "raid5",
+            "uuid": "uuid-1",
+            "sysfs_state": "clear",
+            "id": 0,
+            "sync_completed_pos": 0,
+            "members": [
+                {
+                    "total_bytes": 1000000000000,
+                    "active_device": 0,
+                    "id": 1000,
+                    "corrected_read_errors": 0,
+                    "array_id": 0,
+                    "disk": {
+                        "firmware": "02.01A02",
+                        "temp": 43,
+                        "serial": "serial-1",
+                        "model": "WDC WD10JUCX-56WPNY0"
+                    },
+                    "role": "active",
+                    "sct_erc_supported": false,
+                    "sct_erc_enabled": false,
+                    "dev_uuid": "uuid-2",
+                    "device_location": "sata-internal-p1",
+                    "set_name": "Freebox",
+                    "set_uuid": "uuid-1"
+                },
+                {
+                    "total_bytes": 1000000000000,
+                    "active_device": 1,
+                    "id": 2000,
+                    "corrected_read_errors": 0,
+                    "array_id": 0,
+                    "disk": {
+                        "firmware": "02.01A02",
+                        "temp": 47,
+                        "serial": "serial-2",
+                        "model": "WDC WD10JUCX-56WPNY0"
+                    },
+                    "role": "active",
+                    "sct_erc_supported": false,
+                    "sct_erc_enabled": false,
+                    "dev_uuid": "uuid-3",
+                    "device_location": "sata-internal-p0",
+                    "set_name": "Freebox",
+                    "set_uuid": "uuid-1"
+                },
+                {
+                    "total_bytes": 1000000000000,
+                    "active_device": 2,
+                    "id": 3000,
+                    "corrected_read_errors": 0,
+                    "array_id": 0,
+                    "disk": {
+                        "firmware": "02.01A02",
+                        "temp": 46,
+                        "serial": "serial-3",
+                        "model": "WDC WD10JUCX-56WPNY0"
+                    },
+                    "role": "active",
+                    "sct_erc_supported": false,
+                    "sct_erc_enabled": false,
+                    "dev_uuid": "uuid-4",
+                    "device_location": "sata-internal-p2",
+                    "set_name": "Freebox",
+                    "set_uuid": "uuid-1"
+                },
+                {
+                    "total_bytes": 1000000000000,
+                    "active_device": 3,
+                    "id": 4000,
+                    "corrected_read_errors": 0,
+                    "array_id": 0,
+                    "disk": {
+                        "firmware": "02.01A02",
+                        "temp": 46,
+                        "serial": "serial-4",
+                        "model": "WDC WD10JUCX-56WPNY0"
+                    },
+                    "role": "active",
+                    "sct_erc_supported": false,
+                    "sct_erc_enabled": false,
+                    "dev_uuid": "uuid-5",
+                    "device_location": "sata-internal-p3",
+                    "set_name": "Freebox",
+                    "set_uuid": "uuid-1"
+                }
+            ],
+            "array_size": 3000000000000,
+            "state": "running",
+            "sync_speed": 0,
+            "name": "Freebox",
+            "check_interval": 0,
+            "disk_id": 6000,
+            "last_check": 1576082428,
+            "sync_completed_end": 0,
+            "sync_completed_percent": 0
+        }
+    ]
+}

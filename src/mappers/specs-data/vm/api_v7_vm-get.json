@@ -1,0 +1,22 @@
+{
+  "result": [
+    {
+      "bind_usb_ports": "",
+      "cd_path": "",
+      "cloudinit_hostname": "cloudinit_hostname-1",
+      "cloudinit_userdata": "",
+      "disk_path": "disk_path-1",
+      "disk_type": "qcow2",
+      "enable_cloudinit": false,
+      "enable_screen": false,
+      "id": 0,
+      "mac": "00:00:5e:00:53:01",
+      "memory": 2048,
+      "name": "name_vm-1",
+      "os": "ubuntu",
+      "status": "running",
+      "vcpus": 2
+    }
+  ],
+  "success": true
+}
