@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "result": {
+    "temp_hdd0": 56,
+    "temp_sw": 48,
+    "user_main_storage": "Freebox_raid",
+    "temp_cpu_cp_slave": 82,
+    "box_flavor": "light",
+    "mac": "34:XX:XX:XX:XX:XX",
+    "fan_rpm": 3092,
+    "temp_cpu_ap": 72,
+    "temp_cpu_cp_master": 82,
+    "temp_cpum": 49,
+    "temp_hdd1": 51,
+    "temp_hdd2": 57,
+    "disk_status": "active",
+    "board_name": "fbxgw7r",
+    "temp_cpub": 54,
+    "uptime": "1 heure 13 minutes 27 secondes",
+    "uptime_val": 4407,
+    "temp_hdd3": 57,
+    "box_authenticated": true,
+    "serial": "FB7XXXXXXXXXXXXXX",
+    "firmware_version": "4.13.6"
+  }
+}

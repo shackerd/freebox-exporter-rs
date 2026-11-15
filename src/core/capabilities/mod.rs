@@ -4,7 +4,7 @@ use super::common::{
     http_client_factory::AuthenticatedHttpClientFactory,
     transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
 };
-use crate::mappers::{ddns, raid, vm, vpn};
+use crate::mappers::{ddns, raid, system, vm, vpn};
 use log::{debug, info, warn};
 use serde::Deserialize;
 
@@ -107,6 +107,7 @@ impl<'a> CapabilitiesAgent<'a> {
             raid: api_major.map(|major| major >= raid::MIN_API_VERSION),
             vpn: api_major.map(|major| major >= vpn::MIN_API_VERSION && is_router),
             ddns: api_major.map(|major| major >= ddns::MIN_API_VERSION && is_router),
+            v6_system: api_major.map(|major| major >= system::V6_SYSTEM_API_VERSION),
             network_mode: lan_config.mode,
         })
     }
@@ -205,6 +206,9 @@ pub struct Capabilities {
     pub raid: Option<bool>,
     pub vpn: Option<bool>,
     pub ddns: Option<bool>,
+    /// Whether the box lists every fan and temperature sensor, None when its API version
+    /// is unknown
+    pub v6_system: Option<bool>,
     pub network_mode: Option<String>,
 }
 
@@ -265,6 +269,12 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn v6_system_requires_api_6() {
+        assert_eq!(Some(false), load("5.0", false).await.v6_system);
+        assert_eq!(Some(true), load("6.0", false).await.v6_system);
+    }
+
+    #[tokio::test]
     async fn model_info_is_not_requested_below_api_6() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": "router" } })).await;
@@ -295,6 +305,7 @@ mod tests {
         assert_eq!((Some(true), Some(true)), (caps.wifi, caps.switch));
         assert_eq!(None, caps.vm);
         assert_eq!(None, caps.raid);
+        assert_eq!(None, caps.v6_system);
         assert_eq!(None, caps.vpn);
         assert_eq!(None, caps.ddns);
     }

@@ -555,68 +555,17 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_cpub{instance=\"$node\", job=\"$job\"}",
+          "expr": "fbx_exporter_system_temperature_celsius{instance=\"$node\", job=\"$job\", sensor!~\"hdd.*\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "CPU B",
+          "legendFormat": "{{name}}",
           "range": true,
           "refId": "A",
           "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_cpum{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "CPU M",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_sw{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "SW",
-          "range": true,
-          "refId": "C",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_cpu{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "CPU {{core}}",
-          "range": true,
-          "refId": "D",
-          "useBackend": false
         }
       ],
-      "title": "CPU(s) temperatures",
+      "title": "Temperatures",
       "type": "bargauge"
     },
     {
@@ -1601,11 +1550,11 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_system_fan_rpm{instance=\"$node\", job=\"$job\"}",
+          "expr": "fbx_exporter_system_fan_speed_rpm{instance=\"$node\", job=\"$job\"} or on(instance, job) label_replace(fbx_exporter_system_fan_rpm{instance=\"$node\", job=\"$job\"}, \"name\", \"Fan\", \"\", \"\")",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "Fan",
+          "legendFormat": "{{name}}",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -2242,11 +2191,11 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_system_fan_rpm{instance=\"$node\", job=\"$job\"}",
+          "expr": "fbx_exporter_system_fan_speed_rpm{instance=\"$node\", job=\"$job\"} or on(instance, job) label_replace(fbx_exporter_system_fan_rpm{instance=\"$node\", job=\"$job\"}, \"name\", \"Fan\", \"\", \"\")",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "__auto",
+          "legendFormat": "{{name}}",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -2322,53 +2271,7 @@
           },
           "unit": "celsius"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CPU B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "light-blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CPU M"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "dark-blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SW"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "light-purple",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 7,
@@ -2404,68 +2307,17 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_cpub{instance=\"$node\", job=\"$job\"}",
+          "expr": "fbx_exporter_system_temperature_celsius{instance=\"$node\", job=\"$job\", sensor!~\"hdd.*\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "CPU B",
+          "legendFormat": "{{name}}",
           "range": true,
           "refId": "A",
           "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_cpum{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "CPU M",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_sw{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "SW",
-          "range": true,
-          "refId": "C",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_system_temp_cpu{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "CPU {{core}}",
-          "range": true,
-          "refId": "D",
-          "useBackend": false
         }
       ],
-      "title": "CPU temperature",
+      "title": "Temperatures",
       "type": "timeseries"
     },
     {

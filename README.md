@@ -113,6 +113,35 @@ Example configuration:
 unresolved_station_hostnames = "ignore"  # or "relabel"
 ```
 
+## Fan Metrics
+
+`fbx_exporter_system_fan_rpm` only reports the first fan: `/api/v4/system` has a single `fan_rpm` field. When the box API version is 6 or higher, the system collector also reads `/api/v6/system/`, which lists every fan:
+
+```text
+fbx_exporter_system_fan_speed_rpm{id="fan0_speed",name="Ventilateur 1"} 3091
+fbx_exporter_system_fan_speed_rpm{id="fan1_speed",name="Ventilateur 2"} 3154
+```
+
+## Temperature Sensors
+
+`fbx_exporter_system_temperature_celsius` has one series for each temperature sensor of the box. The `sensor` label is the sensor id without its `temp_` prefix, and `name` is the name given by the box.
+
+When the box API version is 6 or higher, the sensors come from the `sensors` list of `/api/v6/system/`. Otherwise, they come from the `temp_*` fields of `/api/v4/system`, and `name` is the same as `sensor`. The source is selected once, at startup. If the `/api/v6/system/` request fails, the collection does not expose the temperatures and the fans.
+
+The sensors depend on the model. On a Freebox Delta:
+
+```text
+fbx_exporter_system_temperature_celsius{name="Température CPU CP Master",sensor="cpu_cp_master"} 82
+fbx_exporter_system_temperature_celsius{name="Température CPU CP Slave",sensor="cpu_cp_slave"} 82
+fbx_exporter_system_temperature_celsius{name="Température CPU AP",sensor="cpu_ap"} 71
+fbx_exporter_system_temperature_celsius{name="Disque dur 1",sensor="hdd0"} 56
+fbx_exporter_system_temperature_celsius{name="Température 1",sensor="t1"} 49
+```
+
+On a Freebox Delta, the `temp_cpum`, `temp_cpub` and `temp_sw` fields of `/api/v4/system` are the board sensors `t1`, `t2` and `t3` of `/api/v6/system/`. Thus, `fbx_exporter_system_temp_cpum`, `fbx_exporter_system_temp_cpub`, `fbx_exporter_system_temp_sw` and `fbx_exporter_system_temp_cpu{core="b"|"m"}` do not show the CPU temperatures of a Delta.
+
+When a firmware update raises the API version of a box to 6 or higher, its `sensor` labels can change (for example `cpum` becomes `t1`).
+
 ## NAS Storage Metrics
 
 The exporter provides comprehensive metrics for Freebox NAS storage functionality, exposing detailed information about attached disks and their partitions.
