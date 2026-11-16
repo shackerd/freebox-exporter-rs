@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use hmac::{Hmac, KeyInit, Mac};
 use log::{debug, error};
 use sha1::Sha1;
@@ -21,6 +23,7 @@ pub struct SessionTokenProvider<'a> {
     app_token_provider: &'a dyn ApplicationTokenProvider,
     api_url: String,
     pub(crate) timeouts: Timeouts,
+    pub(crate) address: Option<IpAddr>,
 }
 
 impl<'a> SessionTokenProvider<'a> {
@@ -28,11 +31,13 @@ impl<'a> SessionTokenProvider<'a> {
         app_token_storage: &'a dyn ApplicationTokenProvider,
         api_url: String,
         timeouts: Timeouts,
+        address: Option<IpAddr>,
     ) -> Self {
         Self {
             app_token_provider: app_token_storage,
             api_url,
             timeouts,
+            address,
         }
     }
 
@@ -81,7 +86,7 @@ impl<'a> SessionTokenProvider<'a> {
     ) -> Result<ChallengeResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching challenge");
 
-        let client = http_client_factory(self.timeouts)?;
+        let client = http_client_factory(self.timeouts, self.address)?;
 
         let body = match (match client
             .get(format!("{}v4/login/", self.api_url))
@@ -125,7 +130,7 @@ impl<'a> SessionTokenProvider<'a> {
     ) -> Result<SessionResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("negociating session token");
 
-        let client = http_client_factory(self.timeouts)?;
+        let client = http_client_factory(self.timeouts, self.address)?;
 
         let payload = SessionPayload {
             app_id: String::from("fr.freebox.prometheus.exporter"),

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 
 use serde::Deserialize;
 
@@ -15,6 +15,8 @@ pub struct ApiConfiguration {
     pub refresh: Option<u64>,
     pub connect_timeout: Option<u64>,
     pub request_timeout: Option<u64>,
+    /// Address the host of the API resolves to, instead of a DNS query
+    pub address: Option<IpAddr>,
 }
 
 impl ApiConfiguration {

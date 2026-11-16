@@ -97,6 +97,7 @@ unresolved_station_hostnames = \"ignore\"";
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             core: CoreConfiguration {
                 data_directory: Some("nowhere".to_string()),
@@ -132,6 +133,7 @@ unresolved_station_hostnames = \"ignore\"";
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             core: CoreConfiguration {
                 data_directory: Some("".to_string()),
@@ -167,6 +169,7 @@ unresolved_station_hostnames = \"ignore\"";
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             core: CoreConfiguration {
                 data_directory: Some(".".to_string()),
@@ -209,6 +212,7 @@ unresolved_station_hostnames = \"ignore\"";
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             core: CoreConfiguration {
                 data_directory: None,
@@ -244,6 +248,7 @@ unresolved_station_hostnames = \"ignore\"";
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             core: CoreConfiguration {
                 data_directory: None,
@@ -279,6 +284,7 @@ unresolved_station_hostnames = \"ignore\"";
                 refresh: None,
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             core: CoreConfiguration {
                 data_directory: None,
@@ -362,5 +368,33 @@ mod timeouts {
         );
         assert!(assert_configuration_is_valid(&parse("connect_timeout = 0")).is_err());
         assert!(assert_configuration_is_valid(&parse("request_timeout = 0")).is_err());
+    }
+}
+
+#[cfg(test)]
+mod address {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use crate::core::configuration::Configuration;
+
+    fn parse(api: &str) -> Result<Configuration, toml::de::Error> {
+        toml::from_str(&format!(
+            "[api]\n{api}\n[metrics]\nprefix = \"fbx\"\n[core]\ndata_directory = \".\"\n[log]\n"
+        ))
+    }
+
+    #[test]
+    fn the_address_is_unset_by_default() {
+        assert_eq!(None, parse("refresh = 5").unwrap().api.address);
+    }
+
+    #[test]
+    fn the_address_is_an_ip_address() {
+        assert_eq!(
+            Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 254))),
+            parse("address = \"192.168.1.254\"").unwrap().api.address
+        );
+        // a host name would need the DNS query this setting avoids
+        assert!(parse("address = \"mafreebox.freebox.fr\"").is_err());
     }
 }

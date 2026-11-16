@@ -190,6 +190,9 @@ async fn create_network_agnostic_authenticator(
 ) -> Result<authenticator::Authenticator, Box<dyn std::error::Error + Send + Sync>> {
     let api_url = discovery::api_url();
     info!("using api url: {api_url}");
+    if let Some(address) = conf.api.address {
+        info!("connecting to {} at {address}", discovery::DEFAULT_FBX_HOST);
+    }
 
     Ok(authenticator::Authenticator::new(
         api_url,
@@ -197,7 +200,8 @@ async fn create_network_agnostic_authenticator(
             conf.core.data_directory.as_ref().unwrap().to_owned(),
         )),
     )
-    .with_timeouts(conf.api.timeouts()))
+    .with_timeouts(conf.api.timeouts())
+    .with_address(conf.api.address))
 }
 
 /// ### Session diagnostic

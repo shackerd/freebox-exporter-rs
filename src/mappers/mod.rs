@@ -459,6 +459,7 @@ mod tests {
                 refresh: Some(5),
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             None,
         );
@@ -492,6 +493,7 @@ mod tests {
                 refresh: Some(5),
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             None,
         );
@@ -520,6 +522,7 @@ mod tests {
                 refresh: Some(5),
                 connect_timeout: None,
                 request_timeout: None,
+                address: None,
             },
             None,
         );
