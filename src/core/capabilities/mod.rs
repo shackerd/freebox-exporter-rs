@@ -21,6 +21,15 @@ struct ModelInfo {
 #[derive(Deserialize, Clone, Debug)]
 struct SystemConfig {
     model_info: Option<ModelInfo>,
+    sensors: Option<Vec<serde::de::IgnoredAny>>,
+}
+
+/// What v6/system/ tells about the hardware of the box
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct SystemProbe {
+    has_vm: bool,
+    /// Whether v6/system/ lists the temperature sensors
+    has_sensors: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -78,11 +87,11 @@ impl<'a> CapabilitiesAgent<'a> {
         let is_wifi_enabled = self.is_wifi_enabled().await?;
         // only vm, raid, vpn and ddns depend on these probes: their failure leaves those
         // capabilities unknown (None) instead of preventing the exporter from starting
-        let (api_major, has_vm) = match self.get_api_major_version().await {
-            Ok(api_major) => match self.has_vm(api_major).await {
-                Ok(has_vm) => (Some(api_major), Some(has_vm)),
+        let (api_major, probe) = match self.get_api_major_version().await {
+            Ok(api_major) => match self.probe_system(api_major).await {
+                Ok(probe) => (Some(api_major), Some(probe)),
                 Err(e) => {
-                    warn!("cannot detect virtual machines support: {e}");
+                    warn!("cannot detect virtual machines and sensors support: {e}");
                     (Some(api_major), None)
                 }
             },
@@ -102,12 +111,15 @@ impl<'a> CapabilitiesAgent<'a> {
             dhcp: Some(is_router),
             nas: Some(true), // NAS is always available
             vm: api_major
-                .zip(has_vm)
-                .map(|(major, has_vm)| major >= vm::MIN_API_VERSION && has_vm),
+                .zip(probe)
+                .map(|(major, probe)| major >= vm::MIN_API_VERSION && probe.has_vm),
             raid: api_major.map(|major| major >= raid::MIN_API_VERSION),
             vpn: api_major.map(|major| major >= vpn::MIN_API_VERSION && is_router),
             ddns: api_major.map(|major| major >= ddns::MIN_API_VERSION && is_router),
-            v6_system: api_major.map(|major| major >= system::V6_SYSTEM_API_VERSION),
+            // selected once: the sensor labels depend on the source of the temperatures
+            v6_system: api_major
+                .zip(probe)
+                .map(|(major, probe)| major >= system::V6_SYSTEM_API_VERSION && probe.has_sensors),
             network_mode: lan_config.mode,
         })
     }
@@ -140,10 +152,14 @@ impl<'a> CapabilitiesAgent<'a> {
         Ok(major)
     }
 
-    /// Whether the hardware supports virtual machines, from SystemConfig.model_info
-    async fn has_vm(&self, api_major: u32) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    /// Whether the hardware supports virtual machines, from SystemConfig.model_info, and
+    /// whether v6/system/ lists the temperature sensors
+    async fn probe_system(
+        &self,
+        api_major: u32,
+    ) -> Result<SystemProbe, Box<dyn std::error::Error + Send + Sync>> {
         if api_major < MODEL_INFO_MIN_API_VERSION {
-            return Ok(false);
+            return Ok(SystemProbe::default());
         }
 
         let client = self.client_factory.create_managed_client().await?.get()?;
@@ -154,13 +170,15 @@ impl<'a> CapabilitiesAgent<'a> {
         )
         .await?;
 
+        let has_sensors = system.as_ref().is_some_and(|s| s.sensors.is_some());
         let has_vm = system
             .and_then(|s| s.model_info)
             .and_then(|m| m.has_vm)
             .unwrap_or(false);
 
         info!("detected freebox virtual machines support: {has_vm}");
-        Ok(has_vm)
+        info!("detected freebox sensors list: {has_sensors}");
+        Ok(SystemProbe { has_vm, has_sensors })
     }
 
     async fn is_wifi_enabled(&self) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
@@ -220,21 +238,27 @@ mod tests {
     use super::*;
     use crate::mappers::test_support::{mock_api, serve};
 
-    /// Loads capabilities of a box in `mode` announcing `api_version`, with or without VM hardware
-    async fn load_mode(mode: &str, api_version: &str, has_vm: bool) -> Capabilities {
+    /// Loads capabilities of a box in `mode` announcing `api_version`, whose v6/system/
+    /// response is `system`
+    async fn load_system(mode: &str, api_version: &str, system: serde_json::Value) -> Capabilities {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": mode } })).await;
         serve(&server, "/api/v4/wifi/config", json!({ "success": true, "result": { "enabled": true } })).await;
         serve(&server, "/api_version", json!({ "api_version": api_version })).await;
-        serve(
-            &server,
-            "/api/v6/system/",
-            json!({ "success": true, "result": { "model_info": { "has_vm": has_vm } } }),
-        )
-        .await;
+        serve(&server, "/api/v6/system/", json!({ "success": true, "result": system })).await;
 
         let factory = authenticator.login().await.unwrap();
         CapabilitiesAgent::new(&factory).load().await.unwrap()
+    }
+
+    /// Loads capabilities of a box in `mode` announcing `api_version`, with or without VM
+    /// hardware, and listing its sensors
+    async fn load_mode(mode: &str, api_version: &str, has_vm: bool) -> Capabilities {
+        let system = json!({
+            "model_info": { "has_vm": has_vm },
+            "sensors": [{ "id": "temp_t1", "name": "Température 1", "value": 49 }],
+        });
+        load_system(mode, api_version, system).await
     }
 
     async fn load(api_version: &str, has_vm: bool) -> Capabilities {
@@ -272,6 +296,16 @@ mod tests {
     async fn v6_system_requires_api_6() {
         assert_eq!(Some(false), load("5.0", false).await.v6_system);
         assert_eq!(Some(true), load("6.0", false).await.v6_system);
+    }
+
+    #[tokio::test]
+    async fn v6_system_requires_the_sensors_list() {
+        // a box with API 16.0, but without sensors in v6/system/, keeps the temperatures
+        // of v4/system
+        let system = json!({ "model_info": { "has_vm": true } });
+        let caps = load_system("router", "16.0", system).await;
+        assert_eq!(Some(false), caps.v6_system);
+        assert_eq!(Some(true), caps.vm);
     }
 
     #[tokio::test]
@@ -335,7 +369,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failing_model_info_probe_leaves_vm_unknown_only() {
+    async fn failing_model_info_probe_leaves_vm_and_v6_system_unknown_only() {
         let (server, authenticator) = mock_api().await;
         serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": "router" } })).await;
         serve(&server, "/api/v4/wifi/config", json!({ "success": true, "result": { "enabled": true } })).await;
@@ -346,6 +380,7 @@ mod tests {
         let caps = CapabilitiesAgent::new(&factory).load().await.unwrap();
 
         assert_eq!(None, caps.vm);
+        assert_eq!(None, caps.v6_system);
         assert_eq!(Some(true), caps.raid);
         assert_eq!(Some(true), caps.vpn);
         assert_eq!(Some(true), caps.ddns);

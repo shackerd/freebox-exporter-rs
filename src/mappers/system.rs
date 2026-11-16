@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use log::{debug, warn};
+use log::debug;
 use prometheus_exporter::prometheus::{
     register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
 };
@@ -403,30 +403,25 @@ impl<'a> SystemMetricMap<'a> {
 
         // (sensor, name, celsius) and (id, name, rpm)
         // the source does not change between collections, as the sensor labels depend on it:
-        // a failure of v6/system/ drops the temperatures and the fans, and keeps the
-        // v4/system metrics
+        // a failure of v6/system/ fails the collection like a failure of v4/system, with no
+        // fallback to the temp_* fields of v4/system
         let (temperatures, fans): (Vec<Labeled>, Vec<Labeled>) = if self.v6_system {
-            match self.get_v6_system().await {
-                Ok(v6) => (
-                    v6.sensors
-                        .unwrap_or_default()
-                        .into_iter()
-                        .filter_map(Measure::labeled)
-                        .map(|(id, name, celsius)| {
-                            (id.trim_start_matches("temp_").to_string(), name, celsius)
-                        })
-                        .collect(),
-                    v6.fans
-                        .unwrap_or_default()
-                        .into_iter()
-                        .filter_map(Measure::labeled)
-                        .collect(),
-                ),
-                Err(e) => {
-                    warn!("cannot get the fans and sensors from v{V6_SYSTEM_API_VERSION}/system/: {e}");
-                    (vec![], vec![])
-                }
-            }
+            let v6 = self.get_v6_system().await?;
+            (
+                v6.sensors
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(Measure::labeled)
+                    .map(|(id, name, celsius)| {
+                        (id.trim_start_matches("temp_").to_string(), name, celsius)
+                    })
+                    .collect(),
+                v6.fans
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(Measure::labeled)
+                    .collect(),
+            )
         } else {
             let temperatures = sys_cnf
                 .temperatures()
@@ -939,30 +934,37 @@ mod tests_collect {
     }
 
     #[tokio::test]
-    async fn failing_fans_request_keeps_the_other_metrics() {
+    async fn failing_v6_system_request_keeps_the_previous_collection() {
         let (server, authenticator) = mock_api().await;
         let factory = authenticator.login().await.unwrap();
-        let prefix = "test_system_fans_failure";
+        let prefix = "test_system_v6_failure";
         let mut map = SystemMetricMap::new(&factory, prefix.to_string()).with_v6_system(true);
 
-        serve(&server, "/api/v4/system", system(100)).await;
+        let first_system = serve_scoped(&server, "/api/v4/system", system(100)).await;
+        let first_v6 = serve_scoped(&server, "/api/v6/system/", delta_system(6)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        for metric in ["_system_fan_speed_rpm{", "_system_temperature_celsius{"] {
+            assert!(
+                before.iter().any(|line| line.contains(metric)),
+                "{metric} in {before:?}"
+            );
+        }
+        drop((first_system, first_v6));
+
+        // v4/system answers, v6/system/ fails
+        serve(&server, "/api/v4/system", system(200)).await;
         serve(
             &server,
             "/api/v6/system/",
             json!({ "success": false, "error_code": "invalid_request", "msg": "nope" }),
         )
         .await;
-        map.set(update_lock()).await.unwrap();
+        assert!(map.set(update_lock()).await.is_err());
 
-        let metrics = scrape(prefix);
-        assert!(metrics.contains(&format!("{prefix}_system_uptime_val 100")));
-        // no fallback to the temp_* fields of v4/system, whose sensor labels differ
-        for metric in ["_system_fan_speed_rpm{", "_system_temperature_celsius{"] {
-            assert!(
-                !metrics.iter().any(|line| line.contains(metric)),
-                "{metric} in {metrics:?}"
-            );
-        }
+        // the collection fails as a whole: neither the fans and the temperatures nor the
+        // other metrics are updated, and there is no fallback to v4/system
+        assert_eq!(before, scrape(prefix));
     }
 
     #[tokio::test]

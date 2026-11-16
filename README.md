@@ -115,7 +115,7 @@ unresolved_station_hostnames = "ignore"  # or "relabel"
 
 ## Fan Metrics
 
-`fbx_exporter_system_fan_rpm` only reports the first fan: `/api/v4/system` has a single `fan_rpm` field. When the box API version is 6 or higher, the system collector also reads `/api/v6/system/`, which lists every fan:
+`fbx_exporter_system_fan_rpm` only reports the first fan: `/api/v4/system` has a single `fan_rpm` field. When the box API version is 6 or higher, and `/api/v6/system/` has a `sensors` list at startup, the system collector also reads `/api/v6/system/`, which lists every fan:
 
 ```text
 fbx_exporter_system_fan_speed_rpm{id="fan0_speed",name="Ventilateur 1"} 3091
@@ -126,7 +126,7 @@ fbx_exporter_system_fan_speed_rpm{id="fan1_speed",name="Ventilateur 2"} 3154
 
 `fbx_exporter_system_temperature_celsius` has one series for each temperature sensor of the box. The `sensor` label is the sensor id without its `temp_` prefix, and `name` is the name given by the box.
 
-When the box API version is 6 or higher, the sensors come from the `sensors` list of `/api/v6/system/`. Otherwise, they come from the `temp_*` fields of `/api/v4/system`, and `name` is the same as `sensor`. The source is selected once, at startup. If the `/api/v6/system/` request fails, the collection does not expose the temperatures and the fans.
+When the box API version is 6 or higher, and `/api/v6/system/` has a `sensors` list, the sensors come from this list. Otherwise, they come from the `temp_*` fields of `/api/v4/system`, and `name` is the same as `sensor`. The source is selected once, at startup, because the two sources use different ids for the same sensor. If the `/api/v6/system/` request fails, the system collector fails, as for a failure of `/api/v4/system`: it keeps the previous collection, and `collector_success{collector="system"}` is 0.
 
 The sensors depend on the model. On a Freebox Delta:
 
