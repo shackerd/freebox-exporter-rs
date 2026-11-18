@@ -111,7 +111,16 @@ pub struct AuthenticatedHttpClientFactory<'a> {
 const LOGIN_REFUSALS: [&str; 3] = ["invalid_token", "pending_token", "apps_denied"];
 
 /// Default delay between two logins while the box refuses the login
-const REFUSED_LOGIN_RETRY: Duration = Duration::from_secs(60);
+pub const REFUSED_LOGIN_RETRY: Duration = Duration::from_secs(60);
+
+/// error_code of a login error when the box refuses the login, e.g. invalid_token; `None` for
+/// any other error, e.g. when the box is unreachable
+pub fn login_refusal(error: &(dyn std::error::Error + Send + Sync + 'static)) -> Option<String> {
+    error
+        .downcast_ref::<FreeboxApiError>()
+        .and_then(|api| api.error_code.clone())
+        .filter(|code| LOGIN_REFUSALS.contains(&code.as_str()))
+}
 
 /// Session shared by the factory and the clients it creates
 #[derive(Default)]
@@ -171,13 +180,11 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
     fn observe_login(&self, outcome: &Result<String, Box<dyn std::error::Error + Send + Sync>>) {
         let refused = match outcome {
             Ok(_) => None,
-            Err(e) => match e.downcast_ref::<FreeboxApiError>() {
-                Some(api) => api
-                    .error_code
-                    .clone()
-                    .filter(|code| LOGIN_REFUSALS.contains(&code.as_str())),
+            Err(e) => match login_refusal(e.as_ref()) {
+                Some(code) => Some(code),
                 // the box is unreachable or failing: not a refusal, the previous state stands
-                None => return,
+                None if e.downcast_ref::<FreeboxApiError>().is_none() => return,
+                None => None,
             },
         };
         let Ok(mut refusal) = self.session.refusal.lock() else {

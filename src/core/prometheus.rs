@@ -6,33 +6,51 @@ use std::{
     },
 };
 
-use log::{debug, info};
-use prometheus_exporter::prometheus::{
-    core::{Collector, Desc},
-    proto::MetricFamily,
-    IntGauge, IntGaugeVec, Opts, Registry,
+use log::{debug, error, info};
+use prometheus_exporter::{
+    prometheus::{
+        core::{Collector, Desc},
+        proto::MetricFamily,
+        IntGauge, IntGaugeVec, Opts, Registry,
+    },
+    UpdateLock,
 };
 
-use crate::mappers::Mapper;
+use crate::{
+    core::{
+        authenticator::Authenticator,
+        capabilities::CapabilitiesAgent,
+        common::http_client_factory::{
+            login_refusal, AuthenticatedHttpClientFactory, REFUSED_LOGIN_RETRY,
+        },
+        configuration::Configuration,
+    },
+    mappers::Mapper,
+};
 
-pub struct Server<'a> {
+pub struct Server {
     port: u16,
     refresh_interval: u64,
-    mapper: Mapper<'a>,
     prefix: String,
 }
 
-impl<'a> Server<'a> {
-    pub fn new(port: u16, refresh_interval: u64, mapper: Mapper<'a>, prefix: String) -> Self {
+impl Server {
+    pub fn new(port: u16, refresh_interval: u64, prefix: String) -> Self {
         Self {
             port,
             refresh_interval,
-            mapper,
             prefix,
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// Serves the metrics of the box. The HTTP server starts first: while the box refuses the
+    /// login, e.g. for an app revoked or not validated yet, it serves the metrics of the access,
+    /// and the login is attempted again every minute.
+    pub async fn run(
+        &self,
+        authenticator: &Authenticator,
+        conf: &Configuration,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("initiating prometheus server");
 
         let addr_raw = format!("0.0.0.0:{}", self.port);
@@ -61,13 +79,23 @@ impl<'a> Server<'a> {
         let lock = exporter.update_lock();
         let duration = std::time::Duration::from_secs(self.refresh_interval);
 
-        self.mapper.init_all().await?;
+        let factory = wait_for_login(authenticator, &access, &lock, REFUSED_LOGIN_RETRY).await?;
+        let capabilities = CapabilitiesAgent::new(&factory).load().await?;
+        let mut mapper = Mapper::new(
+            &factory,
+            conf.metrics.clone(),
+            capabilities,
+            conf.api.clone(),
+            conf.policies.clone(),
+        );
+
+        mapper.init_all().await?;
 
         loop {
             debug!("fetching result from mapper maps");
 
-            self.mapper.set_all(&lock).await?;
-            let refusal = self.mapper.login_refusal();
+            mapper.set_all(&lock).await?;
+            let refusal = mapper.login_refusal();
             {
                 let _update = lock.lock();
                 access.update(refusal.as_deref());
@@ -75,6 +103,40 @@ impl<'a> Server<'a> {
 
             let _guard = exporter.wait_duration(duration);
         }
+    }
+}
+
+/// Logs in, attempting again every `retry` while the box refuses the login; any other error, e.g.
+/// an unreachable box, is returned
+async fn wait_for_login<'a>(
+    authenticator: &'a Authenticator,
+    access: &Access,
+    lock: &UpdateLock,
+    retry: std::time::Duration,
+) -> Result<AuthenticatedHttpClientFactory<'a>, Box<dyn std::error::Error + Send + Sync>> {
+    loop {
+        let refusal = match authenticator.login().await {
+            Ok(factory) => {
+                let _update = lock.lock();
+                access.update(None);
+                return Ok(factory);
+            }
+            Err(e) => match login_refusal(e.as_ref()) {
+                Some(code) => {
+                    error!(
+                        "the box refuses the login, next attempt in {} s: {e}",
+                        retry.as_secs()
+                    );
+                    code
+                }
+                None => return Err(e),
+            },
+        };
+        {
+            let _update = lock.lock();
+            access.update(Some(&refusal));
+        }
+        tokio::time::sleep(retry).await;
     }
 }
 
@@ -202,5 +264,159 @@ mod tests {
             vec!["test_access_authenticated 1", "test_access_uptime 42"],
             exposed(&served)
         );
+    }
+
+    mod startup {
+        use std::time::Duration;
+
+        use serde_json::json;
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        use super::*;
+        use crate::{
+            core::authenticator::application_token_provider::MockApplicationTokenProvider,
+            mappers::test_support::update_lock,
+        };
+
+        fn refused(code: &str) -> ResponseTemplate {
+            ResponseTemplate::new(403)
+                .set_body_json(json!({ "success": false, "error_code": code, "msg": "refused" }))
+        }
+
+        fn accepted() -> ResponseTemplate {
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "success": true, "result": { "session_token": "s" } }))
+        }
+
+        /// A box answering the logins with `answers` in order, the last one forever
+        async fn box_answering(answers: Vec<ResponseTemplate>) -> (MockServer, Authenticator) {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api/v4/login/"))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(
+                        json!({ "success": true, "result": { "challenge": "1234" } }),
+                    ),
+                )
+                .mount(&server)
+                .await;
+            let last = answers.len() - 1;
+            for (i, answer) in answers.into_iter().enumerate() {
+                let mock = Mock::given(method("POST"))
+                    .and(path("/api/v4/login/session"))
+                    .respond_with(answer)
+                    .with_priority(u8::try_from(i + 1).unwrap());
+                let mock = if i < last {
+                    mock.up_to_n_times(1)
+                } else {
+                    mock
+                };
+                mock.mount(&server).await;
+            }
+            let mut store = MockApplicationTokenProvider::new();
+            store.expect_get().returning(|| Ok("foo.bar".to_string()));
+            let authenticator =
+                Authenticator::new(format!("{}/api/", server.uri()), Box::new(store));
+            (server, authenticator)
+        }
+
+        async fn attempts(server: &MockServer) -> usize {
+            server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .filter(|r| r.url.path() == "/api/v4/login/session")
+                .count()
+        }
+
+        /// Access whose box metrics are a single gauge, `test_<prefix>_uptime 42`
+        fn access(prefix: &str) -> (Registry, Access) {
+            let box_metrics = Registry::new();
+            let uptime = IntGauge::new(format!("{prefix}_uptime"), "uptime").unwrap();
+            box_metrics.register(Box::new(uptime.clone())).unwrap();
+            uptime.set(42);
+            let served = Registry::new();
+            let access = Access::register(&served, box_metrics, prefix).unwrap();
+            (served, access)
+        }
+
+        #[tokio::test]
+        async fn the_login_is_attempted_again_until_the_box_accepts_it() {
+            let (server, authenticator) = box_answering(vec![
+                refused("pending_token"),
+                refused("pending_token"),
+                accepted(),
+            ])
+            .await;
+            let (served, access) = access("test_startup_accepted");
+
+            let factory = wait_for_login(
+                &authenticator,
+                &access,
+                update_lock(),
+                Duration::from_millis(50),
+            )
+            .await;
+
+            assert!(factory.is_ok());
+            assert_eq!(3, attempts(&server).await);
+            assert_eq!(
+                vec![
+                    "test_startup_accepted_authenticated 1",
+                    "test_startup_accepted_uptime 42"
+                ],
+                exposed(&served)
+            );
+        }
+
+        #[tokio::test]
+        async fn while_the_box_refuses_the_login_the_access_tells_why() {
+            let (server, authenticator) = box_answering(vec![refused("invalid_token")]).await;
+            let (served, access) = access("test_startup_refused");
+            let retry = Duration::from_millis(300);
+
+            // the box keeps refusing: the wait goes on, one login per retry
+            let waiting = tokio::time::timeout(
+                retry + retry / 2,
+                wait_for_login(&authenticator, &access, update_lock(), retry),
+            )
+            .await;
+
+            assert!(waiting.is_err(), "the login was accepted");
+            assert_eq!(2, attempts(&server).await);
+            assert_eq!(
+                vec![
+                    "test_startup_refused_authenticated 0",
+                    "test_startup_refused_authentication_error{error_code=\"invalid_token\"} 1",
+                ],
+                exposed(&served)
+            );
+        }
+
+        #[tokio::test]
+        async fn another_login_error_is_returned_at_once() {
+            let (server, authenticator) = box_answering(vec![refused("internal_error")]).await;
+            let (_served, access) = access("test_startup_failed");
+
+            // a wait would last a minute per attempt: the test fails instead of hanging
+            let factory = tokio::time::timeout(
+                Duration::from_secs(5),
+                wait_for_login(
+                    &authenticator,
+                    &access,
+                    update_lock(),
+                    Duration::from_secs(60),
+                ),
+            )
+            .await
+            .expect("the error was taken for a refusal");
+
+            assert!(factory.is_err());
+            assert_eq!(1, attempts(&server).await);
+        }
     }
 }
