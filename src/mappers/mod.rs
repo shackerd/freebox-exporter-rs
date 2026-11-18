@@ -86,10 +86,10 @@ impl<'a> Mapper<'a> {
             if e {
                 maps.push((
                     "system",
-                    Box::new(SystemMetricMap::new(
-                        factory,
-                        conf.prefix.to_owned().unwrap(),
-                    )),
+                    Box::new(
+                        SystemMetricMap::new(factory, conf.prefix.to_owned().unwrap())
+                            .with_v6_system(caps.v6_system.unwrap_or(false)),
+                    ),
                 ));
             }
         } else {

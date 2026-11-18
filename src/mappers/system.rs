@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{
@@ -10,8 +12,40 @@ use serde::Deserialize;
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
 };
+
+/// First API version whose system/ lists every fan and every temperature sensor, in
+/// fans and sensors: v4 and v5 only have fan_rpm and the temp_* fields, measured on a
+/// Freebox Delta
+pub const V6_SYSTEM_API_VERSION: u32 = 6;
+
+/// (id, name, value) of a fan or a temperature sensor
+type Labeled = (String, String, i64);
+
+/// An entry of the fans or sensors list of v6/system/
+#[derive(Deserialize, Clone, Debug)]
+struct Measure {
+    id: Option<String>,
+    name: Option<String>,
+    value: Option<i64>,
+}
+
+impl Measure {
+    /// (id, name, value), the name defaults to the id. None without an id or a value
+    fn labeled(self) -> Option<Labeled> {
+        let (id, value) = (self.id?, self.value?);
+        let name = self.name.unwrap_or_else(|| id.clone());
+        Some((id, name, value))
+    }
+}
+
+/// The part of v6/system/ missing from v4/system
+#[derive(Deserialize, Clone, Debug, Default)]
+struct V6System {
+    fans: Option<Vec<Measure>>,
+    sensors: Option<Vec<Measure>>,
+}
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct SystemConfig {
@@ -41,11 +75,54 @@ pub struct SystemConfig {
     pub user_main_storage: Option<String>,
     pub serial: Option<String>,
     pub firmware_version: Option<String>,
+    /// Fields without a dedicated member, such as the temperature sensors of a Freebox
+    /// Delta (temp_cpu_cp_master, temp_cpu_ap, temp_hdd0, ...)
+    #[serde(flatten)]
+    pub other: BTreeMap<String, serde_json::Value>,
+}
+
+impl SystemConfig {
+    /// Every temperature reported by the box, as (sensor, celsius) where sensor is the
+    /// field name without its "temp_" prefix. The fields and their meaning depend on the
+    /// model, e.g. the CPU temperatures of a Delta are only in cpu_cp_master,
+    /// cpu_cp_slave and cpu_ap
+    pub fn temperatures(&self) -> Vec<(String, i64)> {
+        let known = [
+            ("temp_hdd", self.temp_hdd),
+            ("temp_cpub", self.temp_cpub),
+            ("temp_cpum", self.temp_cpum),
+            ("temp_t1", self.temp_t1),
+            ("temp_t2", self.temp_t2),
+            ("temp_cpu0", self.temp_cpu0),
+            ("temp_cpu1", self.temp_cpu1),
+            ("temp_cpu2", self.temp_cpu2),
+            ("temp_cpu3", self.temp_cpu3),
+            ("temp_sw", self.temp_sw),
+        ];
+        let others = self
+            .other
+            .iter()
+            .filter(|(name, _)| name.starts_with("temp_"))
+            .map(|(name, value)| (name.as_str(), value.as_i64()));
+
+        let mut temperatures: Vec<(String, i64)> = known
+            .into_iter()
+            .chain(others)
+            .filter_map(|(name, value)| {
+                value.map(|v| (name.trim_start_matches("temp_").to_string(), v))
+            })
+            .collect();
+        temperatures.sort();
+        temperatures
+    }
 }
 
 pub struct SystemMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
     managed_client: Option<ManagedHttpClient>,
+    /// Whether the box lists its fans and sensors, see V6_SYSTEM_API_VERSION
+    v6_system: bool,
+    fan_speed_metric: IntGaugeVec,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
     box_model_name_metric: IntGaugeVec,
@@ -55,6 +132,7 @@ pub struct SystemMetricMap<'a> {
     temp_t1_metric: IntGauge,
     temp_t2_metric: IntGauge,
     temp_cpu_metric: IntGaugeVec, // New: CPU temperature with core label
+    temperature_metric: IntGaugeVec,
     // Legacy metrics for backward compatibility
     temp_cpub_metric: IntGauge,
     temp_cpum_metric: IntGauge,
@@ -74,6 +152,13 @@ impl<'a> SystemMetricMap<'a> {
         Self {
             factory,
             managed_client: None,
+            v6_system: false,
+            fan_speed_metric: register_int_gauge_vec!(
+                format!("{prefix}_system_fan_speed_rpm"),
+                "speed of each fan of the box",
+                &["id", "name"]
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_fan_speed_rpm gauge: {e}")),
             mac_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_mac"),
                 format!("{prefix}_system_mac"),
@@ -125,6 +210,14 @@ impl<'a> SystemMetricMap<'a> {
                 &["core"]
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpu gauge: {e}")),
+            temperature_metric: register_int_gauge_vec!(
+                format!("{prefix}_system_temperature_celsius"),
+                "temperature of each sensor reported by the box",
+                &["sensor", "name"]
+            )
+            .unwrap_or_else(|e| {
+                panic!("cannot create {prefix}_system_temperature_celsius gauge: {e}")
+            }),
             // Legacy metrics for backward compatibility
             temp_cpub_metric: register_int_gauge!(
                 format!("{prefix}_system_temp_cpub"),
@@ -195,6 +288,28 @@ impl<'a> SystemMetricMap<'a> {
         }
     }
 
+    /// Also reads the fans and the temperature sensors from v6/system/, for a box
+    /// supporting V6_SYSTEM_API_VERSION. Otherwise, the temperatures come from the temp_*
+    /// fields of v4/system and there is no fan list
+    pub fn with_v6_system(mut self, v6_system: bool) -> Self {
+        self.v6_system = v6_system;
+        self
+    }
+
+    async fn get_v6_system(
+        &mut self,
+    ) -> Result<V6System, Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.get_managed_client().await?;
+        let v6 = get_api_result::<V6System>(
+            &client,
+            &self.factory.api_url,
+            &format!("v{V6_SYSTEM_API_VERSION}/system/"),
+        )
+        .await?
+        .unwrap_or_default();
+        Ok(v6)
+    }
+
     async fn get_managed_client(
         &mut self,
     ) -> Result<Client, Box<dyn std::error::Error + Send + Sync>> {
@@ -226,6 +341,7 @@ impl<'a> SystemMetricMap<'a> {
     }
 
     fn reset_all(&mut self) {
+        self.fan_speed_metric.reset();
         self.mac_metric.reset();
         self.box_flavor_metric.reset();
         self.box_model_name_metric.reset();
@@ -235,6 +351,7 @@ impl<'a> SystemMetricMap<'a> {
         self.temp_t1_metric.set(0);
         self.temp_t2_metric.set(0);
         self.temp_cpu_metric.reset();
+        self.temperature_metric.reset();
         // Legacy metrics for backward compatibility
         self.temp_cpub_metric.set(0);
         self.temp_cpum_metric.set(0);
@@ -284,6 +401,36 @@ impl<'a> SystemMetricMap<'a> {
             Some(r) => r,
         };
 
+        // (sensor, name, celsius) and (id, name, rpm)
+        // the source does not change between collections, as the sensor labels depend on it:
+        // a failure of v6/system/ fails the collection like a failure of v4/system, with no
+        // fallback to the temp_* fields of v4/system
+        let (temperatures, fans): (Vec<Labeled>, Vec<Labeled>) = if self.v6_system {
+            let v6 = self.get_v6_system().await?;
+            (
+                v6.sensors
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(Measure::labeled)
+                    .map(|(id, name, celsius)| {
+                        (id.trim_start_matches("temp_").to_string(), name, celsius)
+                    })
+                    .collect(),
+                v6.fans
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(Measure::labeled)
+                    .collect(),
+            )
+        } else {
+            let temperatures = sys_cnf
+                .temperatures()
+                .into_iter()
+                .map(|(sensor, celsius)| (sensor.clone(), sensor, celsius))
+                .collect();
+            (temperatures, vec![])
+        };
+
         // reset only once the response is valid: a scrape during the request still sees
         // the previous collection, and a failed request keeps it
         // a scrape waits for the update to complete instead of returning part of it
@@ -326,6 +473,11 @@ impl<'a> SystemMetricMap<'a> {
 
         // Handle CPU temperatures - support both legacy and new formats
         self.handle_cpu_temperatures(&sys_cnf);
+        for (sensor, name, celsius) in temperatures {
+            self.temperature_metric
+                .with_label_values(&[&sensor, &name])
+                .set(celsius);
+        }
 
         self.disk_status_metric
             .with_label_values(&[&sys_cnf.disk_status.clone().unwrap_or_default()])
@@ -336,6 +488,11 @@ impl<'a> SystemMetricMap<'a> {
             .with_label_values(&[&sys_cnf.board_name.clone().unwrap_or_default()])
             .set(1);
         self.fan_rpm_metric.set(sys_cnf.fan_rpm.unwrap_or_default());
+        for (id, name, rpm) in fans {
+            self.fan_speed_metric
+                .with_label_values(&[&id, &name])
+                .set(rpm);
+        }
         self.temp_sw_metric.set(sys_cnf.temp_sw.unwrap_or_default());
         self.uptime_val_metric
             .set(sys_cnf.uptime_val.unwrap_or_default());
@@ -646,6 +803,63 @@ mod tests {
         assert_eq!(config.api_version, None);
         assert_eq!(config.temp_hdd, None);
     }
+
+    /// v4/system of a Freebox Delta (fbxgw7r, firmware 4.13.6): the real CPU temperatures
+    /// are only in fields without a dedicated member
+    pub(super) const DELTA_SYSTEM: &str = r#"{
+        "mac": "34:XX:XX:XX:XX:XX",
+        "box_flavor": "light",
+        "temp_cpub": 65,
+        "temp_cpum": 60,
+        "temp_sw": 58,
+        "temp_cpu_cp_master": 93,
+        "temp_cpu_cp_slave": 93,
+        "temp_cpu_ap": 84,
+        "temp_hdd0": 64,
+        "temp_hdd1": 57,
+        "temp_hdd2": 64,
+        "temp_hdd3": 58,
+        "fan_rpm": 2418,
+        "board_name": "fbxgw7r",
+        "disk_status": "active",
+        "uptime_val": 1307,
+        "user_main_storage": "Freebox_raid",
+        "box_authenticated": true,
+        "serial": "FB7XXXXXXXXXXXXXX",
+        "firmware_version": "4.13.6"
+    }"#;
+
+    #[test]
+    fn temperatures_include_the_fields_without_a_dedicated_member() {
+        let config: SystemConfig = serde_json::from_str(DELTA_SYSTEM).unwrap();
+
+        let expected: Vec<(String, i64)> = [
+            ("cpu_ap", 84),
+            ("cpu_cp_master", 93),
+            ("cpu_cp_slave", 93),
+            ("cpub", 65),
+            ("cpum", 60),
+            ("hdd0", 64),
+            ("hdd1", 57),
+            ("hdd2", 64),
+            ("hdd3", 58),
+            ("sw", 58),
+        ]
+        .into_iter()
+        .map(|(sensor, celsius)| (sensor.to_string(), celsius))
+        .collect();
+        assert_eq!(expected, config.temperatures());
+    }
+
+    #[test]
+    fn temperatures_skip_null_and_non_numeric_values() {
+        let config: SystemConfig = serde_json::from_str(
+            r#"{ "temp_cpum": null, "temp_t1": 59, "temp_unknown": "n/a", "uptime": "1 jour" }"#,
+        )
+        .unwrap();
+
+        assert_eq!(vec![("t1".to_string(), 59)], config.temperatures());
+    }
 }
 
 #[cfg(test)]
@@ -686,6 +900,173 @@ mod tests_collect {
 
         assert_eq!(before, during);
         assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
+    }
+
+    /// v6/system fans of a Freebox Delta, whose v4/system only has fan_rpm
+    fn delta_fans() -> Value {
+        json!({ "success": true, "result": { "fans": [
+            { "id": "fan1_speed", "name": "Ventilateur 2", "value": 3157 },
+            { "id": "fan0_speed", "name": "Ventilateur 1", "value": 3062 }
+        ] } })
+    }
+
+    #[tokio::test]
+    async fn set_exposes_every_fan_when_the_box_lists_them() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_fans";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string()).with_v6_system(true);
+
+        serve(&server, "/api/v4/system", system(100)).await;
+        serve(&server, "/api/v6/system/", delta_fans()).await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        for line in [
+            "_system_fan_speed_rpm{id=\"fan0_speed\",name=\"Ventilateur 1\"} 3062",
+            "_system_fan_speed_rpm{id=\"fan1_speed\",name=\"Ventilateur 2\"} 3157",
+        ] {
+            assert!(
+                metrics.contains(&format!("{prefix}{line}")),
+                "{line} in {metrics:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn failing_v6_system_request_keeps_the_previous_collection() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_v6_failure";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string()).with_v6_system(true);
+
+        let first_system = serve_scoped(&server, "/api/v4/system", system(100)).await;
+        let first_v6 = serve_scoped(&server, "/api/v6/system/", delta_system(6)).await;
+        map.set(update_lock()).await.unwrap();
+        let before = scrape(prefix);
+        for metric in ["_system_fan_speed_rpm{", "_system_temperature_celsius{"] {
+            assert!(
+                before.iter().any(|line| line.contains(metric)),
+                "{metric} in {before:?}"
+            );
+        }
+        drop((first_system, first_v6));
+
+        // v4/system answers, v6/system/ fails
+        serve(&server, "/api/v4/system", system(200)).await;
+        serve(
+            &server,
+            "/api/v6/system/",
+            json!({ "success": false, "error_code": "invalid_request", "msg": "nope" }),
+        )
+        .await;
+        assert!(map.set(update_lock()).await.is_err());
+
+        // the collection fails as a whole: neither the fans and the temperatures nor the
+        // other metrics are updated, and there is no fallback to v4/system
+        assert_eq!(before, scrape(prefix));
+    }
+
+    #[tokio::test]
+    async fn set_does_not_request_the_fans_by_default() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_no_fans";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        serve(&server, "/api/v4/system", system(100)).await;
+        wiremock::Mock::given(wiremock::matchers::path("/api/v6/system/"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(delta_fans()))
+            .expect(0)
+            .mount(&server)
+            .await;
+        map.set(update_lock()).await.unwrap();
+
+        assert!(!scrape(prefix)
+            .iter()
+            .any(|line| line.contains("_system_fan_speed_rpm{")));
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn set_exposes_every_temperature_sensor() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_temperatures";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        let result: Value = serde_json::from_str(super::tests::DELTA_SYSTEM).unwrap();
+        serve(
+            &server,
+            "/api/v4/system",
+            json!({ "success": true, "result": result }),
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        for line in [
+            "_system_temperature_celsius{name=\"cpu_cp_master\",sensor=\"cpu_cp_master\"} 93",
+            "_system_temperature_celsius{name=\"cpu_cp_slave\",sensor=\"cpu_cp_slave\"} 93",
+            "_system_temperature_celsius{name=\"cpu_ap\",sensor=\"cpu_ap\"} 84",
+            "_system_temperature_celsius{name=\"hdd3\",sensor=\"hdd3\"} 58",
+            "_system_temperature_celsius{name=\"cpum\",sensor=\"cpum\"} 60",
+        ] {
+            assert!(
+                metrics.contains(&format!("{prefix}{line}")),
+                "{line} in {metrics:?}"
+            );
+        }
+    }
+
+    /// v4/system and v6/system/ of a Freebox Delta (fbxgw7r, firmware 4.13.6), captured
+    /// 2 minutes apart
+    fn delta_system(version: u32) -> Value {
+        let body = match version {
+            4 => include_str!("specs-data/system/api_v4_system_delta-get.json"),
+            6 => include_str!("specs-data/system/api_v6_system_delta-get.json"),
+            _ => unreachable!(),
+        };
+        serde_json::from_str(body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn set_exposes_the_v6_sensors_when_the_box_lists_them() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_v6_sensors";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string()).with_v6_system(true);
+
+        serve(&server, "/api/v4/system", delta_system(4)).await;
+        serve(&server, "/api/v6/system/", delta_system(6)).await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        for line in [
+            "_system_temperature_celsius{name=\"Température CPU CP Master\",sensor=\"cpu_cp_master\"} 82",
+            "_system_temperature_celsius{name=\"Température CPU CP Slave\",sensor=\"cpu_cp_slave\"} 82",
+            "_system_temperature_celsius{name=\"Température CPU AP\",sensor=\"cpu_ap\"} 71",
+            "_system_temperature_celsius{name=\"Disque dur 1\",sensor=\"hdd0\"} 56",
+            "_system_temperature_celsius{name=\"Température 1\",sensor=\"t1\"} 49",
+            "_system_temperature_celsius{name=\"Température 3\",sensor=\"t3\"} 48",
+            "_system_fan_speed_rpm{id=\"fan0_speed\",name=\"Ventilateur 1\"} 3091",
+            "_system_fan_speed_rpm{id=\"fan1_speed\",name=\"Ventilateur 2\"} 3154",
+            // the legacy metrics still come from v4/system
+            "_system_temp_cpum 49",
+            "_system_fan_rpm 3092",
+        ] {
+            assert!(
+                metrics.contains(&format!("{prefix}{line}")),
+                "{line} in {metrics:?}"
+            );
+        }
+        let sensors = metrics
+            .iter()
+            .filter(|line| line.contains("_system_temperature_celsius{"))
+            .count();
+        assert_eq!(10, sensors, "{metrics:?}");
+        // the v4 names of t1, t2 and t3 are not exposed
+        assert!(!metrics.iter().any(|line| line.contains("sensor=\"cpum\"")));
     }
 
     #[tokio::test]
