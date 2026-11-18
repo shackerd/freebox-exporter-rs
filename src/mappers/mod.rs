@@ -354,6 +354,11 @@ impl<'a> Mapper<'a> {
         Ok(())
     }
 
+    /// error_code of the login while the box refuses it, e.g. invalid_token for a revoked app
+    pub fn login_refusal(&self) -> Option<String> {
+        self.session.and_then(|factory| factory.login_refusal())
+    }
+
     /// Runs every collector; a failing collector does not stop the others nor the exporter,
     /// its outcome is exposed through the health metrics
     pub async fn set_all(
@@ -364,6 +369,15 @@ impl<'a> Mapper<'a> {
         for (name, map) in self.maps.iter_mut() {
             let started = std::time::Instant::now();
             let res = map.set(lock).await;
+
+            // while the box refuses the login, the factory attempts one login per period and
+            // fails the others at once: the other collectors would fail alike
+            if self
+                .session
+                .is_some_and(|factory| factory.login_refusal().is_some())
+            {
+                return Ok(());
+            }
 
             if let Err(e) = &res {
                 error!("collector {name} failed: {e}");
@@ -849,6 +863,10 @@ mod session_renewal {
         checks: Arc<Mutex<u32>>,
         /// v4/lan/config fails for another reason than the session
         lan_down: Arc<Mutex<bool>>,
+        /// error_code of every login while the box refuses it, e.g. after the app was revoked
+        refusal: Arc<Mutex<Option<&'static str>>>,
+        /// POST v4/login/session, accepted or refused
+        attempts: Arc<Mutex<u32>>,
     }
 
     impl FakeBox {
@@ -886,6 +904,12 @@ mod session_renewal {
             Mock::given(method("POST"))
                 .and(path("/api/v4/login/session"))
                 .respond_with(move |_: &Request| {
+                    *fake.attempts.lock().unwrap() += 1;
+                    if let Some(code) = *fake.refusal.lock().unwrap() {
+                        return ResponseTemplate::new(403).set_body_json(json!({
+                            "success": false, "error_code": code, "msg": "refused",
+                        }));
+                    }
                     let mut logins = fake.logins.lock().unwrap();
                     *logins += 1;
                     let token = format!("session-{logins}");
@@ -930,6 +954,28 @@ mod session_renewal {
 
         fn checks(&self) -> u32 {
             *self.checks.lock().unwrap()
+        }
+
+        fn attempts(&self) -> u32 {
+            *self.attempts.lock().unwrap()
+        }
+    }
+
+    /// Collector succeeding every time, counting its runs
+    struct CountingMap(Arc<Mutex<u32>>);
+
+    #[async_trait]
+    impl<'a> MetricMap<'a> for CountingMap {
+        async fn set(
+            &mut self,
+            _: &UpdateLock,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            *self.0.lock().unwrap() += 1;
+            Ok(())
+        }
+
+        async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            Ok(())
         }
     }
 
@@ -1003,5 +1049,97 @@ mod session_renewal {
 
         assert_eq!(Some(1.0), mapper.health.success("lan"));
         assert_eq!(0, fake.checks());
+    }
+
+    #[tokio::test]
+    async fn a_refused_login_suspends_the_collections_and_is_retried_once_per_period() {
+        let fake = FakeBox::default();
+        let (_server, authenticator) = fake.serve().await;
+        let mut factory = authenticator.login().await.unwrap();
+        let retry = std::time::Duration::from_millis(300);
+        factory.refused_login_retry = retry;
+        let runs = Arc::new(Mutex::new(0));
+        let mut mapper = Mapper {
+            maps: vec![
+                (
+                    "lan",
+                    Box::new(LanMetricMap::new(&factory, "test_refused".to_string())),
+                ),
+                ("counting", Box::new(CountingMap(runs.clone()))),
+            ],
+            health: CollectorHealth::new("test"),
+            session: Some(&factory),
+        };
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(None, mapper.login_refusal());
+
+        // the app is revoked on the box: its sessions end, and its logins are refused
+        fake.restart();
+        *fake.refusal.lock().unwrap() = Some("invalid_token");
+        mapper.set_all(update_lock()).await.unwrap(); // auth_required, the session is lost
+        let runs_before = *runs.lock().unwrap();
+        let attempts = fake.attempts();
+        mapper.set_all(update_lock()).await.unwrap(); // the login is refused
+        assert_eq!(Some("invalid_token".to_string()), mapper.login_refusal());
+        assert_eq!(
+            attempts + 1,
+            fake.attempts(),
+            "a single login per collection"
+        );
+        assert_eq!(runs_before, *runs.lock().unwrap(), "the collection stops");
+
+        // until the next attempt, no login and no collection
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(attempts + 1, fake.attempts());
+        assert_eq!(runs_before, *runs.lock().unwrap());
+
+        tokio::time::sleep(retry).await;
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(attempts + 2, fake.attempts());
+        assert_eq!(Some("invalid_token".to_string()), mapper.login_refusal());
+
+        // the app is allowed again: the next attempt logs in, and the collections resume
+        *fake.refusal.lock().unwrap() = None;
+        tokio::time::sleep(retry).await;
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(None, mapper.login_refusal());
+        assert_eq!(Some(1.0), mapper.health.success("lan"));
+        assert_eq!(runs_before + 1, *runs.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn a_transient_login_error_is_not_a_refused_login() {
+        let fake = FakeBox::default();
+        let (_server, authenticator) = fake.serve().await;
+        let factory = authenticator.login().await.unwrap();
+        let mut mapper = mapper(&factory, "test_transient_login_error");
+        mapper.set_all(update_lock()).await.unwrap();
+
+        fake.restart();
+        *fake.refusal.lock().unwrap() = Some("internal_error");
+        for _ in 0..3 {
+            mapper.set_all(update_lock()).await.unwrap();
+        }
+
+        assert_eq!(None, mapper.login_refusal());
+        assert_eq!(Some(0.0), mapper.health.success("lan"));
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_box_is_not_a_refused_login() {
+        let fake = FakeBox::default();
+        let (server, authenticator) = fake.serve().await;
+        let factory = authenticator.login().await.unwrap();
+        let mut mapper = mapper(&factory, "test_unreachable");
+        mapper.set_all(update_lock()).await.unwrap();
+
+        // the box restarts and does not answer yet
+        fake.restart();
+        server.reset().await;
+        mapper.set_all(update_lock()).await.unwrap();
+        mapper.set_all(update_lock()).await.unwrap();
+
+        assert_eq!(None, mapper.login_refusal());
+        assert_eq!(Some(0.0), mapper.health.success("lan"));
     }
 }

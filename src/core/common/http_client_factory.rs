@@ -5,11 +5,11 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use chrono::{DateTime, TimeDelta, Utc};
-use log::debug;
+use log::{debug, error, info};
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Certificate, Client,
@@ -17,7 +17,8 @@ use reqwest::{
 use serde::Deserialize;
 
 use crate::core::{
-    authenticator::SessionTokenProvider, common::transport::FreeboxResponse,
+    authenticator::SessionTokenProvider,
+    common::transport::{FreeboxApiError, FreeboxResponse},
     discovery::DEFAULT_FBX_HOST,
 };
 
@@ -101,7 +102,16 @@ pub struct AuthenticatedHttpClientFactory<'a> {
     pub timeouts: Timeouts,
     pub address: Option<IpAddr>,
     session: Arc<Session>,
+    /// Delay between two logins while the box refuses the login
+    pub(crate) refused_login_retry: Duration,
 }
+
+/// Errors of the login that last until someone acts on the box: the app was revoked, is not
+/// validated yet, or apps are denied
+const LOGIN_REFUSALS: [&str; 3] = ["invalid_token", "pending_token", "apps_denied"];
+
+/// Default delay between two logins while the box refuses the login
+const REFUSED_LOGIN_RETRY: Duration = Duration::from_secs(60);
 
 /// Session shared by the factory and the clients it creates
 #[derive(Default)]
@@ -111,6 +121,8 @@ struct Session {
     generation: AtomicU64,
     /// Last session token given by the box, to ask it whether the session is still valid
     last_token: Mutex<Option<String>>,
+    /// error_code of the last login, while the box refuses it, and when it was attempted
+    refusal: Mutex<Option<(String, Instant)>>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -130,7 +142,61 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             token_provider,
             expiration: TimeDelta::minutes(30),
             session: Arc::default(),
+            refused_login_retry: REFUSED_LOGIN_RETRY,
         }
+    }
+
+    /// error_code of the last login while the box refuses it, e.g. invalid_token
+    pub fn login_refusal(&self) -> Option<String> {
+        self.session
+            .refusal
+            .lock()
+            .ok()
+            .and_then(|refusal| refusal.as_ref().map(|(code, _)| code.clone()))
+    }
+
+    /// Whether a login may be attempted: always, unless the box refused the last one less than
+    /// `refused_login_retry` ago, so that a revoked app does not send a login per collector and
+    /// per collection
+    fn login_allowed(&self) -> bool {
+        match self.session.refusal.lock() {
+            Ok(refusal) => refusal
+                .as_ref()
+                .is_none_or(|(_, at)| at.elapsed() >= self.refused_login_retry),
+            Err(_) => true,
+        }
+    }
+
+    /// Records the outcome of a login: a refusal of the box, or its end
+    fn observe_login(&self, outcome: &Result<String, Box<dyn std::error::Error + Send + Sync>>) {
+        let refused = match outcome {
+            Ok(_) => None,
+            Err(e) => match e.downcast_ref::<FreeboxApiError>() {
+                Some(api) => api
+                    .error_code
+                    .clone()
+                    .filter(|code| LOGIN_REFUSALS.contains(&code.as_str())),
+                // the box is unreachable or failing: not a refusal, the previous state stands
+                None => return,
+            },
+        };
+        let Ok(mut refusal) = self.session.refusal.lock() else {
+            return;
+        };
+        match (&refused, refusal.is_some()) {
+            (Some(_), _) => error!(
+                "the box refuses the login, next attempt in {} s: {}",
+                self.refused_login_retry.as_secs(),
+                outcome
+                    .as_ref()
+                    .err()
+                    .map(|e| e.to_string())
+                    .unwrap_or_default()
+            ),
+            (None, true) => info!("the box accepts the login again"),
+            (None, false) => {}
+        }
+        *refusal = refused.map(|code| (code, Instant::now()));
     }
 
     /// Asks the box whether it still knows the last session. A box forgets every session when it
@@ -209,10 +275,15 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
         debug!("creating managed http client");
         let mut headers = HeaderMap::new();
 
-        let session_token = match self.token_provider.get().await {
-            Err(e) => return Err(e),
-            Ok(t) => t,
-        };
+        if !self.login_allowed() {
+            return Err(Box::new(ManagedHttpClientError::new(format!(
+                "the box refuses the login: {}",
+                self.login_refusal().unwrap_or_default()
+            ))));
+        }
+        let outcome = self.token_provider.get().await;
+        self.observe_login(&outcome);
+        let session_token = outcome?;
 
         headers.append(
             FBX_APP_AUTH_HEADER,

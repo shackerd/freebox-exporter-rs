@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 
 use hmac::{Hmac, KeyInit, Mac};
-use log::{debug, error};
+use log::debug;
 use sha1::Sha1;
 type HmacSha1 = Hmac<Sha1>;
 
@@ -12,7 +12,7 @@ use crate::core::{
     },
     common::{
         http_client_factory::{http_client_factory, Timeouts},
-        transport::{FreeboxResponse, FreeboxResponseError},
+        transport::{FreeboxApiError, FreeboxResponse, FreeboxResponseError},
     },
 };
 
@@ -158,10 +158,12 @@ impl<'a> SessionTokenProvider<'a> {
         };
 
         if !res.success.unwrap_or(false) {
-            error!("{}", res.msg.unwrap_or_default());
-            return Err(Box::new(AuthenticationError::new(
-                "Failed to get session token".to_string(),
-            )));
+            // keeps the error_code, e.g. invalid_token when the app was revoked on the box
+            return Err(Box::new(FreeboxApiError {
+                endpoint: "v4/login/session".to_string(),
+                error_code: res.error_code,
+                msg: res.msg,
+            }));
         }
 
         if res.result.is_none() {
