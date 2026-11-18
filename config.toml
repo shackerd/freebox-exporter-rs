@@ -9,6 +9,10 @@ refresh = 5
 #   raise them if the freebox host is reached through a slow link, such as a VPN
 connect_timeout = 2
 request_timeout = 5
+# Optional address of the freebox host on the local network, e.g. "192.168.1.254"
+#   the exporter then connects to it without resolving mafreebox.freebox.fr, useful when the
+#   network resolver does not forward this name to the freebox; the certificate is still verified
+# address = "192.168.1.254"
 
 [metrics]
 # Exposes connection

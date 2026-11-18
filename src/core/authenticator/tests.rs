@@ -165,3 +165,71 @@ mod timeouts {
         assert!(authenticator(Timeouts::default()).login().await.is_ok());
     }
 }
+
+#[cfg(test)]
+mod address {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use serde_json::json;
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    use crate::core::{
+        authenticator::{application_token_provider::MockApplicationTokenProvider, Authenticator},
+        discovery::DEFAULT_FBX_HOST,
+    };
+
+    #[tokio::test]
+    async fn the_host_of_the_api_is_reached_at_the_configured_address() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v4/login/"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "result": { "challenge": "1234" }, "success": true })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v4/login/session"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({ "result": { "session_token": "4321" }, "success": true }),
+                ),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v4/system"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "success": true })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // the URL names the box, the mock server only listens on the loopback address
+        let api_url = format!("http://{DEFAULT_FBX_HOST}:{}/api/", server.address().port());
+        let mut store = MockApplicationTokenProvider::new();
+        store.expect_get().returning(|| Ok("fake".to_string()));
+        let authenticator = Authenticator::new(api_url.clone(), Box::new(store))
+            .with_address(Some(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+
+        // the login, then a collector request through the managed client
+        let factory = authenticator.login().await.unwrap();
+        let client = factory
+            .create_managed_client()
+            .await
+            .unwrap()
+            .get()
+            .unwrap();
+        let res = client
+            .get(format!("{api_url}v4/system"))
+            .send()
+            .await
+            .unwrap();
+
+        assert!(res.status().is_success());
+        server.verify().await;
+    }
+}

@@ -6,7 +6,7 @@ use application_token_provider::ApplicationTokenProvider;
 use authentication_error::AuthenticationError;
 use common::AuthorizationResult;
 use log::{debug, error, info, warn};
-use std::{thread, time::Duration};
+use std::{net::IpAddr, thread, time::Duration};
 
 pub mod application_token_provider;
 pub mod authentication_error;
@@ -23,6 +23,7 @@ pub struct Authenticator {
     api_url: String,
     token_store: Box<dyn ApplicationTokenProvider>,
     timeouts: Timeouts,
+    address: Option<IpAddr>,
 }
 
 impl Authenticator {
@@ -31,12 +32,19 @@ impl Authenticator {
             api_url,
             token_store: store,
             timeouts: Timeouts::default(),
+            address: None,
         }
     }
 
     /// Bounds every request to the box made from this authenticator and its sessions
     pub fn with_timeouts(mut self, timeouts: Timeouts) -> Self {
         self.timeouts = timeouts;
+        self
+    }
+
+    /// Connects to `address` for the host of the API instead of resolving it, see `[api] address`
+    pub fn with_address(mut self, address: Option<IpAddr>) -> Self {
+        self.address = address;
         self
     }
 
@@ -88,6 +96,7 @@ impl Authenticator {
             self.token_store.as_ref(),
             self.api_url.clone(),
             self.timeouts,
+            self.address,
         );
 
         match provider.login().await {
@@ -102,7 +111,7 @@ impl Authenticator {
     async fn prompt(&self) -> Result<PromptResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("prompting for registration");
 
-        let client = http_client_factory(self.timeouts)?;
+        let client = http_client_factory(self.timeouts, self.address)?;
         let hostname = hostname::get().unwrap();
 
         let payload = PromptPayload::new(
@@ -209,7 +218,7 @@ impl Authenticator {
     ) -> Result<AuthorizationResult, Box<dyn std::error::Error + Send + Sync>> {
         debug!("checking authorization status");
 
-        let client = http_client_factory(self.timeouts)?;
+        let client = http_client_factory(self.timeouts, self.address)?;
 
         let resp = match client
             .get(format!("{}v4/login/authorize/{}", self.api_url, track_id))
@@ -252,6 +261,7 @@ impl Authenticator {
             self.token_store.as_ref(),
             self.api_url.clone(),
             self.timeouts,
+            self.address,
         );
         let token_result = provider.login().await;
 
