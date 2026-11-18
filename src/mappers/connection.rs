@@ -9,11 +9,12 @@ use prometheus_exporter::prometheus::{
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::{get_api_result, FreeboxResponseError},
 };
 mod models;
 mod unittests;
@@ -471,37 +472,26 @@ impl<'a> ConnectionMetricMap<'a> {
         self.managed_client.as_ref().unwrap().get()
     }
 
+    /// `result` of GET `endpoint`: an error names the endpoint and the error_code of the box
+    async fn get_result<T: DeserializeOwned + Clone>(
+        &mut self,
+        endpoint: &str,
+    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.get_managed_client().await?;
+        get_api_result::<T>(&client, &self.factory.api_url, endpoint)
+            .await?
+            .ok_or_else(|| {
+                Box::new(FreeboxResponseError::new(format!(
+                    "{endpoint} response was empty"
+                ))) as Box<dyn std::error::Error + Send + Sync>
+            })
+    }
+
     async fn get_connection_ftth(
         &mut self,
     ) -> Result<ConnectionFtth, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ftth");
-
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/connection/ftth", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/connection/ftth response was empty".to_string(),
-            ))),
-            Some(r) => Ok(r),
-        }
+        self.get_result("v4/connection/ftth").await
     }
 
     fn set_connection_ftth_status(&self, ftth: ConnectionFtth) {
@@ -533,28 +523,7 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<ConnectionStatus, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection status");
-
-        let client = self.get_managed_client().await?;
-        let response = client
-            .get(format!("{}v4/connection", self.factory.api_url))
-            .send()
-            .await?
-            .json::<FreeboxResponse<ConnectionStatus>>()
-            .await?;
-
-        if response.success.unwrap_or(false) {
-            if let Some(result) = response.result {
-                Ok(result)
-            } else {
-                Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection response was empty".to_string(),
-                )))
-            }
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                response.msg.unwrap_or_default(),
-            )))
-        }
+        self.get_result("v4/connection").await
     }
 
     fn set_connection_status(
@@ -597,33 +566,7 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<ConnectionConfiguration, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection configuration");
-
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/connection/config", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<ConnectionConfiguration>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/connection/config response was empty".to_string(),
-            ))),
-            Some(r) => Ok(r),
-        }
+        self.get_result("v4/connection/config").await
     }
 
     fn set_connection_conf(&self, conf: ConnectionConfiguration) {
@@ -652,47 +595,22 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<ConnectionIpv6Configuration, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ipv6 configuration");
+        let conf: ConnectionIpv6Configuration =
+            self.get_result("v4/connection/ipv6/config").await?;
 
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/connection/ipv6/config", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body)
+        // a delegation is exposed with both labels: an incomplete one fails the collection,
+        // which keeps the previous one
+        if conf
+            .delegations
+            .iter()
+            .flatten()
+            .any(|d| d.prefix.is_none() || d.next_hop.is_none())
         {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
             return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
+                "v4/connection/ipv6/config delegation is missing prefix or next_hop".to_string(),
             )));
         }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/connection/ipv6/config response was empty".to_string(),
-            ))),
-            // a delegation is exposed with both labels: an incomplete one fails the collection,
-            // which keeps the previous one
-            Some(r)
-                if r.delegations
-                    .iter()
-                    .flatten()
-                    .any(|d| d.prefix.is_none() || d.next_hop.is_none()) =>
-            {
-                Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection/ipv6/config delegation is missing prefix or next_hop"
-                        .to_string(),
-                )))
-            }
-            Some(r) => Ok(r),
-        }
+        Ok(conf)
     }
 
     fn set_connection_ipv6_conf(&self, conf: ConnectionIpv6Configuration) {
@@ -715,21 +633,7 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<(XdslStatus, XdslStats, XdslStats), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching xdsl info");
-
-        let client = self.get_managed_client().await?;
-
-        let result = client
-            .get(format!("{}v4/connection/xdsl", self.factory.api_url))
-            .send()
-            .await?
-            .json::<FreeboxResponse<XdslInfo>>()
-            .await?;
-
-        let info = result.result.ok_or_else(|| {
-            Box::new(FreeboxResponseError::new(
-                "v4/connection/xdsl/status response was empty".to_string(),
-            )) as Box<dyn std::error::Error + Send + Sync>
-        })?;
+        let info: XdslInfo = self.get_result("v4/connection/xdsl").await?;
 
         // the metrics are set from every part: an incomplete response fails the collection,
         // which keeps the previous one

@@ -370,8 +370,15 @@ mod tests_outage {
         serve(&server, "/api/v4/connection/ipv6/config", wan_is_down()).await;
         let res = map.set(update_lock()).await;
 
-        // the failure of ipv6/config is reported, but no longer hides the state of the link
-        assert!(res.is_err());
+        // the failure of ipv6/config is reported, with its endpoint and the error_code of the
+        // box, but no longer hides the state of the link
+        let error = res
+            .expect_err("the ipv6 configuration is missing")
+            .to_string();
+        assert!(
+            error.starts_with("v4/connection/ipv6/config failed: wan is down"),
+            "{error}"
+        );
         let metrics = scrape(prefix);
         for line in [
             format!("{prefix}_connection_state{{state=\"up\"}} 0"),
