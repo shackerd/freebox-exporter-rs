@@ -60,17 +60,7 @@ pub async fn auto_register_and_serve(
 
     info!("application is registered");
 
-    let api_url = get_api_url(&agnostic_auth).await?;
-
-    let authenticator = authenticator::Authenticator::new(
-        api_url.clone(),
-        Box::new(FileSystemProvider::new(
-            conf.core.data_directory.as_ref().unwrap().to_owned(),
-        )),
-    )
-    .with_timeouts(conf.api.timeouts());
-
-    let factory = authenticator.login().await?;
+    let factory = agnostic_auth.login().await?;
     let cap_agent = CapabilitiesAgent::new(&factory);
     let capabilities = cap_agent.load().await?;
 
@@ -84,23 +74,6 @@ pub async fn auto_register_and_serve(
     let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
 
     server.run().await
-}
-
-/// ### Get the API URL
-/// This function will get the API URL from the Freebox API
-pub async fn get_api_url(
-    authenticator: &Authenticator,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let factory = match authenticator.login().await {
-        Err(e) => return Err(e),
-        Ok(r) => r,
-    };
-
-    let api_url = discovery::get_url(&factory).await?;
-
-    info!("using api url: {api_url}");
-
-    Ok(api_url)
 }
 
 /// ### Register the application
@@ -186,17 +159,7 @@ pub async fn serve(
         )));
     }
 
-    let api_url = get_api_url(&agnostic_auth).await?;
-
-    let authenticator = authenticator::Authenticator::new(
-        api_url.to_owned(),
-        Box::new(FileSystemProvider::new(
-            conf.core.data_directory.as_ref().unwrap().to_owned(),
-        )),
-    )
-    .with_timeouts(conf.api.timeouts());
-
-    let factory = match authenticator.login().await {
+    let factory = match agnostic_auth.login().await {
         Err(e) => return Err(e),
         Ok(r) => r,
     };
@@ -225,7 +188,8 @@ pub async fn serve(
 async fn create_network_agnostic_authenticator(
     conf: &Configuration,
 ) -> Result<authenticator::Authenticator, Box<dyn std::error::Error + Send + Sync>> {
-    let api_url = format!("https://{}/api/", discovery::DEFAULT_FBX_HOST).to_string();
+    let api_url = discovery::api_url();
+    info!("using api url: {api_url}");
 
     Ok(authenticator::Authenticator::new(
         api_url,
@@ -277,19 +241,7 @@ pub async fn session_diagnostic(
         )));
     }
 
-    if let Ok(api_url) = get_api_url(&agnostic_auth).await {
-        let authenticator = authenticator::Authenticator::new(
-            api_url.to_owned(),
-            Box::new(FileSystemProvider::new(
-                conf.core.data_directory.as_ref().unwrap().to_owned(),
-            )),
-        )
-        .with_timeouts(conf.api.timeouts());
-
-        authenticator.diagnostic(show_token).await?;
-    } else {
-        return Err(Box::new(std::io::Error::other("Unable to get api url")));
-    }
+    agnostic_auth.diagnostic(show_token).await?;
 
     Ok(())
 }
