@@ -172,7 +172,7 @@ mod address {
 
     use serde_json::json;
     use wiremock::{
-        matchers::{method, path},
+        matchers::{header_exists, method, path},
         Mock, MockServer, ResponseTemplate,
     };
 
@@ -230,6 +230,52 @@ mod address {
             .unwrap();
 
         assert!(res.status().is_success());
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn the_session_check_reaches_the_configured_address() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v4/login/"))
+            .and(header_exists("X-Fbx-App-Auth"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "result": { "logged_in": false, "challenge": "1234" }, "success": true }),
+            ))
+            .expect(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v4/login/"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "result": { "challenge": "1234" }, "success": true })),
+            )
+            .with_priority(2)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v4/login/session"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({ "result": { "session_token": "4321" }, "success": true }),
+                ),
+            )
+            .mount(&server)
+            .await;
+
+        // the URL names the box, the mock server only listens on the loopback address
+        let api_url = format!("http://{DEFAULT_FBX_HOST}:{}/api/", server.address().port());
+        let mut store = MockApplicationTokenProvider::new();
+        store.expect_get().returning(|| Ok("fake".to_string()));
+        let authenticator = Authenticator::new(api_url, Box::new(store))
+            .with_address(Some(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+        let factory = authenticator.login().await.unwrap();
+        factory.create_managed_client().await.unwrap();
+
+        // the box answers that it no longer knows the session
+        assert!(factory.expire_clients_if_session_lost().await);
         server.verify().await;
     }
 }

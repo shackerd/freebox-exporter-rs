@@ -55,6 +55,8 @@ type NamedMetricMap<'a> = (&'static str, Box<dyn MetricMap<'a> + 'a>);
 pub struct Mapper<'a> {
     maps: Vec<NamedMetricMap<'a>>,
     health: CollectorHealth,
+    /// Checked after a failed collection, to log in again when the box restarted
+    session: Option<&'a AuthenticatedHttpClientFactory<'a>>,
 }
 
 impl<'a> Mapper<'a> {
@@ -330,7 +332,11 @@ impl<'a> Mapper<'a> {
             );
         }
 
-        Self { maps, health }
+        Self {
+            maps,
+            health,
+            session: Some(factory),
+        }
     }
 
     /// Initializes every collector; a failing init is exposed as an unsuccessful run,
@@ -354,12 +360,14 @@ impl<'a> Mapper<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut failed = false;
         for (name, map) in self.maps.iter_mut() {
             let started = std::time::Instant::now();
             let res = map.set(lock).await;
 
             if let Err(e) = &res {
                 error!("collector {name} failed: {e}");
+                failed = true;
             }
 
             // a scrape waits for the health update to complete instead of returning part of it
@@ -370,6 +378,13 @@ impl<'a> Mapper<'a> {
                 started.elapsed(),
                 std::time::SystemTime::now(),
             );
+        }
+
+        // a restarted box rejects the previous sessions: one request, after a failure only
+        if let Some(factory) = self.session.filter(|_| failed) {
+            if factory.expire_clients_if_session_lost().await {
+                warn!("the box no longer knows the session, probably after a restart: logging in again");
+            }
         }
 
         Ok(())
@@ -436,6 +451,7 @@ mod tests {
         Mapper {
             maps,
             health: CollectorHealth::new("test"),
+            session: None,
         }
     }
 
@@ -555,6 +571,7 @@ mod tests {
         let mut mapper = Mapper {
             maps: vec![("scripted", Box::new(map))],
             health: CollectorHealth::register(prefix),
+            session: None,
         };
 
         mapper.set_all(update_lock()).await.unwrap();
@@ -799,5 +816,192 @@ mod api_specs_provider {
     ) -> Result<String, std::io::Error> {
         let path = format!("src/mappers/specs-data/{}/{}.json", api, endpoint);
         tokio::fs::read_to_string(path).await
+    }
+}
+
+#[cfg(test)]
+mod session_renewal {
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex},
+    };
+
+    use serde_json::json;
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, Request, ResponseTemplate,
+    };
+
+    use super::*;
+    use crate::{
+        core::authenticator::{
+            application_token_provider::MockApplicationTokenProvider, Authenticator,
+        },
+        mappers::test_support::update_lock,
+    };
+
+    /// A box keeping the sessions it gave, and forgetting them all when it restarts
+    #[derive(Clone, Default)]
+    struct FakeBox {
+        sessions: Arc<Mutex<HashSet<String>>>,
+        logins: Arc<Mutex<u32>>,
+        /// GET v4/login/ with a session token, to check it
+        checks: Arc<Mutex<u32>>,
+        /// v4/lan/config fails for another reason than the session
+        lan_down: Arc<Mutex<bool>>,
+    }
+
+    impl FakeBox {
+        fn restart(&self) {
+            self.sessions.lock().unwrap().clear();
+        }
+
+        fn knows(&self, request: &Request) -> bool {
+            request
+                .headers
+                .get("X-Fbx-App-Auth")
+                .and_then(|token| token.to_str().ok())
+                .is_some_and(|token| self.sessions.lock().unwrap().contains(token))
+        }
+
+        async fn serve(&self) -> (MockServer, Authenticator) {
+            let server = MockServer::start().await;
+
+            let fake = self.clone();
+            Mock::given(method("GET"))
+                .and(path("/api/v4/login/"))
+                .respond_with(move |request: &Request| {
+                    if request.headers.contains_key("X-Fbx-App-Auth") {
+                        *fake.checks.lock().unwrap() += 1;
+                    }
+                    ResponseTemplate::new(200).set_body_json(json!({
+                        "success": true,
+                        "result": { "logged_in": fake.knows(request), "challenge": "1234" },
+                    }))
+                })
+                .mount(&server)
+                .await;
+
+            let fake = self.clone();
+            Mock::given(method("POST"))
+                .and(path("/api/v4/login/session"))
+                .respond_with(move |_: &Request| {
+                    let mut logins = fake.logins.lock().unwrap();
+                    *logins += 1;
+                    let token = format!("session-{logins}");
+                    fake.sessions.lock().unwrap().insert(token.clone());
+                    ResponseTemplate::new(200).set_body_json(
+                        json!({ "success": true, "result": { "session_token": token } }),
+                    )
+                })
+                .mount(&server)
+                .await;
+
+            let fake = self.clone();
+            Mock::given(method("GET"))
+                .and(path("/api/v4/lan/config"))
+                .respond_with(move |request: &Request| {
+                    if !fake.knows(request) {
+                        return ResponseTemplate::new(403).set_body_json(json!({
+                            "success": false, "error_code": "auth_required",
+                            "msg": "Vous devez vous connecter pour accéder à cette fonction",
+                        }));
+                    }
+                    if *fake.lan_down.lock().unwrap() {
+                        return ResponseTemplate::new(500);
+                    }
+                    ResponseTemplate::new(200).set_body_json(json!({
+                        "success": true, "result": { "name": "fake", "mode": "router" },
+                    }))
+                })
+                .mount(&server)
+                .await;
+
+            let mut store = MockApplicationTokenProvider::new();
+            store.expect_get().returning(|| Ok("foo.bar".to_string()));
+            let authenticator =
+                Authenticator::new(format!("{}/api/", server.uri()), Box::new(store));
+            (server, authenticator)
+        }
+
+        fn logins(&self) -> u32 {
+            *self.logins.lock().unwrap()
+        }
+
+        fn checks(&self) -> u32 {
+            *self.checks.lock().unwrap()
+        }
+    }
+
+    fn mapper<'a>(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: &str) -> Mapper<'a> {
+        Mapper {
+            maps: vec![(
+                "lan",
+                Box::new(LanMetricMap::new(factory, prefix.to_string())),
+            )],
+            health: CollectorHealth::new("test"),
+            session: Some(factory),
+        }
+    }
+
+    #[tokio::test]
+    async fn collectors_log_in_again_when_the_box_has_forgotten_the_session() {
+        let fake = FakeBox::default();
+        let (_server, authenticator) = fake.serve().await;
+        let factory = authenticator.login().await.unwrap();
+        let mut mapper = mapper(&factory, "test_session_restart");
+
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(Some(1.0), mapper.health.success("lan"));
+
+        // the box restarts: the session of the collector is no longer valid
+        fake.restart();
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(Some(0.0), mapper.health.success("lan"));
+
+        // the collector does not wait for its client to expire, 30 minutes later
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(Some(1.0), mapper.health.success("lan"));
+    }
+
+    #[tokio::test]
+    async fn a_failure_with_a_valid_session_does_not_log_in_again() {
+        let fake = FakeBox::default();
+        let (_server, authenticator) = fake.serve().await;
+        let factory = authenticator.login().await.unwrap();
+        let mut mapper = mapper(&factory, "test_session_still_valid");
+
+        mapper.set_all(update_lock()).await.unwrap();
+        let logins = fake.logins();
+
+        // the box keeps the session, but the collector fails, as during a fibre outage
+        *fake.lan_down.lock().unwrap() = true;
+        mapper.set_all(update_lock()).await.unwrap();
+        assert_eq!(Some(0.0), mapper.health.success("lan"));
+        *fake.lan_down.lock().unwrap() = false;
+        mapper.set_all(update_lock()).await.unwrap();
+
+        assert_eq!(Some(1.0), mapper.health.success("lan"));
+        assert_eq!(
+            1,
+            fake.checks(),
+            "the failed collection checks the session once"
+        );
+        assert_eq!(logins, fake.logins(), "the valid session is kept");
+    }
+
+    #[tokio::test]
+    async fn the_session_is_not_checked_while_every_collector_succeeds() {
+        let fake = FakeBox::default();
+        let (_server, authenticator) = fake.serve().await;
+        let factory = authenticator.login().await.unwrap();
+        let mut mapper = mapper(&factory, "test_session_no_check");
+
+        for _ in 0..3 {
+            mapper.set_all(update_lock()).await.unwrap();
+        }
+
+        assert_eq!(Some(1.0), mapper.health.success("lan"));
+        assert_eq!(0, fake.checks());
     }
 }

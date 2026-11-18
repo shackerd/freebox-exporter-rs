@@ -1,6 +1,10 @@
 use std::{
     env,
     net::{IpAddr, SocketAddr},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 
@@ -10,8 +14,12 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Certificate, Client,
 };
+use serde::Deserialize;
 
-use crate::core::{authenticator::SessionTokenProvider, discovery::DEFAULT_FBX_HOST};
+use crate::core::{
+    authenticator::SessionTokenProvider, common::transport::FreeboxResponse,
+    discovery::DEFAULT_FBX_HOST,
+};
 
 const FBX_APP_AUTH_HEADER: &str = "X-Fbx-App-Auth";
 
@@ -92,7 +100,24 @@ pub struct AuthenticatedHttpClientFactory<'a> {
     pub expiration: TimeDelta,
     pub timeouts: Timeouts,
     pub address: Option<IpAddr>,
+    session: Arc<Session>,
 }
+
+/// Session shared by the factory and the clients it creates
+#[derive(Default)]
+struct Session {
+    /// Incremented when the box no longer knows the session, which expires every client
+    /// created before
+    generation: AtomicU64,
+    /// Last session token given by the box, to ask it whether the session is still valid
+    last_token: Mutex<Option<String>>,
+}
+
+#[derive(Deserialize, Clone)]
+struct LoginStatus {
+    logged_in: Option<bool>,
+}
+
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 impl<'a> AuthenticatedHttpClientFactory<'a> {
@@ -104,7 +129,55 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             address: token_provider.address,
             token_provider,
             expiration: TimeDelta::minutes(30),
+            session: Arc::default(),
         }
+    }
+
+    /// Asks the box whether it still knows the last session. A box forgets every session when it
+    /// restarts: the clients created before are then expired, so that the collectors log in
+    /// again instead of failing until their client expires. Returns whether they were.
+    pub async fn expire_clients_if_session_lost(&self) -> bool {
+        let token = match self.session.last_token.lock() {
+            Ok(token) => token.clone(),
+            Err(_) => None,
+        };
+        let Some(token) = token else {
+            return false;
+        };
+
+        match self.is_logged_in(&token).await {
+            Ok(Some(false)) => {}
+            Ok(_) => return false,
+            Err(e) => {
+                debug!("cannot check the session: {e}");
+                return false;
+            }
+        }
+
+        self.session.generation.fetch_add(1, Ordering::SeqCst);
+        if let Ok(mut last_token) = self.session.last_token.lock() {
+            *last_token = None;
+        }
+        true
+    }
+
+    /// `logged_in` of v4/login/ for `token`, `None` when the box does not tell
+    async fn is_logged_in(
+        &self,
+        token: &str,
+    ) -> Result<Option<bool>, Box<dyn std::error::Error + Send + Sync>> {
+        let res = http_client_factory(self.timeouts, self.address)?
+            .get(format!("{}v4/login/", self.api_url))
+            .header(FBX_APP_AUTH_HEADER, token)
+            .send()
+            .await?
+            .json::<FreeboxResponse<LoginStatus>>()
+            .await?;
+
+        if !res.success.unwrap_or(false) {
+            return Ok(None);
+        }
+        Ok(res.result.and_then(|status| status.logged_in))
     }
 
     /// Bounds every request to the box, including the logins renewing the session
@@ -145,6 +218,9 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             FBX_APP_AUTH_HEADER,
             HeaderValue::from_str(session_token.as_str()).unwrap(),
         );
+        if let Ok(mut last_token) = self.session.last_token.lock() {
+            *last_token = Some(session_token);
+        }
 
         // Load the freebox API X509 certificate chain
         let root_ca_cert_value = FBX_ROOT_CA.to_string();
@@ -163,7 +239,11 @@ impl<'a> AuthenticatedHttpClientFactory<'a> {
             .build()
             .expect("cannot create HTTP Client");
 
-        Ok(ManagedHttpClient::new(client, self.expiration))
+        Ok(ManagedHttpClient::new(
+            client,
+            self.expiration,
+            self.session.clone(),
+        ))
     }
 }
 
@@ -209,18 +289,32 @@ pub fn http_client_factory(
 pub struct ManagedHttpClient {
     client: Client,
     expiry: DateTime<Utc>, // 30 minutes
+    /// Generation of the session when the client was created
+    generation: u64,
+    session: Arc<Session>,
 }
 
 impl ManagedHttpClient {
-    pub fn new(client: Client, timeout: TimeDelta) -> Self {
+    fn new(client: Client, timeout: TimeDelta, session: Arc<Session>) -> Self {
         let expiry = Utc::now().checked_add_signed(timeout).unwrap();
-        Self { client, expiry }
+        let generation = session.generation.load(Ordering::SeqCst);
+        Self {
+            client,
+            expiry,
+            generation,
+            session,
+        }
     }
 
     pub fn get(&self) -> Result<Client, Box<dyn std::error::Error + Sync + Send>> {
         if Utc::now() > self.expiry {
             return Err(Box::new(ManagedHttpClientError::new(
                 "HTTP Client expired".to_string(),
+            )));
+        }
+        if self.session.generation.load(Ordering::SeqCst) != self.generation {
+            return Err(Box::new(ManagedHttpClientError::new(
+                "session lost by the box".to_string(),
             )));
         }
         Ok(self.client.clone())
