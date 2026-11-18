@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::{required_api_result, FreeboxResponseError},
 };
 
 use super::MetricMap;
@@ -375,29 +375,7 @@ impl<'a> SwitchMetricMap<'a> {
         body: &str,
     ) -> Result<Vec<SwitchPortStatus>, Box<dyn std::error::Error + Send + Sync>> {
         let fixed_body = SwitchMetricMap::handle_malformed_mac_list(body)?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<Vec<SwitchPortStatus>>>(&fixed_body)
-        {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        let statuses = match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/switch/status/ response was empty".to_string(),
-                )))
-            }
-            Some(r) => r,
-        };
-
-        Ok(statuses)
+        required_api_result("v4/switch/status/", &fixed_body)
     }
 
     fn handle_malformed_mac_list(
@@ -435,24 +413,7 @@ impl<'a> SwitchMetricMap<'a> {
         body: &str,
         port_id: &i16,
     ) -> Result<SwitchPortStats, Box<dyn std::error::Error + Send + Sync>> {
-        let res = match serde_json::from_str::<FreeboxResponse<SwitchPortStats>>(body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(format!(
-                "v4/switch/port/{}/stats response was empty",
-                port_id
-            )))),
-            Some(r) => Ok(r),
-        }
+        required_api_result(&format!("v4/switch/port/{port_id}/stats"), body)
     }
 
     fn reset_all(&self) {
@@ -712,6 +673,7 @@ mod non_reg_tests {
     use regex::Regex;
 
     use super::*;
+    use crate::core::common::transport::FreeboxResponse;
 
     // https://github.com/shackerd/freebox-exporter-rs/issues/90
     #[test]

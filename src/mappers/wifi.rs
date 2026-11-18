@@ -11,7 +11,7 @@ use crate::{
     core::{
         common::{
             http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-            transport::{FreeboxResponse, FreeboxResponseError},
+            transport::{get_api_result, get_required_api_result, FreeboxResponseError},
         },
         configuration::sections::PoliciesConfiguration,
     },
@@ -309,28 +309,15 @@ impl<'a> WifiMetricMap<'a> {
 
         let client = self.get_managed_client().await?;
         let ts = chrono::offset::Local::now().timestamp();
-        let root_url = &self.factory.api_url;
         let ap_id = ap.id.as_ref().unwrap().to_string();
-        let url = format!("{root_url}v4/wifi/ap/{ap_id}/channel_survey_history/{ts}");
+        let endpoint = format!("v4/wifi/ap/{ap_id}/channel_survey_history/{ts}");
 
-        let res = client
-            .get(url.to_owned())
-            .send()
-            .await?
-            .json::<FreeboxResponse<Vec<ChannelSurveyHistory>>>()
-            .await?;
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        if res.result.is_none() {
+        let history = get_api_result(&client, &self.factory.api_url, &endpoint).await?;
+        if history.is_none() {
             debug!("channel survey history is empty, skipping channel survey metrics");
         }
 
-        Ok(res.result)
+        Ok(history)
     }
 
     fn set_channel_survey_history_gauges(
@@ -372,24 +359,11 @@ impl<'a> WifiMetricMap<'a> {
         debug!("fetching wifi stations");
 
         let client = self.get_managed_client().await?;
-        let res = client
-            .get(format!(
-                "{}v4/wifi/ap/{}/stations",
-                self.factory.api_url,
-                ap.id.unwrap()
-            ))
-            .send()
+        let endpoint = format!("v4/wifi/ap/{}/stations", ap.id.unwrap());
+        // the API omits the result for an empty list
+        Ok(get_api_result(&client, &self.factory.api_url, &endpoint)
             .await?
-            .json::<FreeboxResponse<Vec<Station>>>()
-            .await?;
-
-        if res.success.unwrap_or(false) {
-            Ok(res.result.unwrap_or_default())
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )))
-        }
+            .unwrap_or_default())
     }
 
     async fn get_channel_usage(
@@ -398,24 +372,11 @@ impl<'a> WifiMetricMap<'a> {
     ) -> Result<Vec<ChannelUsage>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching channel usage for access point {}", ap.id.unwrap());
         let client = self.get_managed_client().await?;
-        let res = client
-            .get(format!(
-                "{}v4/wifi/ap/{}/channel_usage",
-                self.factory.api_url,
-                ap.id.unwrap()
-            ))
-            .send()
+        let endpoint = format!("v4/wifi/ap/{}/channel_usage", ap.id.unwrap());
+        // the API omits the result for an empty list
+        Ok(get_api_result(&client, &self.factory.api_url, &endpoint)
             .await?
-            .json::<FreeboxResponse<Vec<ChannelUsage>>>()
-            .await?;
-
-        if res.success.unwrap_or(false) {
-            Ok(res.result.unwrap_or_default())
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )))
-        }
+            .unwrap_or_default())
     }
 
     async fn get_neighbors_access_points(
@@ -427,25 +388,11 @@ impl<'a> WifiMetricMap<'a> {
             ap.id.unwrap()
         );
         let client = self.get_managed_client().await?;
-
-        let res = client
-            .get(format!(
-                "{}v4/wifi/ap/{}/neighbors",
-                self.factory.api_url,
-                ap.id.unwrap()
-            ))
-            .send()
+        let endpoint = format!("v4/wifi/ap/{}/neighbors", ap.id.unwrap());
+        // the API omits the result for an empty list
+        Ok(get_api_result(&client, &self.factory.api_url, &endpoint)
             .await?
-            .json::<FreeboxResponse<Vec<NeighborsAccessPoint>>>()
-            .await?;
-
-        if res.success.unwrap_or(false) {
-            Ok(res.result.unwrap_or_default())
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )))
-        }
+            .unwrap_or_default())
     }
 
     async fn get_access_points(
@@ -454,20 +401,9 @@ impl<'a> WifiMetricMap<'a> {
         debug!("fetching access points");
         let client = self.get_managed_client().await?;
 
-        let res = client
-            .get(format!("{}v4/wifi/ap", self.factory.api_url))
-            .send()
+        Ok(get_api_result(&client, &self.factory.api_url, "v4/wifi/ap")
             .await?
-            .json::<FreeboxResponse<Vec<AccessPoint>>>()
-            .await?;
-
-        if res.success.unwrap_or(false) {
-            Ok(res.result.unwrap_or_default())
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )))
-        }
+            .unwrap_or_default())
     }
 
     pub fn set_stations_gauges(
@@ -937,20 +873,7 @@ impl<'a> WifiMetricMap<'a> {
         &mut self,
     ) -> Result<WifiConfig, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
-        let response = client
-            .get(format!("{}v4/wifi/config", self.factory.api_url))
-            .send()
-            .await?
-            .json::<FreeboxResponse<WifiConfig>>()
-            .await?;
-
-        if response.success.unwrap_or(false) {
-            Ok(response.result.unwrap())
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                response.msg.unwrap_or_default(),
-            )))
-        }
+        get_required_api_result(&client, &self.factory.api_url, "v4/wifi/config").await
     }
 
     async fn get_access_point(
@@ -958,20 +881,8 @@ impl<'a> WifiMetricMap<'a> {
         phy_id: &i16,
     ) -> Result<AccessPoint, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
-        let response = client
-            .get(format!("{}v4/wifi/ap/{}", self.factory.api_url, phy_id))
-            .send()
-            .await?
-            .json::<FreeboxResponse<AccessPoint>>()
-            .await?;
-
-        if response.success.unwrap_or(false) {
-            Ok(response.result.unwrap())
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                response.msg.unwrap_or_default(),
-            )))
-        }
+        let endpoint = format!("v4/wifi/ap/{phy_id}");
+        get_required_api_result(&client, &self.factory.api_url, &endpoint).await
     }
 
     pub async fn set_all(

@@ -70,6 +70,34 @@ pub async fn get_api_result<T: DeserializeOwned>(
     api_result(endpoint, &body)
 }
 
+/// GETs a Freebox API endpoint and returns its `result`, which it must contain
+pub async fn get_required_api_result<T: DeserializeOwned>(
+    client: &reqwest::Client,
+    api_url: &str,
+    endpoint: &str,
+) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+    let body = client
+        .get(format!("{api_url}{endpoint}"))
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    required_api_result(endpoint, &body)
+}
+
+/// `result` of a response of the Freebox API to `endpoint`, which it must contain
+pub fn required_api_result<T: DeserializeOwned>(
+    endpoint: &str,
+    body: &str,
+) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+    api_result(endpoint, body)?.ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
+        Box::new(FreeboxResponseError::new(format!(
+            "{endpoint} response was empty"
+        )))
+    })
+}
+
 /// `result` of a response of the Freebox API to `endpoint`, `None` when the API omits it.
 ///
 /// `success` is read first: when the box answers with an error, `result` has another shape, e.g.
