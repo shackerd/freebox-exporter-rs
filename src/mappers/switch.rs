@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{required_api_result, FreeboxResponseError},
+    transport::required_api_result,
 };
 
 use super::MetricMap;
@@ -456,15 +456,7 @@ impl<'a> SwitchMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let body_status = self.get_ports_status_json().await;
-
-        if body_status.is_err() {
-            return Err(Box::new(FreeboxResponseError::new(
-                "v4/switch/status/ failed".to_string(),
-            )));
-        }
-
-        let body_status = body_status.unwrap();
+        let body_status = self.get_ports_status_json().await?;
 
         let port_statuses = match self.get_ports_status(&body_status).await {
             Err(e) => return Err(e),
@@ -475,15 +467,7 @@ impl<'a> SwitchMetricMap<'a> {
         // still sees the previous collection, and a failed request keeps it
         let mut fetched = Vec::with_capacity(port_statuses.len());
         for port_status in port_statuses {
-            let body_stats = self.get_port_stats_json(&port_status).await;
-
-            if body_stats.is_err() {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/switch/port/{}/stats failed".to_string(),
-                )));
-            }
-
-            let body_stats = body_stats.unwrap();
+            let body_stats = self.get_port_stats_json(&port_status).await?;
 
             let stats = match self
                 .get_port_stats(&body_stats, port_status.id.as_ref().unwrap())
@@ -830,5 +814,40 @@ mod tests {
 
         assert_eq!(before, during);
         assert!(port_2(&scrape(prefix)).is_some_and(|l| l.ends_with(" 200")));
+    }
+
+    /// Collects with a box that answers `slow_endpoint` too late, and returns the error
+    async fn error_when_too_slow(slow_endpoint: &str) -> Box<dyn std::error::Error + Send + Sync> {
+        let (server, authenticator) = mock_api().await;
+        let port = json!({ "success": true, "result": [
+            { "id": 1, "link": "up", "speed": "1000", "mac_list": [] }
+        ] });
+        if slow_endpoint == "/api/v4/switch/status/" {
+            serve_slowly(&server, slow_endpoint, port).await;
+        } else {
+            serve(&server, "/api/v4/switch/status/", port).await;
+            serve_slowly(&server, slow_endpoint, stats(1)).await;
+        }
+        let mut factory = authenticator.login().await.unwrap();
+        factory.set_request_timeout(std::time::Duration::from_millis(200));
+        let mut map = SwitchMetricMap::new(
+            &factory,
+            format!("test_switch_slow_{}", slow_endpoint.len()),
+        );
+
+        map.set(update_lock()).await.unwrap_err()
+    }
+
+    #[tokio::test]
+    async fn a_failed_request_reports_its_cause() {
+        for endpoint in ["/api/v4/switch/status/", "/api/v4/switch/port/1/stats"] {
+            let error = error_when_too_slow(endpoint).await;
+            assert!(
+                error
+                    .downcast_ref::<reqwest::Error>()
+                    .is_some_and(|e| e.is_timeout()),
+                "{endpoint}: {error}"
+            );
+        }
     }
 }
