@@ -9,18 +9,32 @@ use prometheus_exporter::prometheus::{
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::{get_api_result, FreeboxResponseError},
 };
 mod models;
 mod unittests;
 
+/// Media of the internet link, as the box reports it while the link is up
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Media {
+    Ftth,
+    Xdsl,
+    /// A media without specific metrics
+    Other,
+}
+
 pub struct ConnectionMetricMap<'a> {
     factory: &'a AuthenticatedHttpClientFactory<'a>,
-    is_ftth: Option<bool>,
+    /// Media of the link the last time it was up: while the link is down, the box reports a
+    /// default media, e.g. xdsl for a fibre box whose fibre is unplugged
+    media: Option<Media>,
+    /// type and media labels of the link the last time it was up
+    link_labels: Option<(String, String)>,
     managed_client: Option<ManagedHttpClient>,
     bytes_down_metric: IntGauge,
     bytes_up_metric: IntGauge,
@@ -77,7 +91,8 @@ impl<'a> ConnectionMetricMap<'a> {
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
         Self {
             factory,
-            is_ftth: None,
+            media: None,
+            link_labels: None,
             managed_client: None,
             bytes_down_metric: register_int_gauge!(
                 format!("{prefix}_connection_bytes_down"),
@@ -457,37 +472,26 @@ impl<'a> ConnectionMetricMap<'a> {
         self.managed_client.as_ref().unwrap().get()
     }
 
+    /// `result` of GET `endpoint`: an error names the endpoint and the error_code of the box
+    async fn get_result<T: DeserializeOwned + Clone>(
+        &mut self,
+        endpoint: &str,
+    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.get_managed_client().await?;
+        get_api_result::<T>(&client, &self.factory.api_url, endpoint)
+            .await?
+            .ok_or_else(|| {
+                Box::new(FreeboxResponseError::new(format!(
+                    "{endpoint} response was empty"
+                ))) as Box<dyn std::error::Error + Send + Sync>
+            })
+    }
+
     async fn get_connection_ftth(
         &mut self,
     ) -> Result<ConnectionFtth, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ftth");
-
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/connection/ftth", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<ConnectionFtth>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/connection/ftth response was empty".to_string(),
-            ))),
-            Some(r) => Ok(r),
-        }
+        self.get_result("v4/connection/ftth").await
     }
 
     fn set_connection_ftth_status(&self, ftth: ConnectionFtth) {
@@ -519,37 +523,17 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<ConnectionStatus, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection status");
-
-        let client = self.get_managed_client().await?;
-        let response = client
-            .get(format!("{}v4/connection", self.factory.api_url))
-            .send()
-            .await?
-            .json::<FreeboxResponse<ConnectionStatus>>()
-            .await?;
-
-        if response.success.unwrap_or(false) {
-            if let Some(result) = response.result {
-                Ok(result)
-            } else {
-                Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection response was empty".to_string(),
-                )))
-            }
-        } else {
-            Err(Box::new(FreeboxResponseError::new(
-                response.msg.unwrap_or_default(),
-            )))
-        }
+        self.get_result("v4/connection").await
     }
 
     fn set_connection_status(
         &mut self,
         status: &ConnectionStatus,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.type_metric
-            .with_label_values(&[&status.clone()._type.unwrap_or_default()])
-            .set(1);
+        if let Some((kind, media)) = &self.link_labels {
+            self.type_metric.with_label_values(&[kind]).set(1);
+            self.media_metric.with_label_values(&[media]).set(1);
+        }
         self.state_metric.with_label_values(&["up"]).set(
             if status.clone().state.unwrap_or_default() == "up" {
                 1
@@ -557,9 +541,6 @@ impl<'a> ConnectionMetricMap<'a> {
                 0
             },
         );
-        self.media_metric
-            .with_label_values(&[&status.clone().media.unwrap_or_default()])
-            .set(1);
         self.ipv4_metric
             .with_label_values(&[&status.clone().ipv4.unwrap_or_default()])
             .set(1);
@@ -585,33 +566,7 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<ConnectionConfiguration, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection configuration");
-
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/connection/config", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<ConnectionConfiguration>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/connection/config response was empty".to_string(),
-            ))),
-            Some(r) => Ok(r),
-        }
+        self.get_result("v4/connection/config").await
     }
 
     fn set_connection_conf(&self, conf: ConnectionConfiguration) {
@@ -640,47 +595,22 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<ConnectionIpv6Configuration, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching connection ipv6 configuration");
+        let conf: ConnectionIpv6Configuration =
+            self.get_result("v4/connection/ipv6/config").await?;
 
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/connection/ipv6/config", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<ConnectionIpv6Configuration>>(&body)
+        // a delegation is exposed with both labels: an incomplete one fails the collection,
+        // which keeps the previous one
+        if conf
+            .delegations
+            .iter()
+            .flatten()
+            .any(|d| d.prefix.is_none() || d.next_hop.is_none())
         {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
             return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
+                "v4/connection/ipv6/config delegation is missing prefix or next_hop".to_string(),
             )));
         }
-
-        match res.result {
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/connection/ipv6/config response was empty".to_string(),
-            ))),
-            // a delegation is exposed with both labels: an incomplete one fails the collection,
-            // which keeps the previous one
-            Some(r)
-                if r.delegations
-                    .iter()
-                    .flatten()
-                    .any(|d| d.prefix.is_none() || d.next_hop.is_none()) =>
-            {
-                Err(Box::new(FreeboxResponseError::new(
-                    "v4/connection/ipv6/config delegation is missing prefix or next_hop"
-                        .to_string(),
-                )))
-            }
-            Some(r) => Ok(r),
-        }
+        Ok(conf)
     }
 
     fn set_connection_ipv6_conf(&self, conf: ConnectionIpv6Configuration) {
@@ -703,21 +633,7 @@ impl<'a> ConnectionMetricMap<'a> {
         &mut self,
     ) -> Result<(XdslStatus, XdslStats, XdslStats), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching xdsl info");
-
-        let client = self.get_managed_client().await?;
-
-        let result = client
-            .get(format!("{}v4/connection/xdsl", self.factory.api_url))
-            .send()
-            .await?
-            .json::<FreeboxResponse<XdslInfo>>()
-            .await?;
-
-        let info = result.result.ok_or_else(|| {
-            Box::new(FreeboxResponseError::new(
-                "v4/connection/xdsl/status response was empty".to_string(),
-            )) as Box<dyn std::error::Error + Send + Sync>
-        })?;
+        let info: XdslInfo = self.get_result("v4/connection/xdsl").await?;
 
         // the metrics are set from every part: an incomplete response fails the collection,
         // which keeps the previous one
@@ -825,8 +741,6 @@ impl<'a> ConnectionMetricMap<'a> {
         self.api_remote_access_metric.set(0);
         self.allow_token_request_metric.set(0);
         self.remote_access_ip_metric.reset();
-        self.ipv6_enabled_metric.set(0);
-        self.delegations_metric.reset();
         self.sfp_has_power_report_metric.set(0);
         self.sfp_has_signal_metric.set(0);
         self.sfp_model_metric.reset();
@@ -837,14 +751,6 @@ impl<'a> ConnectionMetricMap<'a> {
         self.sfp_alim_ok_metric.set(0);
         self.sfp_serial_metric.reset();
         self.sfp_present_metric.set(0);
-        self.ipv6_enabled_metric.set(0);
-        self.delegations_metric.reset();
-        self.sfp_has_power_report_metric.set(0);
-        self.sfp_has_signal_metric.set(0);
-        self.sfp_model_metric.reset();
-        self.sfp_vendor_metric.reset();
-        self.sfp_pwr_tx_metric.set(0);
-        self.sfp_pwr_rx_metric.set(0);
         self.xdsl_status_uptime.reset();
         self.xdsl_stats_maxrate.reset();
         self.xdsl_stats_rate.reset();
@@ -862,16 +768,37 @@ impl<'a> ConnectionMetricMap<'a> {
         self.xdsl_stats_rtx_c.reset();
         self.xdsl_stats_rtx_uc.reset();
     }
+
+    fn reset_ipv6_conf(&self) {
+        self.ipv6_enabled_metric.set(0);
+        self.delegations_metric.reset();
+    }
+
+    /// Records the media and the labels of the link while it is up, the only state in which the
+    /// box reports its actual media
+    fn observe_media(&mut self, status: &ConnectionStatus) {
+        if status.state.as_deref() != Some("up") {
+            return;
+        }
+        let label = status.media.clone().unwrap_or_default();
+        let media = match label.trim().to_lowercase().as_str() {
+            "ftth" => Media::Ftth,
+            "xdsl" => Media::Xdsl,
+            _ => Media::Other,
+        };
+        if self.media != Some(media) {
+            info!("network media is {label}, now exposing its metrics");
+        }
+        self.media = Some(media);
+        self.link_labels = Some((status._type.clone().unwrap_or_default(), label));
+    }
 }
 
 #[async_trait]
 impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let status = self.get_connection_status().await?;
-        let media = status.media.unwrap_or_default();
-
-        info!("exposing network media metrics: {}", media);
-        self.is_ftth = Some(media.trim().to_lowercase() == "ftth");
+        self.observe_media(&status);
         Ok(())
     }
 
@@ -883,32 +810,27 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
         // still sees the previous collection, and a failed request keeps it
         let status = self.get_connection_status().await?;
         let conf = self.get_connection_conf().await?;
-        let ipv6_conf = self.get_connection_ipv6_conf().await?;
+        // a configuration, which the box does not give while the link is down: its failure keeps
+        // the previous one, and does not hide the state of the link
+        let ipv6_conf = self.get_connection_ipv6_conf().await;
 
-        let media = status
-            .media
-            .clone()
-            .unwrap_or("unknown".to_string())
-            .to_lowercase();
-        let is_ftth = media == "ftth";
-
-        let (ftth, xdsl) = if is_ftth {
-            (Some(self.get_connection_ftth().await?), None)
-        } else {
-            (None, Some(self.get_xdsl_info().await?))
+        self.observe_media(&status);
+        let (ftth, xdsl) = match self.media {
+            Some(Media::Ftth) => (Some(self.get_connection_ftth().await?), None),
+            Some(Media::Xdsl) => (None, Some(self.get_xdsl_info().await?)),
+            // unknown until the link is up, or without specific metrics
+            Some(Media::Other) | None => (None, None),
         };
-
-        if is_ftth != self.is_ftth.unwrap_or(true) {
-            info!("network media has changed, now exposing metrics: {}", media);
-            self.is_ftth = Some(is_ftth);
-        }
 
         // a scrape waits for the update to complete instead of returning part of it
         let _update = lock.lock();
         self.reset_all();
         self.set_connection_status(&status)?;
         self.set_connection_conf(conf);
-        self.set_connection_ipv6_conf(ipv6_conf);
+        if let Ok(ipv6_conf) = &ipv6_conf {
+            self.reset_ipv6_conf();
+            self.set_connection_ipv6_conf(ipv6_conf.clone());
+        }
         if let Some(ftth) = ftth {
             self.set_connection_ftth_status(ftth);
         }
@@ -916,6 +838,7 @@ impl<'a> MetricMap<'a> for ConnectionMetricMap<'a> {
             self.set_xdsl_status(status, up, down);
         }
 
-        Ok(())
+        // the collection stays failed, so that the missing ipv6 configuration is reported
+        ipv6_conf.map(|_| ())
     }
 }
