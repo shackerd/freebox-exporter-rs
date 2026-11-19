@@ -1,9 +1,6 @@
 use log::info;
 
-use crate::{
-    core::{authenticator::Authenticator, capabilities::CapabilitiesAgent, discovery},
-    mappers::Mapper,
-};
+use crate::core::{authenticator::Authenticator, discovery};
 
 use super::{
     authenticator::{self, application_token_provider::FileSystemProvider},
@@ -60,20 +57,10 @@ pub async fn auto_register_and_serve(
 
     info!("application is registered");
 
-    let factory = agnostic_auth.login().await?;
-    let cap_agent = CapabilitiesAgent::new(&factory);
-    let capabilities = cap_agent.load().await?;
-
-    let mapper = Mapper::new(
-        &factory,
-        conf.metrics.clone(),
-        capabilities,
-        conf.api.clone(),
-        conf.policies.clone(),
-    );
-    let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
-
-    server.run().await
+    let prefix = conf.metrics.prefix.clone().unwrap_or_default();
+    prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), prefix)
+        .run(&agnostic_auth, conf)
+        .await
 }
 
 /// ### Register the application
@@ -159,30 +146,10 @@ pub async fn serve(
         )));
     }
 
-    let factory = match agnostic_auth.login().await {
-        Err(e) => return Err(e),
-        Ok(r) => r,
-    };
-
-    let cap_agent = CapabilitiesAgent::new(&factory);
-
-    let capabilities = cap_agent.load().await;
-    if let Err(e) = capabilities {
-        return Err(e);
-    }
-
-    let capabilities = capabilities.unwrap();
-
-    let mapper = Mapper::new(
-        &factory,
-        conf.to_owned().metrics,
-        capabilities,
-        conf.to_owned().api,
-        conf.to_owned().policies,
-    );
-    let mut server = prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), mapper);
-
-    server.run().await
+    let prefix = conf.metrics.prefix.clone().unwrap_or_default();
+    prometheus::Server::new(port, conf.api.refresh.unwrap_or(5), prefix)
+        .run(&agnostic_auth, &conf)
+        .await
 }
 
 async fn create_network_agnostic_authenticator(
