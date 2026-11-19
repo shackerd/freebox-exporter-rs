@@ -12,7 +12,7 @@ use serde::Deserialize;
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
+    transport::{get_api_result, get_required_api_result},
 };
 
 /// First API version whose system/ lists every fan and every temperature sensor, in
@@ -372,34 +372,9 @@ impl<'a> SystemMetricMap<'a> {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching system config");
 
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/system", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<SystemConfig>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        let sys_cnf: SystemConfig = match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/system response was empty".to_string(),
-                )))
-            }
-            Some(r) => r,
-        };
+        let client = self.get_managed_client().await?;
+        let sys_cnf: SystemConfig =
+            get_required_api_result(&client, &self.factory.api_url, "v4/system").await?;
 
         // (sensor, name, celsius) and (id, name, rpm)
         // the source does not change between collections, as the sensor labels depend on it:

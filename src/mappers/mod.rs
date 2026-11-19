@@ -688,6 +688,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn collectors_report_the_error_of_the_box() {
+        use serde_json::json;
+        use wiremock::{matchers::method, Mock, ResponseTemplate};
+
+        let (server, authenticator) = crate::mappers::test_support::mock_api().await;
+        // every request but the login is refused, with the login challenge as result, as by a
+        // box which no longer knows the session
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(403).set_body_json(json!({
+                "success": false, "error_code": "auth_required", "msg": "login",
+                "result": { "password_salt": "fake", "challenge": "fake" },
+            })))
+            .with_priority(10)
+            .mount(&server)
+            .await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_box_error";
+        let policies = PoliciesConfiguration {
+            unresolved_station_hostnames: None,
+        };
+        let mut collectors = existing_collectors(&factory, prefix);
+        // connection names its errors in its own change
+        collectors.retain(|(name, _)| *name != "connection");
+        collectors.push((
+            "wifi",
+            Box::new(wifi::WifiMetricMap::new(
+                &factory,
+                prefix.to_string(),
+                Duration::seconds(5),
+                &policies,
+            )),
+        ));
+
+        for (name, mut map) in collectors {
+            let error = map.set(update_lock()).await.expect_err(name).to_string();
+            assert!(
+                error.contains(" failed: auth_required (login)"),
+                "{name}: {error}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn existing_collectors_return_an_error_when_the_renewed_client_is_expired() {
         let (_server, authenticator) = crate::mappers::test_support::mock_api().await;
         let mut factory = authenticator.login().await.unwrap();

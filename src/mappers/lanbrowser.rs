@@ -1,7 +1,7 @@
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::{get_required_api_result, FreeboxResponseError},
 };
 use async_trait::async_trait;
 use log::{debug, warn};
@@ -124,33 +124,9 @@ impl<'a> LanBrowserMetricMap<'a> {
 
         debug!("fetching {} interface devices", iface);
 
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/lan/browser/{}", self.factory.api_url, iface))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<Vec<LanHost>>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            Some(r) => Ok(r),
-            None => Err(Box::new(FreeboxResponseError::new(format!(
-                "v4/lan/browser/{} response was empty",
-                iface
-            )))),
-        }
+        let endpoint = format!("v4/lan/browser/{iface}");
+        let client = self.get_managed_client().await?;
+        get_required_api_result(&client, &self.factory.api_url, &endpoint).await
     }
 
     async fn get_managed_client(
@@ -188,32 +164,8 @@ impl<'a> LanBrowserMetricMap<'a> {
     ) -> Result<Vec<LanBrowserInterface>, Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching ifaces & devices");
 
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/lan/browser/interfaces", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<Vec<LanBrowserInterface>>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        match res.result {
-            Some(r) => Ok(r),
-            None => Err(Box::new(FreeboxResponseError::new(
-                "v4/lan/browser/interfaces response was empty".to_string(),
-            ))),
-        }
+        let client = self.get_managed_client().await?;
+        get_required_api_result(&client, &self.factory.api_url, "v4/lan/browser/interfaces").await
     }
 
     fn reset_all(&self) {

@@ -6,7 +6,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use crate::core::common::http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient};
-use crate::core::common::transport::FreeboxResponse;
+use crate::core::common::transport::get_api_result;
 
 use crate::mappers::MetricMap;
 
@@ -178,68 +178,24 @@ impl<'a> DhcpMetricMap<'a> {
         &mut self,
     ) -> Result<Vec<StaticDhcpLease>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
-
-        let res = client
-            .get(format!("{}v4/dhcp/static_lease/", self.factory.api_url))
-            .send()
-            .await;
-
-        if let Err(e) = res {
-            return Err(Box::new(e));
-        }
-
-        let res = res
-            .unwrap()
-            .json::<FreeboxResponse<Vec<StaticDhcpLease>>>()
-            .await;
-
-        if let Err(e) = res {
-            return Err(Box::new(e));
-        }
-
-        let res = res.unwrap();
-
-        if res.success.unwrap_or_default() {
-            Ok(res.result.unwrap_or(vec![]))
-        } else {
-            Err(Box::new(std::io::Error::other(
-                res.msg.unwrap_or("Unknown error".to_string()),
-            )))
-        }
+        // the API omits the result when there is no lease
+        Ok(
+            get_api_result(&client, &self.factory.api_url, "v4/dhcp/static_lease/")
+                .await?
+                .unwrap_or_default(),
+        )
     }
 
     async fn fetch_dhcp_dynamic_leases(
         &mut self,
     ) -> Result<Vec<DynamicDhcpLease>, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.get_managed_client().await?;
-
-        let res = client
-            .get(format!("{}v4/dhcp/dynamic_lease/", self.factory.api_url))
-            .send()
-            .await;
-
-        if let Err(e) = res {
-            return Err(Box::new(e));
-        }
-
-        let res = res
-            .unwrap()
-            .json::<FreeboxResponse<Vec<DynamicDhcpLease>>>()
-            .await;
-
-        if let Err(e) = res {
-            return Err(Box::new(e));
-        }
-
-        let res = res.unwrap();
-
-        if res.success.unwrap_or_default() {
-            Ok(res.result.unwrap_or(vec![]))
-        } else {
-            Err(Box::new(std::io::Error::other(
-                res.msg.unwrap_or("Unknown error".to_string()),
-            )))
-        }
+        // the API omits the result when there is no lease
+        Ok(
+            get_api_result(&client, &self.factory.api_url, "v4/dhcp/dynamic_lease/")
+                .await?
+                .unwrap_or_default(),
+        )
     }
 
     async fn fetch_dhcp_leases(
@@ -348,6 +304,7 @@ impl<'a> MetricMap<'a> for DhcpMetricMap<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::common::transport::FreeboxResponse;
     use crate::mappers::api_specs_provider::get_specs_data;
     use crate::mappers::test_support::{
         collect_while_locked, mock_api, new_update_lock, scrape, scrape_during, serve,

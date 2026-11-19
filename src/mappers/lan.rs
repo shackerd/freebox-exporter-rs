@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::get_required_api_result,
 };
 
 #[derive(Deserialize, Clone, Debug)]
@@ -109,34 +109,9 @@ impl<'a> LanMetricMap<'a> {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("fetching lan config");
 
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/lan/config", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<LanConfig>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        let cfg: LanConfig = match res.result {
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/lan/config response was empty".to_string(),
-                )))
-            }
-            Some(r) => r,
-        };
+        let client = self.get_managed_client().await?;
+        let cfg: LanConfig =
+            get_required_api_result(&client, &self.factory.api_url, "v4/lan/config").await?;
 
         // reset only once the response is valid: a scrape during the request still sees
         // the previous collection, and a failed request keeps it

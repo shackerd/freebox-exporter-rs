@@ -10,7 +10,7 @@ use serde::Deserialize;
 use super::MetricMap;
 use crate::core::common::{
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
-    transport::{FreeboxResponse, FreeboxResponseError},
+    transport::get_required_api_result,
 };
 
 /// Download metrics mapper for Freebox `/api/v4/downloads/stats`.
@@ -231,34 +231,9 @@ impl<'a> DownloadMetricMap<'a> {
         &mut self,
         lock: &UpdateLock,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let body = self
-            .get_managed_client()
-            .await?
-            .get(format!("{}v4/downloads/stats", self.factory.api_url))
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let res = match serde_json::from_str::<FreeboxResponse<DownloadStats>>(&body) {
-            Err(e) => return Err(Box::new(e)),
-            Ok(r) => r,
-        };
-
-        if !res.success.unwrap_or(false) {
-            return Err(Box::new(FreeboxResponseError::new(
-                res.msg.unwrap_or_default(),
-            )));
-        }
-
-        let stats = match res.result {
-            Some(s) => s,
-            None => {
-                return Err(Box::new(FreeboxResponseError::new(
-                    "v4/downloads/stats response was empty".to_string(),
-                )))
-            }
-        };
+        let client = self.get_managed_client().await?;
+        let stats: DownloadStats =
+            get_required_api_result(&client, &self.factory.api_url, "v4/downloads/stats").await?;
 
         // a scrape waits for the update to complete instead of returning part of it
         let _update = lock.lock();
