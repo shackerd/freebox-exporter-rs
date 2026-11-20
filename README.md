@@ -122,6 +122,16 @@ fbx_exporter_system_fan_speed_rpm{id="fan0_speed",name="Ventilateur 1"} 3091
 fbx_exporter_system_fan_speed_rpm{id="fan1_speed",name="Ventilateur 2"} 3154
 ```
 
+## Box Model
+
+The system collector exposes the model of the box, read once at startup from the `box_model` and `box_model_name` fields of `/api_version`:
+
+```text
+fbx_exporter_system_model_info{model="fbxgw7-r1/full",model_name="Freebox v7 (r1)"} 1
+```
+
+This series is absent when `/api_version` does not tell the model, or cannot be read at startup.
+
 ## Temperature Sensors
 
 `fbx_exporter_system_temperature_celsius` has one series for each temperature sensor of the box. The `sensor` label is the sensor id without its `temp_` prefix, and `name` is the name given by the box.
@@ -156,6 +166,7 @@ The exporter provides comprehensive metrics for Freebox NAS storage functionalit
 - **Performance**: Active/idle duration, time before spindown
 - **Physical info**: Connector ID, partition table type
 - **Operations**: Progress percentage and step counts for ongoing operations
+- **Requests**: Read and write requests, and failed ones, counted by the box (when available)
 
 ### Partition Metrics
 
@@ -182,6 +193,12 @@ fbx_exporter_nas_disk_total_bytes{disk_id="1",disk_type="internal",model="Hitach
 fbx_exporter_nas_disk_temperature_celsius{disk_id="1",disk_type="internal",model="Hitachi HCC545025B9A300",serial="GSCH35VC"} 51
 fbx_exporter_nas_partition_used_bytes{partition_id="3",disk_id="1",label="Disque dur",fstype="ext4"} 164520534016
 ```
+
+#### Disk requests
+
+Four counters, with the labels of the other disk metrics, expose the requests to each disk counted by the box: `fbx_exporter_nas_disk_read_requests_total`, `fbx_exporter_nas_disk_read_error_requests_total`, `fbx_exporter_nas_disk_write_requests_total` and `fbx_exporter_nas_disk_write_error_requests_total`. Failed requests can indicate a failing disk, e.g. `increase(fbx_exporter_nas_disk_read_error_requests_total[1h]) > 0`.
+
+The box counts since its start: a lower value, after a restart of the box, is exposed as a counter reset, which `rate()` and `increase()` handle. A counter is absent when the box does not report it.
 
 ## Download Metrics
 
