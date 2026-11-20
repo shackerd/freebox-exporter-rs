@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use log::debug;
-use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::prometheus::{
+    register_int_gauge_vec_with_registry, IntGaugeVec, Registry,
+};
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
@@ -54,68 +56,92 @@ pub struct VmMetricMap<'a> {
 }
 
 impl<'a> VmMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         Self {
             factory,
             managed_client: None,
-            running_metric: register_int_gauge_vec!(
+            running_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_running"),
                 "1 if the virtual machine is running, 0 otherwise",
-                &["id", "name"]
+                &["id", "name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_running gauge: {e}")),
-            status_metric: register_int_gauge_vec!(
+            status_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_status"),
                 "virtual machine status (stopped, running, starting, stopping), always 1",
-                &["id", "name", "status"]
+                &["id", "name", "status"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_status gauge: {e}")),
-            memory_metric: register_int_gauge_vec!(
+            memory_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_memory_allocated_bytes"),
                 "memory allocated to the virtual machine",
-                &["id", "name"]
+                &["id", "name"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vm_memory_allocated_bytes gauge: {e}")
             }),
-            vcpus_metric: register_int_gauge_vec!(
+            vcpus_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_vcpus"),
                 "virtual CPUs allocated to the virtual machine",
-                &["id", "name"]
+                &["id", "name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_vcpus gauge: {e}")),
-            info_metric: register_int_gauge_vec!(
+            info_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_info"),
                 "virtual machine configuration, always 1",
-                &["id", "name", "os", "disk_type"]
+                &["id", "name", "os", "disk_type"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_info gauge: {e}")),
-            host_memory_total_metric: register_int_gauge_vec!(
+            host_memory_total_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_host_memory_total_bytes"),
                 "memory available to virtual machines",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vm_host_memory_total_bytes gauge: {e}")
             }),
-            host_memory_used_metric: register_int_gauge_vec!(
+            host_memory_used_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_host_memory_allocated_bytes"),
                 "memory allocated to virtual machines",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vm_host_memory_allocated_bytes gauge: {e}")
             }),
-            host_cpus_total_metric: register_int_gauge_vec!(
+            host_cpus_total_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_host_vcpus"),
                 "virtual CPUs available to virtual machines",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vm_host_vcpus gauge: {e}")),
-            host_cpus_used_metric: register_int_gauge_vec!(
+            host_cpus_used_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vm_host_vcpus_allocated"),
                 "virtual CPUs allocated to virtual machines",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vm_host_vcpus_allocated gauge: {e}")
