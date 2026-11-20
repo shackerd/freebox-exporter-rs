@@ -1,5 +1,6 @@
 use super::MetricMap;
 use crate::core::common::{
+    error_chain::with_causes,
     http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
     transport::{get_required_api_result, FreeboxResponseError},
 };
@@ -199,7 +200,10 @@ impl<'a> LanBrowserMetricMap<'a> {
                         .name
                         .to_owned()
                         .unwrap_or_else(|| "<unnamed>".to_string());
-                    warn!("cannot fetch devices of interface {name}: {e}");
+                    warn!(
+                        "cannot fetch devices of interface {name}: {}",
+                        with_causes(e.as_ref())
+                    );
                     failed_ifaces.push(name);
                     fetched.push((iface, vec![]));
                 }

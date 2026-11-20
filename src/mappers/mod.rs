@@ -17,7 +17,7 @@ use vpn::VpnMetricMap;
 
 use crate::core::{
     capabilities::Capabilities,
-    common::http_client_factory::AuthenticatedHttpClientFactory,
+    common::{error_chain::with_causes, http_client_factory::AuthenticatedHttpClientFactory},
     configuration::sections::{ApiConfiguration, CapabilitiesConfiguration, PoliciesConfiguration},
 };
 
@@ -346,7 +346,10 @@ impl<'a> Mapper<'a> {
             let started = std::time::Instant::now();
 
             if let Err(e) = map.init().await {
-                error!("collector {name} failed to initialize: {e}");
+                error!(
+                    "collector {name} failed to initialize: {}",
+                    with_causes(e.as_ref())
+                );
                 self.health
                     .observe(name, false, started.elapsed(), std::time::SystemTime::now());
             }
@@ -380,7 +383,7 @@ impl<'a> Mapper<'a> {
             }
 
             if let Err(e) = &res {
-                error!("collector {name} failed: {e}");
+                error!("collector {name} failed: {}", with_causes(e.as_ref()));
                 failed = true;
             }
 
