@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{
-    register_gauge_vec, register_int_gauge_vec, GaugeVec, IntGaugeVec,
+    register_gauge_vec_with_registry, register_int_gauge_vec_with_registry, GaugeVec, IntGaugeVec,
+    Registry,
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
@@ -67,96 +68,124 @@ pub struct RaidMetricMap<'a> {
 }
 
 impl<'a> RaidMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         Self {
             factory,
             managed_client: None,
-            degraded_metric: register_int_gauge_vec!(
+            degraded_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_degraded"),
                 "1 if the array is degraded, 0 otherwise",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_degraded gauge: {e}")),
-            state_metric: register_int_gauge_vec!(
+            state_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_state"),
                 "array state, always 1",
-                &["id", "name", "state"]
+                &["id", "name", "state"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_state gauge: {e}")),
-            sync_action_metric: register_int_gauge_vec!(
+            sync_action_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_sync_action"),
                 "array sync action, always 1",
-                &["id", "name", "sync_action"]
+                &["id", "name", "sync_action"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_sync_action gauge: {e}")),
-            sync_completed_ratio_metric: register_gauge_vec!(
+            sync_completed_ratio_metric: register_gauge_vec_with_registry!(
                 format!("{prefix}_raid_sync_completed_ratio"),
                 "fraction of sync completed",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_raid_sync_completed_ratio gauge: {e}")
             }),
-            sync_speed_bytes_per_second_metric: register_int_gauge_vec!(
+            sync_speed_bytes_per_second_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_sync_speed_bytes_per_second"),
                 "sync speed in bytes per second",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_raid_sync_speed_bytes_per_second gauge: {e}")
             }),
-            size_bytes_metric: register_int_gauge_vec!(
+            size_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_size_bytes"),
                 "array size in bytes",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_size_bytes gauge: {e}")),
-            disks_expected_metric: register_int_gauge_vec!(
+            disks_expected_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_disks_expected"),
                 "expected number of array members",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_disks_expected gauge: {e}")),
-            last_check_timestamp_seconds_metric: register_int_gauge_vec!(
+            last_check_timestamp_seconds_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_last_check_timestamp_seconds"),
                 "Unix timestamp of last check in seconds",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_raid_last_check_timestamp_seconds gauge: {e}")
             }),
-            next_check_timestamp_seconds_metric: register_int_gauge_vec!(
+            next_check_timestamp_seconds_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_next_check_timestamp_seconds"),
                 "Unix timestamp of next check in seconds",
-                &["id", "name", "level"]
+                &["id", "name", "level"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_raid_next_check_timestamp_seconds gauge: {e}")
             }),
-            member_role_metric: register_int_gauge_vec!(
+            member_role_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_member_role"),
                 "member role, always 1",
-                &["array_id", "id", "device_location", "role"]
+                &["array_id", "id", "device_location", "role"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_member_role gauge: {e}")),
-            member_corrected_read_errors_metric: register_int_gauge_vec!(
+            member_corrected_read_errors_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_member_corrected_read_errors"),
                 "member corrected read errors",
-                &["array_id", "id", "device_location"]
+                &["array_id", "id", "device_location"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_raid_member_corrected_read_errors gauge: {e}")
             }),
-            member_size_bytes_metric: register_int_gauge_vec!(
+            member_size_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_member_size_bytes"),
                 "member size in bytes",
-                &["array_id", "id", "device_location"]
+                &["array_id", "id", "device_location"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_raid_member_size_bytes gauge: {e}")),
-            member_temperature_celsius_metric: register_int_gauge_vec!(
+            member_temperature_celsius_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_raid_member_temperature_celsius"),
                 "member disk temperature in Celsius",
-                &["array_id", "id", "device_location"]
+                &["array_id", "id", "device_location"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_raid_member_temperature_celsius gauge: {e}")

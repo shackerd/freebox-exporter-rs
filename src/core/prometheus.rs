@@ -87,6 +87,7 @@ impl Server {
             capabilities,
             conf.api.clone(),
             conf.policies.clone(),
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         mapper.init_all().await?;

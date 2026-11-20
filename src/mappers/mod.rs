@@ -8,7 +8,7 @@ use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
 use nas::NasMetricMap;
-use prometheus_exporter::UpdateLock;
+use prometheus_exporter::{prometheus::Registry, UpdateLock};
 use raid::RaidMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
@@ -66,6 +66,7 @@ impl<'a> Mapper<'a> {
         caps: Capabilities,
         api_conf: ApiConfiguration,
         policies: Option<PoliciesConfiguration>,
+        registry: &Registry,
     ) -> Self {
         let mut maps: Vec<NamedMetricMap<'a>> = vec![];
 
@@ -73,9 +74,10 @@ impl<'a> Mapper<'a> {
             if e {
                 maps.push((
                     "connection",
-                    Box::new(ConnectionMetricMap::new(
+                    Box::new(ConnectionMetricMap::new_in(
                         factory,
                         conf.prefix.to_owned().unwrap(),
+                        registry,
                     )),
                 ));
             }
@@ -89,7 +91,7 @@ impl<'a> Mapper<'a> {
                 maps.push((
                     "system",
                     Box::new(
-                        SystemMetricMap::new(factory, conf.prefix.to_owned().unwrap())
+                        SystemMetricMap::new_in(factory, conf.prefix.to_owned().unwrap(), registry)
                             .with_v6_system(caps.v6_system.unwrap_or(false))
                             .with_model(caps.model.clone()),
                     ),
@@ -105,7 +107,11 @@ impl<'a> Mapper<'a> {
             if e {
                 maps.push((
                     "lan",
-                    Box::new(LanMetricMap::new(factory, conf.prefix.to_owned().unwrap())),
+                    Box::new(LanMetricMap::new_in(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                        registry,
+                    )),
                 ));
             }
         } else {
@@ -119,8 +125,11 @@ impl<'a> Mapper<'a> {
                 if !caps.lan_browser.unwrap_or(false) {
                     warn!("lan_browser is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
                 } else {
-                    let lan_browser_map =
-                        LanBrowserMetricMap::new(factory, conf.prefix.to_owned().unwrap());
+                    let lan_browser_map = LanBrowserMetricMap::new_in(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                        registry,
+                    );
                     maps.push(("lan_browser", Box::new(lan_browser_map)));
                 }
             }
@@ -135,9 +144,10 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "switch",
-                        Box::new(SwitchMetricMap::new(
+                        Box::new(SwitchMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     ));
                 }
@@ -159,11 +169,12 @@ impl<'a> Mapper<'a> {
                     };
                     let wifi_policies = policies.as_ref().unwrap_or(&default_policies);
 
-                    let wifi_map = wifi::WifiMetricMap::new(
+                    let wifi_map = wifi::WifiMetricMap::new_in(
                         factory,
                         conf.prefix.to_owned().unwrap(),
                         Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
                         wifi_policies,
+                        registry,
                     );
                     maps.push(("wifi", Box::new(wifi_map)));
                 }
@@ -179,9 +190,10 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "dhcp",
-                        Box::new(dhcp::DhcpMetricMap::new(
+                        Box::new(dhcp::DhcpMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     ));
                 }
@@ -197,7 +209,11 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "nas",
-                        Box::new(NasMetricMap::new(factory, conf.prefix.to_owned().unwrap())),
+                        Box::new(NasMetricMap::new_in(
+                            factory,
+                            conf.prefix.to_owned().unwrap(),
+                            registry,
+                        )),
                     ));
                 }
             }
@@ -210,9 +226,10 @@ impl<'a> Mapper<'a> {
                 // The Freebox downloads stats endpoint is available across supported modes.
                 maps.push((
                     "download",
-                    Box::new(DownloadMetricMap::new(
+                    Box::new(DownloadMetricMap::new_in(
                         factory,
                         conf.prefix.to_owned().unwrap(),
+                        registry,
                     )),
                 ));
             }
@@ -230,10 +247,9 @@ impl<'a> Mapper<'a> {
                 match caps.vm {
                     Some(true) => maps.push((
                         "vm",
-                        Box::new(VmMetricMap::new(
+                        Box::new(VmMetricMap::new_in(
                             factory,
-                            conf.prefix.to_owned().unwrap(),
-                        )),
+                            conf.prefix.to_owned().unwrap(), registry)),
                     )),
                     Some(false) => warn!(
                         "vm is not supported by this freebox (requires API v{} and VM capable hardware), the option has been disabled",
@@ -254,10 +270,9 @@ impl<'a> Mapper<'a> {
                 match caps.raid {
                     Some(true) => maps.push((
                         "raid",
-                        Box::new(RaidMetricMap::new(
+                        Box::new(RaidMetricMap::new_in(
                             factory,
-                            conf.prefix.to_owned().unwrap(),
-                        )),
+                            conf.prefix.to_owned().unwrap(), registry)),
                     )),
                     Some(false) => warn!(
                         "raid is not supported by this freebox (requires API v{}), the option has been disabled",
@@ -278,10 +293,9 @@ impl<'a> Mapper<'a> {
                 match caps.vpn {
                     Some(true) => maps.push((
                         "vpn",
-                        Box::new(VpnMetricMap::new(
+                        Box::new(VpnMetricMap::new_in(
                             factory,
-                            conf.prefix.to_owned().unwrap(),
-                        )),
+                            conf.prefix.to_owned().unwrap(), registry)),
                     )),
                     Some(false) => warn!(
                         "vpn is not supported by this freebox (requires API v{} in router mode), the option has been disabled",
@@ -302,10 +316,9 @@ impl<'a> Mapper<'a> {
                 match caps.ddns {
                     Some(true) => maps.push((
                         "ddns",
-                        Box::new(DdnsMetricMap::new(
+                        Box::new(DdnsMetricMap::new_in(
                             factory,
-                            conf.prefix.to_owned().unwrap(),
-                        )),
+                            conf.prefix.to_owned().unwrap(), registry)),
                     )),
                     Some(false) => warn!(
                         "ddns is not supported by this freebox (requires API v{} in router mode), the option has been disabled",
@@ -323,7 +336,7 @@ impl<'a> Mapper<'a> {
             );
         }
 
-        let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());
+        let health = CollectorHealth::register_in(conf.prefix.as_deref().unwrap(), registry);
         for name in undetected {
             health.observe(
                 name,
@@ -496,6 +509,7 @@ mod tests {
                 address: None,
             },
             None,
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         assert!(mapper.maps.is_empty());
@@ -530,6 +544,7 @@ mod tests {
                 address: None,
             },
             None,
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         let names: Vec<&str> = mapper.maps.iter().map(|(name, _)| *name).collect();
@@ -559,6 +574,7 @@ mod tests {
                 address: None,
             },
             None,
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         assert!(mapper.maps.is_empty());
