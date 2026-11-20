@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use log::debug;
-use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::prometheus::{
+    register_int_counter_vec, register_int_gauge_vec, IntCounterVec, IntGaugeVec,
+};
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
@@ -66,6 +68,11 @@ pub struct StorageDisk {
     pub spinning: Option<bool>,
     pub active_duration: Option<i64>,
     pub time_before_spindown: Option<i64>,
+    // requests counted by the box since its start (when available)
+    pub read_requests: Option<i64>,
+    pub read_error_requests: Option<i64>,
+    pub write_requests: Option<i64>,
+    pub write_error_requests: Option<i64>,
 }
 
 pub struct NasMetricMap<'a> {
@@ -86,6 +93,13 @@ pub struct NasMetricMap<'a> {
     disk_firmware_info_metric: IntGaugeVec,
     disk_operation_progress_metric: IntGaugeVec,
     disk_operation_steps_metric: IntGaugeVec,
+    // counts of the box: reset with the other metrics, then set to the value of the box.
+    // The update lock keeps a scrape from seeing the reset, and a lower value of the box,
+    // after its restart, is a counter reset
+    disk_read_requests_metric: IntCounterVec,
+    disk_read_error_requests_metric: IntCounterVec,
+    disk_write_requests_metric: IntCounterVec,
+    disk_write_error_requests_metric: IntCounterVec,
 
     // Partition metrics
     partition_total_bytes_metric: IntGaugeVec,
@@ -195,6 +209,34 @@ impl<'a> NasMetricMap<'a> {
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_operation_steps gauge: {e}")),
 
+            disk_read_requests_metric: register_int_counter_vec!(
+                format!("{prefix}_nas_disk_read_requests_total"),
+                format!("{prefix}_nas_disk_read_requests_total Read requests counted by the box since its start"),
+                &["disk_id", "disk_type", "model", "serial"]
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_read_requests_total counter: {e}")),
+
+            disk_read_error_requests_metric: register_int_counter_vec!(
+                format!("{prefix}_nas_disk_read_error_requests_total"),
+                format!("{prefix}_nas_disk_read_error_requests_total Failed read requests counted by the box since its start"),
+                &["disk_id", "disk_type", "model", "serial"]
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_read_error_requests_total counter: {e}")),
+
+            disk_write_requests_metric: register_int_counter_vec!(
+                format!("{prefix}_nas_disk_write_requests_total"),
+                format!("{prefix}_nas_disk_write_requests_total Write requests counted by the box since its start"),
+                &["disk_id", "disk_type", "model", "serial"]
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_write_requests_total counter: {e}")),
+
+            disk_write_error_requests_metric: register_int_counter_vec!(
+                format!("{prefix}_nas_disk_write_error_requests_total"),
+                format!("{prefix}_nas_disk_write_error_requests_total Failed write requests counted by the box since its start"),
+                &["disk_id", "disk_type", "model", "serial"]
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_write_error_requests_total counter: {e}")),
+
             // Partition metrics with labels for partition identification
             partition_total_bytes_metric: register_int_gauge_vec!(
                 format!("{prefix}_nas_partition_total_bytes"),
@@ -290,6 +332,10 @@ impl<'a> NasMetricMap<'a> {
         self.disk_firmware_info_metric.reset();
         self.disk_operation_progress_metric.reset();
         self.disk_operation_steps_metric.reset();
+        self.disk_read_requests_metric.reset();
+        self.disk_read_error_requests_metric.reset();
+        self.disk_write_requests_metric.reset();
+        self.disk_write_error_requests_metric.reset();
         self.partition_total_bytes_metric.reset();
         self.partition_used_bytes_metric.reset();
         self.partition_free_bytes_metric.reset();
@@ -320,6 +366,26 @@ impl<'a> NasMetricMap<'a> {
             let disk_type = disk.disk_type.unwrap_or_else(|| "unknown".to_string());
             let model = disk.model.unwrap_or_else(|| "unknown".to_string());
             let serial = disk.serial.unwrap_or_else(|| "unknown".to_string());
+
+            for (metric, value) in [
+                (&self.disk_read_requests_metric, disk.read_requests),
+                (
+                    &self.disk_read_error_requests_metric,
+                    disk.read_error_requests,
+                ),
+                (&self.disk_write_requests_metric, disk.write_requests),
+                (
+                    &self.disk_write_error_requests_metric,
+                    disk.write_error_requests,
+                ),
+            ] {
+                // a negative value is not a count: left out like a missing one
+                if let Some(value) = value.and_then(|v| u64::try_from(v).ok()) {
+                    metric
+                        .with_label_values(&[&disk_id, &disk_type, &model, &serial])
+                        .inc_by(value);
+                }
+            }
 
             // Set disk metrics
             if let Some(total_bytes) = disk.total_bytes {
@@ -824,5 +890,156 @@ mod tests_collect {
 
         assert_eq!(before, during);
         assert!(total(&scrape(prefix)).is_some_and(|l| l.ends_with(" 2000")));
+    }
+
+    /// A disk with the request counters of a Freebox Delta, `None` leaves a counter out
+    fn disk_with_requests(id: i64, requests: [Option<i64>; 4]) -> Value {
+        let [read, read_errors, write, write_errors] = requests;
+        json!({ "id": id, "type": "sata", "model": "ST4000", "serial": "S1",
+                "read_requests": read, "read_error_requests": read_errors,
+                "write_requests": write, "write_error_requests": write_errors })
+    }
+
+    fn disks_with_requests(disks: Vec<Value>) -> Value {
+        json!({ "success": true, "result": disks })
+    }
+
+    /// Value of the counter `name` of the disk `disk_id`, None without this series
+    fn request_counter(prefix: &str, name: &str, disk_id: &str) -> Option<String> {
+        let series = format!(
+            "{prefix}_nas_disk_{name}_total{{disk_id=\"{disk_id}\",disk_type=\"sata\",model=\"ST4000\",serial=\"S1\"}} "
+        );
+        scrape(prefix)
+            .into_iter()
+            .find_map(|l| l.strip_prefix(&series).map(str::to_string))
+    }
+
+    #[tokio::test]
+    async fn requests_of_a_disk_are_exposed_as_counters() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_nas_requests";
+        let mut map = NasMetricMap::new(&factory, prefix.to_string());
+
+        let disk = disk_with_requests(1, [Some(120), Some(1), Some(80), Some(2)]);
+        serve(
+            &server,
+            "/api/v4/storage/disk",
+            disks_with_requests(vec![disk]),
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
+
+        for (name, value) in [
+            ("read_requests", "120"),
+            ("read_error_requests", "1"),
+            ("write_requests", "80"),
+            ("write_error_requests", "2"),
+        ] {
+            assert_eq!(
+                request_counter(prefix, name, "1").as_deref(),
+                Some(value),
+                "{name}"
+            );
+            let family = prometheus_exporter::prometheus::gather()
+                .into_iter()
+                .find(|f| f.name() == format!("{prefix}_nas_disk_{name}_total"))
+                .unwrap();
+            assert_eq!(
+                family.get_field_type(),
+                prometheus_exporter::prometheus::proto::MetricType::COUNTER
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_disk_without_request_counts_has_no_counter() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_nas_no_requests";
+        let mut map = NasMetricMap::new(&factory, prefix.to_string());
+
+        // a negative value is not a count
+        let disk = disk_with_requests(1, [None, Some(-1), None, None]);
+        serve(
+            &server,
+            "/api/v4/storage/disk",
+            disks_with_requests(vec![disk]),
+        )
+        .await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        assert!(
+            metrics
+                .iter()
+                .any(|l| l.starts_with(&format!("{prefix}_nas_disk_state{{"))),
+            "the disk is collected: {metrics:?}"
+        );
+        assert!(
+            !metrics.iter().any(|l| l.contains("_requests_total")),
+            "{metrics:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn request_counters_follow_the_box_across_its_restart() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_nas_requests_restart";
+        let mut map = NasMetricMap::new(&factory, prefix.to_string());
+
+        // the box counts up, restarts and counts again from zero
+        for reads in [100, 150, 30, 40] {
+            let disk = disk_with_requests(1, [Some(reads), None, None, None]);
+            let _served = serve_scoped(
+                &server,
+                "/api/v4/storage/disk",
+                disks_with_requests(vec![disk]),
+            )
+            .await;
+            map.set(update_lock()).await.unwrap();
+            assert_eq!(
+                request_counter(prefix, "read_requests", "1"),
+                Some(reads.to_string())
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn request_counters_of_a_gone_disk_are_removed() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_nas_requests_gone";
+        let mut map = NasMetricMap::new(&factory, prefix.to_string());
+        let counts = [Some(10), Some(0), Some(5), Some(0)];
+
+        let both = disks_with_requests(vec![
+            disk_with_requests(1, counts),
+            disk_with_requests(2, counts),
+        ]);
+        let served = serve_scoped(&server, "/api/v4/storage/disk", both).await;
+        map.set(update_lock()).await.unwrap();
+        assert!(request_counter(prefix, "write_requests", "2").is_some());
+        drop(served);
+
+        // disk 2 is unplugged, disk 1 no longer reports its writes
+        let one = disks_with_requests(vec![disk_with_requests(1, [Some(12), Some(0), None, None])]);
+        serve(&server, "/api/v4/storage/disk", one).await;
+        map.set(update_lock()).await.unwrap();
+
+        assert_eq!(
+            request_counter(prefix, "read_requests", "1").as_deref(),
+            Some("12")
+        );
+        assert_eq!(request_counter(prefix, "write_requests", "1"), None);
+        for name in [
+            "read_requests",
+            "read_error_requests",
+            "write_requests",
+            "write_error_requests",
+        ] {
+            assert_eq!(request_counter(prefix, name, "2"), None, "{name}");
+        }
     }
 }

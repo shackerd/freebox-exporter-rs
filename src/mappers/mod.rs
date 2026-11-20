@@ -90,7 +90,8 @@ impl<'a> Mapper<'a> {
                     "system",
                     Box::new(
                         SystemMetricMap::new(factory, conf.prefix.to_owned().unwrap())
-                            .with_v6_system(caps.v6_system.unwrap_or(false)),
+                            .with_v6_system(caps.v6_system.unwrap_or(false))
+                            .with_model(caps.model.clone()),
                     ),
                 ));
             }
