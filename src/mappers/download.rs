@@ -95,98 +95,140 @@ impl<'a> DownloadMetricMap<'a> {
             managed_client: None,
             rx_rate_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_rx_rate_bytes_per_second"),
-                "Current download receive rate in bytes per second", registry)
+                "Current download receive rate in bytes per second",
+                registry,
+            )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_download_rx_rate_bytes_per_second gauge: {e}")
             }),
             tx_rate_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tx_rate_bytes_per_second"),
-                "Current download transmit rate in bytes per second", registry)
+                "Current download transmit rate in bytes per second",
+                registry,
+            )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_download_tx_rate_bytes_per_second gauge: {e}")
             }),
             nb_tasks_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_total"),
-                "Total number of download tasks", registry)
+                "Total number of download tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_total gauge: {e}")),
             nb_tasks_active_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_active"),
-                "Number of active download tasks", registry)
+                "Number of active download tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_active gauge: {e}")),
             nb_tasks_downloading_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_downloading"),
-                "Number of downloading tasks", registry)
+                "Number of downloading tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_downloading gauge: {e}")),
             nb_tasks_seeding_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_seeding"),
-                "Number of seeding tasks", registry)
+                "Number of seeding tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_seeding gauge: {e}")),
             nb_tasks_stopped_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_stopped"),
-                "Number of stopped tasks", registry)
+                "Number of stopped tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_stopped gauge: {e}")),
             nb_tasks_queued_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_queued"),
-                "Number of queued tasks", registry)
+                "Number of queued tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_queued gauge: {e}")),
             nb_tasks_checking_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_checking"),
-                "Number of checking tasks", registry)
+                "Number of checking tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_checking gauge: {e}")),
             nb_tasks_extracting_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_extracting"),
-                "Number of extracting tasks", registry)
+                "Number of extracting tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_extracting gauge: {e}")),
             nb_tasks_done_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_done"),
-                "Number of completed tasks", registry)
+                "Number of completed tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_done gauge: {e}")),
             nb_tasks_repairing_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_repairing"),
-                "Number of repairing tasks", registry)
+                "Number of repairing tasks",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_repairing gauge: {e}")),
             nb_tasks_error_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_error"),
-                "Number of tasks in error state", registry)
+                "Number of tasks in error state",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_error gauge: {e}")),
             nb_tasks_stopping_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_tasks_stopping"),
-                "Number of tasks stopping", registry)
+                "Number of tasks stopping",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_tasks_stopping gauge: {e}")),
             nb_rss_items_unread_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_rss_items_unread"),
-                "Number of unread RSS download items", registry)
+                "Number of unread RSS download items",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_rss_items_unread gauge: {e}")),
             nb_peer_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_peers_total"),
-                "Number of connected download peers", registry)
+                "Number of connected download peers",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_peers_total gauge: {e}")),
             conn_ready_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_connection_ready"),
-                "Download connection readiness (1 ready, 0 not ready)", registry)
+                "Download connection readiness (1 ready, 0 not ready)",
+                registry,
+            )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_download_connection_ready gauge: {e}")),
             throttling_is_scheduled_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_throttling_is_scheduled"),
-                "Download throttling schedule status (1 scheduled, 0 not scheduled)", registry)
+                "Download throttling schedule status (1 scheduled, 0 not scheduled)",
+                registry,
+            )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_download_throttling_is_scheduled gauge: {e}")
             }),
             throttling_mode_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_download_throttling_mode_info"),
                 "Download throttling mode information",
-                &["mode"], registry)
+                &["mode"],
+                registry,
+            )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_download_throttling_mode_info gauge: {e}")
             }),
             throttling_rx_rate_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_throttling_rx_rate_bytes_per_second"),
-                "Download throttling receive limit in bytes per second", registry)
+                "Download throttling receive limit in bytes per second",
+                registry,
+            )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_download_throttling_rx_rate_bytes_per_second gauge: {e}")
             }),
             throttling_tx_rate_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_download_throttling_tx_rate_bytes_per_second"),
-                "Download throttling transmit limit in bytes per second", registry)
+                "Download throttling transmit limit in bytes per second",
+                registry,
+            )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_download_throttling_tx_rate_bytes_per_second gauge: {e}")
             }),

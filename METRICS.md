@@ -121,10 +121,10 @@ temperature sensors when the box lists them (API v6 or later, detected at startu
 | `fbx_exporter_system_firmware_version` | gauge | `firmware_version` | Info gauge, always 1: firmware version, empty when omitted. |
 | `fbx_exporter_system_mac` | gauge | `mac` | Info gauge, always 1: MAC address of the box, empty when omitted. |
 | `fbx_exporter_system_serial` | gauge | `serial` | Info gauge, always 1: serial number of the box, empty when omitted. |
-| `fbx_exporter_system_model_info` | gauge | `model`, `model_name` | Info gauge, always 1: model of the box (`box_model` and `box_model_name` of `/api_version`, for example `fbxgw7-r1/full` and `Freebox v7 (r1)`), read once at the start of the exporter; absent when `/api_version` does not give them. |
-| `fbx_exporter_system_box_model_name` | gauge | `model_name` | Deprecated: use `fbx_exporter_system_model_info`, kept for compatibility. Info gauge, always 1: `box_model_name` field of `v4/system`, which the box does not return (absent in practice). |
-| `fbx_exporter_system_device_name` | gauge | `device_name` | Deprecated, kept for compatibility. Info gauge, always 1: `device_name` field of `v4/system`, which the box does not return (absent in practice). |
-| `fbx_exporter_system_api_version` | gauge | `api_version` | Info gauge, always 1: `api_version` field of `v4/system`, which the box does not return (absent in practice). |
+| `fbx_exporter_system_model_info` | gauge | `model`, `model_name` | Info gauge, always 1: model of the box (`box_model` and `box_model_name` of `/api_version`, for example `fbxgw7-r1/full` and `Freebox v7 (r1)`), read at the last detection of the capabilities, so again after a restart of the box; absent when `/api_version` does not give them. |
+| `fbx_exporter_system_box_model_name` | gauge | `model_name` | Deprecated: use `fbx_exporter_system_model_info`, kept for compatibility. Info gauge, always 1: model name of the box (`box_model_name` of `/api_version`, for example `Freebox v7 (r1)`), read at the last detection of the capabilities, or of `v4/system` when `/api_version` does not give it. |
+| `fbx_exporter_system_device_name` | gauge | `device_name` | Deprecated, kept for compatibility. Info gauge, always 1: device name of the box (`device_name` of `/api_version`, `Freebox Server`), read at the last detection of the capabilities, or of `v4/system` when `/api_version` does not give it. |
+| `fbx_exporter_system_api_version` | gauge | `api_version` | Info gauge, always 1: version of the API of the box (`api_version` of `/api_version`, for example `16.1`), read at the last detection of the capabilities, so it shows a firmware update, or of `v4/system` when `/api_version` could not be read. |
 
 ## lan
 
