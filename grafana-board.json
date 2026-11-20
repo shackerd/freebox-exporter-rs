@@ -1246,7 +1246,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Model of the box (its hardware revision when the exporter does not give the model), firmware and flavor (full: internal storage, light: none).",
+      "description": "Commercial name of the box and its firmware. The name comes from the model the box reports (system_model_info) or, when that metric is absent, from its board name; a model missing from the mapping keeps its raw name. The raw identifiers (model, model_name with the revision, board_name) are labels of the series, shown by the Query inspector.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1296,10 +1296,10 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (board_name) fbx_exporter_system_board_name{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (box_flavor) fbx_exporter_system_box_flavor{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (model_name) fbx_exporter_system_model_info{instance=\"$node\", job=\"$job\"} or on (instance, job) label_replace(fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (board_name) fbx_exporter_system_board_name{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (box_flavor) fbx_exporter_system_box_flavor{instance=\"$node\", job=\"$job\"}, \"model_name\", \"$1\", \"board_name\", \"(.+)\")",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{model_name}} · firmware {{firmware_version}} · {{box_flavor}}",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (board_name) fbx_exporter_system_board_name{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (model, model_name) fbx_exporter_system_model_info{instance=\"$node\", job=\"$job\"}, \"box\", \"$1\", \"board_name\", \"(.+)\"), \"box\", \"$1\", \"model\", \"(.+)\"), \"box\", \"$1\", \"model_name\", \"(.+)\"), \"box\", \"Freebox Revolution\", \"model_name\", \"Freebox v6( .*)?\"), \"box\", \"Freebox Revolution\", \"model\", \"fbxgw-r[0-9]+/full\"), \"box\", \"Freebox Delta\", \"model_name\", \"Freebox v7( .*)?\"), \"box\", \"Freebox Delta\", \"model\", \"fbxgw7-.*\"), \"box\", \"Freebox Pop\", \"model_name\", \"Freebox v8( .*)?\"), \"box\", \"Freebox Pop\", \"model\", \"fbxgw8-.*\"), \"box\", \"Freebox Ultra\", \"model_name\", \"Freebox v9( .*)?\"), \"box\", \"Freebox Ultra\", \"model\", \"fbxgw9-.*\") or on (instance, job) label_replace(label_replace(label_replace(label_replace(fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (board_name) fbx_exporter_system_board_name{instance=\"$node\", job=\"$job\"}, \"box\", \"$1\", \"board_name\", \"(.+)\"), \"box\", \"Freebox Delta\", \"board_name\", \"fbxgw7r.*\"), \"box\", \"Freebox Pop\", \"board_name\", \"fbxgw8r.*\"), \"box\", \"Freebox Ultra\", \"board_name\", \"fbxgw9r.*\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{box}} · firmware {{firmware_version}}",
           "refId": "A"
         }
       ],
