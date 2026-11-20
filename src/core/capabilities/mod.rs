@@ -1,6 +1,7 @@
 use crate::mappers::wifi::models::WifiConfig;
 
 use super::common::{
+    error_chain::with_causes,
     http_client_factory::AuthenticatedHttpClientFactory,
     transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
 };
@@ -91,12 +92,18 @@ impl<'a> CapabilitiesAgent<'a> {
             Ok(api_major) => match self.probe_system(api_major).await {
                 Ok(probe) => (Some(api_major), Some(probe)),
                 Err(e) => {
-                    warn!("cannot detect virtual machines and sensors support: {e}");
+                    warn!(
+                        "cannot detect virtual machines and sensors support: {}",
+                        with_causes(e.as_ref())
+                    );
                     (Some(api_major), None)
                 }
             },
             Err(e) => {
-                warn!("cannot detect freebox api version: {e}");
+                warn!(
+                    "cannot detect freebox api version: {}",
+                    with_causes(e.as_ref())
+                );
                 (None, None)
             }
         };

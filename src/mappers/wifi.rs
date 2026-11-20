@@ -10,6 +10,7 @@ use utils::{calculate_avg_channel_survey_history, get_recent_channel_entries};
 use crate::{
     core::{
         common::{
+            error_chain::with_causes,
             http_client_factory::{AuthenticatedHttpClientFactory, ManagedHttpClient},
             transport::{get_api_result, get_required_api_result, FreeboxResponseError},
         },
@@ -920,7 +921,10 @@ impl<'a> WifiMetricMap<'a> {
                             aps.push(ap);
                         }
                         Err(e) => {
-                            warn!("cannot fetch access point from phy_id {id}: {e}");
+                            warn!(
+                                "cannot fetch access point from phy_id {id}: {}",
+                                with_causes(e.as_ref())
+                            );
                             failed_phys.push(id.to_string());
                         }
                     }
