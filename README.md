@@ -14,6 +14,8 @@ Yet another [Freebox API](https://dev.freebox.fr/sdk/os/) exporter for Prometheu
 
 You will find on Grafana [gallery](https://grafana.com/grafana/dashboards/21957) the board for the exporter, also source file is located [here](./grafana-board.json)
 
+Every metric is described in [METRICS.md](./METRICS.md), and [ALERTS.md](./ALERTS.md) gives example alert rules.
+
 ![board-1](./doc/board.png)
 
 ## Features
