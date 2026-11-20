@@ -98,7 +98,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 2,
-  "id": null,
   "links": [
     {
       "asDropdown": false,
@@ -802,7 +801,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "delta(fbx_exporter_connection_bytes_up[1m])",
+          "expr": "delta(fbx_exporter_connection_bytes_up{instance=\"$node\", job=\"$job\"}[5m])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1090,7 +1089,7 @@
               }
             ]
           },
-          "unit": "MBs"
+          "unit": "Mbits"
         },
         "overrides": []
       },
@@ -1247,10 +1246,11 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "",
+      "description": "Model of the box (its hardware revision when the exporter does not give the model), firmware and flavor (full: internal storage, light: none).",
       "fieldConfig": {
         "defaults": {
           "color": {
+            "fixedColor": "#c4d8f5",
             "mode": "fixed"
           },
           "mappings": [],
@@ -1258,28 +1258,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#8AB8FF"
+                "color": "#c4d8f5"
               }
             ]
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "fbx_exporter_system_firmware_version"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#c4d8f5",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 2,
@@ -1305,26 +1289,21 @@
         "textMode": "name",
         "wideLayout": true
       },
-      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
+          "expr": "fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (board_name) fbx_exporter_system_board_name{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (box_flavor) fbx_exporter_system_box_flavor{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (model_name) fbx_exporter_system_model_info{instance=\"$node\", job=\"$job\"} or on (instance, job) label_replace(fbx_exporter_system_firmware_version{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (board_name) fbx_exporter_system_board_name{instance=\"$node\", job=\"$job\"} * on (instance, job) group_left (box_flavor) fbx_exporter_system_box_flavor{instance=\"$node\", job=\"$job\"}, \"model_name\", \"$1\", \"board_name\", \"(.+)\")",
           "instant": false,
-          "legendFormat": "{{firmware_version}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "legendFormat": "{{model_name}} · firmware {{firmware_version}} · {{box_flavor}}",
+          "refId": "A"
         }
       ],
-      "title": "Firmware version",
+      "title": "Box",
       "type": "stat"
     },
     {
@@ -1592,28 +1571,51 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "",
+      "description": "Internet link of the box whatever its media, then the details of the active media: FTTH (SFP) or xDSL. Lines of the other media are not shown.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "light-red"
-              },
-              {
-                "color": "blue",
-                "value": ""
               }
             ]
           }
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^Link.*/"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "light-red",
+                        "index": 1,
+                        "text": "Down"
+                      },
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "Up"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",
@@ -1709,24 +1711,69 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Public address : 88.121.131.218"
+              "id": "byRegexp",
+              "options": "/Public address.*/",
+              "scope": "series"
             },
             "properties": [
               {
                 "id": "mappings",
                 "value": [
                   {
+                    "type": "value",
                     "options": {
                       "1": {
-                        "color": "transparent",
+                        "color": "blue",
                         "index": 0,
                         "text": "-"
                       }
-                    },
-                    "type": "value"
+                    }
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^(Status|Modulation|Protocol).*/"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "range",
+                    "options": {
+                      "from": 0,
+                      "to": 9999999999,
+                      "result": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "-"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sync uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "transparent",
+                  "mode": "fixed"
+                }
               }
             ]
           }
@@ -1756,76 +1803,114 @@
         "textMode": "value_and_name",
         "wideLayout": true
       },
-      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "fbx_exporter_connection_state{instance=\"$node\", job=\"$job\", state=\"up\"} * on (instance, job) group_left (media) fbx_exporter_connection_media{instance=\"$node\", job=\"$job\"} or on (instance, job) fbx_exporter_connection_state{instance=\"$node\", job=\"$job\", state=\"up\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Link {{media}}",
+          "refId": "L"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "editorMode": "code",
           "expr": "fbx_exporter_system_box_authenticated{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
           "instant": false,
-          "interval": "",
+          "range": true,
           "legendFormat": "Authenticated",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_connection_ftth_sfp_has_signal{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "expr": "fbx_exporter_connection_ftth_sfp_has_signal{instance=\"$node\", job=\"$job\"} and on (instance, job) fbx_exporter_connection_media{instance=\"$node\", job=\"$job\", media=\"ftth\"}",
           "instant": false,
+          "range": true,
           "legendFormat": "SFP Signal",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
+          "refId": "B"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_connection_ftth_sfp_pwr_rx{instance=\"$node\", job=\"$job\"} / 100",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "expr": "fbx_exporter_connection_ftth_sfp_pwr_rx{instance=\"$node\", job=\"$job\"} / 100 and on (instance, job) fbx_exporter_connection_media{instance=\"$node\", job=\"$job\", media=\"ftth\"}",
           "instant": false,
-          "interval": "",
-          "legendFormat": "Signal Quality",
           "range": true,
-          "refId": "C",
-          "useBackend": false
+          "legendFormat": "Signal Quality",
+          "refId": "C"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
           "expr": "fbx_exporter_connection_ipv4{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "Public address : {{ipv4}}",
           "range": true,
-          "refId": "D",
-          "useBackend": false
+          "legendFormat": "Public address : {{ipv4}}",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_connection_xdsl_status_uptime{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Status: {{status}}",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_connection_xdsl_status_uptime{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Modulation: {{modulation}}",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_connection_xdsl_status_uptime{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Protocol: {{protocol}}",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_connection_xdsl_status_uptime{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Sync uptime",
+          "refId": "H"
         }
       ],
       "title": "ISP link state",
@@ -1836,63 +1921,117 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "Dynamic DNS providers enabled on the box: green ok, orange update in progress, red any other status. Disabled providers are not shown.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "fixedColor": "blue",
-            "mode": "fixed"
+            "mode": "thresholds"
           },
-          "mappings": [],
+          "noValue": "No provider",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "#c4d8f5"
               },
               {
-                "color": "red",
-                "value": 80
+                "color": "super-light-yellow",
+                "value": 2
+              },
+              {
+                "color": "light-red",
+                "value": 3
               }
             ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 2,
+        "x": 16,
+        "y": 11
+      },
+      "id": 68,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "name",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
           },
-          "unit": "s"
+          "editorMode": "code",
+          "expr": "(fbx_exporter_ddns_status{instance=\"$node\", job=\"$job\", status=\"ok\"} == 1) or (fbx_exporter_ddns_status{instance=\"$node\", job=\"$job\", status=\"wait\"} == 1) * 2 or (fbx_exporter_ddns_status{instance=\"$node\", job=\"$job\", status!~\"ok|wait|disabled\"} == 1) * 3",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{provider}}: {{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "DDNS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Login of the exporter to the box, and its collectors. While the box refuses the login, the exporter serves no metric of the box: the other panels show nothing. A failed collector keeps exposing its last values: see Exporter health.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#c4d8f5"
+              }
+            ]
+          }
         },
         "overrides": [
           {
-            "__systemRef": "hideSeriesFrom",
             "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "{__name__=\"fbx_exporter_connection_xdsl_status_uptime\", instance=\"freebox-exporter-rs:9100\", job=\"custom\", modulation=\"adsl\", protocol=\"unknown\", status=\"disabled\"}"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": []
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/Protocol.*/"
+              "id": "byName",
+              "options": "Login"
             },
             "properties": [
               {
                 "id": "mappings",
                 "value": [
                   {
+                    "type": "value",
                     "options": {
-                      "from": 0,
-                      "result": {
+                      "0": {
+                        "color": "light-red",
+                        "index": 1,
+                        "text": "Refused"
+                      },
+                      "1": {
                         "color": "#c4d8f5",
                         "index": 0,
-                        "text": "-"
-                      },
-                      "to": 9999999999
-                    },
-                    "type": "range"
+                        "text": "Accepted"
+                      }
+                    }
                   }
                 ]
               }
@@ -1901,48 +2040,21 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/Modulation.*/"
+              "options": "/^Refused.*/"
             },
             "properties": [
               {
                 "id": "mappings",
                 "value": [
                   {
+                    "type": "value",
                     "options": {
-                      "from": 0,
-                      "result": {
-                        "color": "#c4d8f5",
+                      "1": {
+                        "color": "light-red",
                         "index": 0,
                         "text": "-"
-                      },
-                      "to": 9999999999
-                    },
-                    "type": "range"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/Status.*/"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "from": 0,
-                      "result": {
-                        "color": "#c4d8f5",
-                        "index": 0,
-                        "text": "-"
-                      },
-                      "to": 9999999999
-                    },
-                    "type": "range"
+                      }
+                    }
                   }
                 ]
               }
@@ -1951,14 +2063,22 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Uptime"
+              "options": "Failed collectors"
             },
             "properties": [
               {
-                "id": "color",
+                "id": "thresholds",
                 "value": {
-                  "fixedColor": "transparent",
-                  "mode": "fixed"
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#c4d8f5"
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 1
+                    }
+                  ]
                 }
               }
             ]
@@ -1966,18 +2086,17 @@
         ]
       },
       "gridPos": {
-        "h": 6,
-        "w": 2,
-        "x": 16,
-        "y": 11
+        "h": 5,
+        "w": 5,
+        "x": 19,
+        "y": 12
       },
-      "id": 51,
+      "id": 69,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "horizontal",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -1985,85 +2104,61 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false
       },
-      "pluginVersion": "11.6.0",
       "targets": [
         {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "fbx_exporter_connection_xdsl_status_uptime{instance=\"$node\", job=\"$job\"}",
-          "format": "time_series",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "interval": "",
-          "legendFormat": "Status: {{status}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
-          }
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_authenticated{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Login",
+          "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "fbx_exporter_connection_xdsl_status_uptime",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "editorMode": "code",
+          "expr": "max by (error_code) (fbx_exporter_authentication_error{instance=\"$node\", job=\"$job\"})",
           "instant": false,
-          "interval": "",
-          "legendFormat": "Modulation: {{modulation}} ",
           "range": true,
-          "refId": "B",
-          "useBackend": false
+          "legendFormat": "Refused: {{error_code}}",
+          "refId": "B"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "fbx_exporter_connection_xdsl_status_uptime",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "editorMode": "code",
+          "expr": "count(fbx_exporter_collector_success{instance=\"$node\", job=\"$job\"} == 1)",
           "instant": false,
-          "interval": "",
-          "legendFormat": "Protocol: {{protocol}} ",
           "range": true,
-          "refId": "C",
-          "useBackend": false
+          "legendFormat": "Collectors OK",
+          "refId": "C"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "fbx_exporter_connection_xdsl_status_uptime",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "editorMode": "code",
+          "expr": "count(fbx_exporter_collector_success{instance=\"$node\", job=\"$job\"} == 0) or 0 * count(fbx_exporter_collector_success{instance=\"$node\", job=\"$job\"})",
           "instant": false,
-          "interval": "",
-          "legendFormat": "Uptime",
           "range": true,
-          "refId": "D",
-          "useBackend": false
+          "legendFormat": "Failed collectors",
+          "refId": "D"
         }
       ],
-      "title": "xDSL",
+      "title": "Exporter",
       "type": "stat"
     },
     {
@@ -2748,7 +2843,7 @@
           "mappings": [
             {
               "options": {
-                "from": 23,
+                "from": -23,
                 "result": {
                   "color": "light-orange",
                   "index": 0,
@@ -3341,7 +3436,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "binBps"
         },
         "overrides": [
           {
@@ -5779,6 +5874,988 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "Disks seen by the box. Idle for, active for and spin down in are given by the box when available. Read and write errors count failed requests since the start of the box: a growing value may indicate a failing disk.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "enabled": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      },
+                      "disabled": {
+                        "color": "text",
+                        "index": 1
+                      },
+                      "formatting": {
+                        "color": "super-light-yellow",
+                        "index": 2
+                      },
+                      "error": {
+                        "color": "light-red",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Temperature"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text"
+                    },
+                    {
+                      "color": "super-light-yellow",
+                      "value": 50
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 60
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Spinning"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "Yes"
+                      },
+                      "0": {
+                        "color": "text",
+                        "index": 1,
+                        "text": "No"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "color": "text",
+                        "index": 0,
+                        "text": "Yes"
+                      },
+                      "0": {
+                        "color": "#c4d8f5",
+                        "index": 1,
+                        "text": "No"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle for"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Active for"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Spin down in"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Read errors"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text"
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Write errors"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text"
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Operation"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 117,
+        "w": 24,
+        "h": 7
+      },
+      "id": 82,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Connector"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id, disk_type, model, state) (fbx_exporter_nas_disk_state{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "STATE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id, connector) (fbx_exporter_nas_disk_connector_info{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "CONN"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_total_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SIZE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_temperature_celsius{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "TEMP"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_spinning{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SPIN"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_idle{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "IDLE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_idle_duration_seconds{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "IDLED"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_active_duration_seconds{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "ACTD"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_time_before_spindown_seconds{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SPIND"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_read_error_requests_total{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "RERR"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_write_error_requests_total{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "WERR"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id, firmware) (fbx_exporter_nas_disk_firmware_info{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "FW"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (disk_id) (fbx_exporter_nas_disk_operation_progress_percent{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "OP"
+        }
+      ],
+      "title": "Disks",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "disk_id": true,
+              "Value #STATE": true,
+              "Value #CONN": true,
+              "Value #FW": true
+            },
+            "indexByName": {
+              "model": 0,
+              "disk_type": 1,
+              "connector": 2,
+              "Value #SIZE": 3,
+              "state": 4,
+              "Value #TEMP": 5,
+              "Value #SPIN": 6,
+              "Value #IDLE": 7,
+              "Value #IDLED": 8,
+              "Value #ACTD": 9,
+              "Value #SPIND": 10,
+              "Value #RERR": 11,
+              "Value #WERR": 12,
+              "firmware": 13,
+              "Value #OP": 14
+            },
+            "renameByName": {
+              "model": "Disk",
+              "disk_type": "Type",
+              "connector": "Connector",
+              "Value #SIZE": "Size",
+              "state": "State",
+              "Value #TEMP": "Temperature",
+              "Value #SPIN": "Spinning",
+              "Value #IDLE": "Idle",
+              "Value #IDLED": "Idle for",
+              "Value #ACTD": "Active for",
+              "Value #SPIND": "Spin down in",
+              "Value #RERR": "Read errors",
+              "Value #WERR": "Write errors",
+              "firmware": "Firmware",
+              "Value #OP": "Operation"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Partitions of the disks. Check is the result of the last file system check.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "mounted": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      },
+                      "umounted": {
+                        "color": "text",
+                        "index": 1
+                      },
+                      "error": {
+                        "color": "light-red",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "super-light-yellow",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Check"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "fs_clean": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      },
+                      "no_run_yet": {
+                        "color": "text",
+                        "index": 1
+                      },
+                      "running": {
+                        "color": "super-light-yellow",
+                        "index": 2
+                      },
+                      "fs_corrected": {
+                        "color": "super-light-yellow",
+                        "index": 3
+                      },
+                      "fs_needs_correction": {
+                        "color": "light-red",
+                        "index": 4
+                      },
+                      "failed": {
+                        "color": "light-red",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "super-light-blue"
+                    },
+                    {
+                      "color": "super-light-yellow",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Free"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Operation"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 124,
+        "w": 18,
+        "h": 6
+      },
+      "id": 83,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Label"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id, disk_id, label, fstype, state) (fbx_exporter_nas_partition_state{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "STATE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id, fsck_result) (fbx_exporter_nas_partition_fsck_result{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "FSCK"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id) (fbx_exporter_nas_partition_used_bytes{instance=\"$node\", job=\"$job\"} / fbx_exporter_nas_partition_total_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "PCT"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id) (fbx_exporter_nas_partition_used_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "USED"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id) (fbx_exporter_nas_partition_free_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "FREE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id) (fbx_exporter_nas_partition_total_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "TOTAL"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (partition_id) (fbx_exporter_nas_partition_operation_progress_percent{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "OP"
+        }
+      ],
+      "title": "Partitions",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "partition_id": true,
+              "disk_id": true,
+              "Value #STATE": true,
+              "Value #FSCK": true
+            },
+            "indexByName": {
+              "label": 0,
+              "fstype": 1,
+              "state": 2,
+              "fsck_result": 3,
+              "Value #PCT": 4,
+              "Value #USED": 5,
+              "Value #FREE": 6,
+              "Value #TOTAL": 7,
+              "Value #OP": 8
+            },
+            "renameByName": {
+              "label": "Label",
+              "fstype": "FS",
+              "state": "State",
+              "fsck_result": "Check",
+              "Value #PCT": "Used %",
+              "Value #USED": "Used",
+              "Value #FREE": "Free",
+              "Value #TOTAL": "Total",
+              "Value #OP": "Operation"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Internal disk of the box, and the partition used for user data (on a light box, a permanently attached external storage).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#c4d8f5"
+              },
+              {
+                "color": "super-light-yellow",
+                "value": 2
+              },
+              {
+                "color": "light-red",
+                "value": 3
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "index": 0,
+                  "text": "Ready"
+                },
+                "2": {
+                  "index": 1,
+                  "text": "Not ready"
+                },
+                "3": {
+                  "index": 2,
+                  "text": "Error"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^Main storage.*/"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "#c4d8f5",
+                        "index": 1,
+                        "text": "-"
+                      },
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "-"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 124,
+        "w": 6,
+        "h": 6
+      },
+      "id": 84,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(fbx_exporter_system_disk_status{instance=\"$node\", job=\"$job\", disk_status=\"active\"} == 1) or (fbx_exporter_system_disk_status{instance=\"$node\", job=\"$job\", disk_status=~\"initializing|disabled|not_detected\"} == 1) * 2 or (fbx_exporter_system_disk_status{instance=\"$node\", job=\"$job\", disk_status!~\"active|initializing|disabled|not_detected\"} == 1) * 3",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Internal disk: {{disk_status}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_system_user_main_storage{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Main storage: {{user_main_storage}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Storage",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -5836,10 +6913,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 117
+        "y": 130,
+        "w": 12,
+        "h": 10
       },
       "id": 56,
       "options": {
@@ -5856,7 +6933,6 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -5884,46 +6960,24 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "1=enabled, 0=disabled, -1=error, 2=formatting",
+      "description": "Used space of each partition.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 12,
             "gradientMode": "hue",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": 120000,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "showPoints": "never",
+            "spanNulls": 120000
           },
-          "mappings": [],
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -5932,56 +6986,49 @@
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 0.9
               }
             ]
-          },
-          "unit": "short"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 117
+        "y": 130,
+        "w": 12,
+        "h": 10
       },
-      "id": 57,
+      "id": 85,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
-          "maxHeight": 600,
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_nas_disk_state{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "expr": "fbx_exporter_nas_partition_used_bytes{instance=\"$node\", job=\"$job\"} / fbx_exporter_nas_partition_total_bytes{instance=\"$node\", job=\"$job\"}",
           "instant": false,
-          "legendFormat": "{{model}} ({{state}})",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "legendFormat": "{{label}} ({{fstype}})",
+          "refId": "A"
         }
       ],
-      "title": "Disk State",
+      "title": "Partition usage",
       "type": "timeseries"
     },
     {
@@ -5989,559 +7036,83 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "1=spinning, 0=not spinning",
+      "description": "Activity of each disk as given by the box: active, or idle (a spinning disk spins down after some idle time).",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "gradientMode": "hue",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": 120000,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "spanNulls": 120000
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "color": "light-purple",
+                  "index": 0,
+                  "text": "Active"
+                },
+                "1": {
+                  "color": "#c4d8f5",
+                  "index": 1,
+                  "text": "Idle"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
+                "color": "#c4d8f5"
               }
             ]
-          },
-          "unit": "short"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 125
-      },
-      "id": 58,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_nas_disk_spinning{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{model}} ({{disk_id}})",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Disk Spinning",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "gradientMode": "hue",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": 120000,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 125
-      },
-      "id": 59,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_nas_disk_idle_duration_seconds{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{model}} ({{disk_id}})",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Disk Idle Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "gradientMode": "hue",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": 120000,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
+        "y": 140,
         "w": 24,
-        "x": 0,
-        "y": 133
+        "h": 9
       },
-      "id": 60,
+      "id": 86,
       "options": {
+        "alignValue": "center",
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "never",
         "tooltip": {
-          "hideZeros": false,
-          "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "fbx_exporter_nas_partition_total_bytes{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
+          "expr": "fbx_exporter_nas_disk_idle{instance=\"$node\", job=\"$job\"}",
           "instant": false,
-          "legendFormat": "Total {{label}} ({{fstype}})",
           "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_nas_partition_used_bytes{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "Used {{label}} ({{fstype}})",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_nas_partition_free_bytes{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "Free {{label}} ({{fstype}})",
-          "range": true,
-          "refId": "C",
-          "useBackend": false
-        }
-      ],
-      "title": "Partition Space",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "1=mounted, 0=unmounted, -1=error, 2=checking, 3=formatting, 4=mounting, 5=maintenance, 6=unmounting, 7=ejecting",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "gradientMode": "hue",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": 120000,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 141
-      },
-      "id": 61,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_nas_partition_state{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{label}} ({{state}})",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Partition State",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "gradientMode": "hue",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": 120000,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 141
-      },
-      "id": 62,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "fbx_exporter_nas_disk_active_duration_seconds{instance=\"$node\", job=\"$job\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
           "legendFormat": "{{model}} ({{disk_id}})",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
-      "title": "Disk Active Duration",
-      "type": "timeseries"
+      "title": "Disk activity",
+      "type": "state-timeline"
     },
     {
       "collapsed": false,
@@ -7127,6 +7698,1788 @@
       ],
       "title": "Download Status",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 166
+      },
+      "id": 70,
+      "panels": [],
+      "title": "Virtual machines",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "vCPUs given to the virtual machines, over those the box offers them.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "super-light-blue"
+              },
+              {
+                "color": "super-light-yellow",
+                "value": 0.8
+              },
+              {
+                "color": "light-red",
+                "value": 0.95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 167
+      },
+      "id": 71,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vm_host_vcpus_allocated{instance=\"$node\", job=\"$job\"} / fbx_exporter_vm_host_vcpus{instance=\"$node\", job=\"$job\"}",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "vCPU allocated",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Memory given to the virtual machines, over the memory the box offers them.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "super-light-blue"
+              },
+              {
+                "color": "super-light-yellow",
+                "value": 0.8
+              },
+              {
+                "color": "light-red",
+                "value": 0.95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 167
+      },
+      "id": 72,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vm_host_memory_allocated_bytes{instance=\"$node\", job=\"$job\"} / fbx_exporter_vm_host_memory_total_bytes{instance=\"$node\", job=\"$job\"}",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Memory allocated",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Virtual machines of the box. Requires the VM permission of the application in Freebox OS.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Running"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "light-red",
+                        "index": 1,
+                        "text": "No"
+                      },
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "Yes"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 167
+      },
+      "id": 73,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Name"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_vm_running{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "RUN"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name, status) (fbx_exporter_vm_status{instance=\"$node\", job=\"$job\"} == 1)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "STATUS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name, os, disk_type) (fbx_exporter_vm_info{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "INFO"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_vm_vcpus{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "VCPU"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_vm_memory_allocated_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "MEM"
+        }
+      ],
+      "title": "Virtual machines",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "id": true,
+              "Value #STATUS": true,
+              "Value #INFO": true
+            },
+            "indexByName": {
+              "name": 0,
+              "Value #RUN": 1,
+              "status": 2,
+              "os": 3,
+              "disk_type": 4,
+              "Value #VCPU": 5,
+              "Value #MEM": 6
+            },
+            "renameByName": {
+              "name": "Name",
+              "Value #RUN": "Running",
+              "status": "Status",
+              "os": "OS",
+              "disk_type": "Disk",
+              "Value #VCPU": "vCPU",
+              "Value #MEM": "Memory"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 173
+      },
+      "id": 78,
+      "panels": [],
+      "title": "RAID",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "RAID arrays of the box (raid = true). No array, no line. Last and next checks are absent when never checked or not scheduled.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "running": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Degraded"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "No"
+                      },
+                      "1": {
+                        "color": "light-red",
+                        "index": 1,
+                        "text": "Yes"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sync"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "idle": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "super-light-yellow",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sync done"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sync speed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Bps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last check"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Next check"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 174
+      },
+      "id": 76,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name, state) (fbx_exporter_raid_state{instance=\"$node\", job=\"$job\"} == 1)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "STATE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name, level) (fbx_exporter_raid_degraded{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "DEG"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name, sync_action) (fbx_exporter_raid_sync_action{instance=\"$node\", job=\"$job\"} == 1)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SYNC"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_raid_sync_completed_ratio{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "RATIO"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_raid_sync_speed_bytes_per_second{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SPEED"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_raid_size_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SIZE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_raid_disks_expected{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "DISKS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_raid_last_check_timestamp_seconds{instance=\"$node\", job=\"$job\"}) * 1000",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "LAST"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (id, name) (fbx_exporter_raid_next_check_timestamp_seconds{instance=\"$node\", job=\"$job\"}) * 1000",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "NEXT"
+        }
+      ],
+      "title": "RAID arrays",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "id": true,
+              "Value #STATE": true,
+              "Value #SYNC": true
+            },
+            "indexByName": {
+              "name": 0,
+              "level": 1,
+              "state": 2,
+              "Value #DEG": 3,
+              "sync_action": 4,
+              "Value #RATIO": 5,
+              "Value #SPEED": 6,
+              "Value #SIZE": 7,
+              "Value #DISKS": 8,
+              "Value #LAST": 9,
+              "Value #NEXT": 10
+            },
+            "renameByName": {
+              "name": "Name",
+              "level": "Level",
+              "state": "State",
+              "Value #DEG": "Degraded",
+              "sync_action": "Sync",
+              "Value #RATIO": "Sync done",
+              "Value #SPEED": "Sync speed",
+              "Value #SIZE": "Size",
+              "Value #DISKS": "Disks",
+              "Value #LAST": "Last check",
+              "Value #NEXT": "Next check"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Disks of the RAID arrays. A role other than active or spare, or growing corrected read errors, point to a failing disk.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Role"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "active": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      },
+                      "spare": {
+                        "color": "text",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Temperature"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text"
+                    },
+                    {
+                      "color": "super-light-yellow",
+                      "value": 50
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 60
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Corrected read errors"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text"
+                    },
+                    {
+                      "color": "super-light-yellow",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 180
+      },
+      "id": 77,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Location"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (array_id, id, device_location, role) (fbx_exporter_raid_member_role{instance=\"$node\", job=\"$job\"} == 1)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "ROLE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (array_id, id, device_location) (fbx_exporter_raid_member_temperature_celsius{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "TEMP"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (array_id, id, device_location) (fbx_exporter_raid_member_corrected_read_errors{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "ERR"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (array_id, id, device_location) (fbx_exporter_raid_member_size_bytes{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SIZE"
+        }
+      ],
+      "title": "RAID members",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "id": true,
+              "Value #ROLE": true
+            },
+            "indexByName": {
+              "array_id": 0,
+              "device_location": 1,
+              "role": 2,
+              "Value #TEMP": 3,
+              "Value #ERR": 4,
+              "Value #SIZE": 5
+            },
+            "renameByName": {
+              "array_id": "Array",
+              "device_location": "Location",
+              "role": "Role",
+              "Value #TEMP": "Temperature",
+              "Value #ERR": "Corrected read errors",
+              "Value #SIZE": "Size"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 186
+      },
+      "id": 81,
+      "panels": [],
+      "title": "VPN",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "VPN servers of the box (vpn = true, router mode). Traffic sums the connections currently open: it drops when one closes. User logins and addresses are never exposed.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "started": {
+                        "color": "#c4d8f5",
+                        "index": 0
+                      },
+                      "stopped": {
+                        "color": "text",
+                        "index": 1
+                      },
+                      "error": {
+                        "color": "light-red",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "super-light-yellow",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Received"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sent"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 14,
+        "x": 0,
+        "y": 187
+      },
+      "id": 79,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Name"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (name, type, state) (fbx_exporter_vpn_server_state{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "STATE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (name, type) (fbx_exporter_vpn_server_connections{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "CONN"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (name, type) (fbx_exporter_vpn_server_authenticated_connections{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "AUTH"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(max by (vpn) (fbx_exporter_vpn_connections_rx_bytes{instance=\"$node\", job=\"$job\"}), \"name\", \"$1\", \"vpn\", \"(.*)\")",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "RX"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(max by (vpn) (fbx_exporter_vpn_connections_tx_bytes{instance=\"$node\", job=\"$job\"}), \"name\", \"$1\", \"vpn\", \"(.*)\")",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "TX"
+        }
+      ],
+      "title": "VPN servers",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "vpn": true,
+              "Value #STATE": true
+            },
+            "indexByName": {
+              "name": 0,
+              "type": 1,
+              "state": 2,
+              "Value #CONN": 3,
+              "Value #AUTH": 4,
+              "Value #RX": 5,
+              "Value #TX": 6
+            },
+            "renameByName": {
+              "name": "Name",
+              "type": "Type",
+              "state": "State",
+              "Value #CONN": "Connections",
+              "Value #AUTH": "Authenticated",
+              "Value #RX": "Received",
+              "Value #TX": "Sent"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "VPN client of the box. When it is enabled, its state, last error, rates and last connection are shown, each one when the box returns it.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#c4d8f5"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Enabled"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "text",
+                        "index": 1,
+                        "text": "No"
+                      },
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "Yes"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Up"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "light-red",
+                        "index": 1,
+                        "text": "No"
+                      },
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "Yes"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^(State|Last error).*/"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "-"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^Last error.*/"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "color": "light-red",
+                        "index": 0,
+                        "text": "-"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^Rate.*/"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Bps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last up"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 14,
+        "y": 187
+      },
+      "id": 80,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_enabled{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Enabled",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_up{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Up",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_state{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "State: {{state}}",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_last_error{instance=\"$node\", job=\"$job\", last_error!=\"none\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Last error: {{last_error}}",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_rate_up_bytes_per_second{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Rate up",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_rate_down_bytes_per_second{instance=\"$node\", job=\"$job\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Rate down",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "fbx_exporter_vpn_client_last_up_timestamp_seconds{instance=\"$node\", job=\"$job\"} * 1000",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Last up",
+          "refId": "G"
+        }
+      ],
+      "title": "VPN client",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Sessions open on each VPN server, and those authenticated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "hue",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": 120000
+          },
+          "decimals": 0,
+          "min": 0,
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 193
+      },
+      "id": 87,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (name) (fbx_exporter_vpn_server_connections{instance=\"$node\", job=\"$job\"})",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (name) (fbx_exporter_vpn_server_authenticated_connections{instance=\"$node\", job=\"$job\"})",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{name}} authenticated",
+          "refId": "B"
+        }
+      ],
+      "title": "VPN connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Throughput of the VPN client of the box, from its transferred bytes. Empty while the client is disabled. The traffic of the VPN servers has no throughput: the box only gives the bytes of the sessions currently open.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "hue",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": 120000
+          },
+          "min": 0,
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 193
+      },
+      "id": 88,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(fbx_exporter_vpn_client_uploaded_bytes_total{instance=\"$node\", job=\"$job\"}[$__rate_interval])",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Up",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(fbx_exporter_vpn_client_downloaded_bytes_total{instance=\"$node\", job=\"$job\"}[$__rate_interval])",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Down",
+          "refId": "B"
+        }
+      ],
+      "title": "VPN client throughput",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 201
+      },
+      "id": 74,
+      "panels": [],
+      "title": "Exporter health",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "One line per collector. A failed collector keeps exposing its last values: trust the panels of a collector only when it is ok. A collector enabled in the configuration but not supported by the box stays failed until the exporter restarts.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "color": "light-red",
+                        "index": 1,
+                        "text": "Failed"
+                      },
+                      "1": {
+                        "color": "#c4d8f5",
+                        "index": 0,
+                        "text": "Ok"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text"
+                    },
+                    {
+                      "color": "super-light-yellow",
+                      "value": 60
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 300
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 202
+      },
+      "id": 75,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Collector"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (collector) (fbx_exporter_collector_success{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "SUCCESS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (collector) (time() - fbx_exporter_collector_last_success_timestamp_seconds{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "AGE"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (collector) (fbx_exporter_collector_duration_seconds{instance=\"$node\", job=\"$job\"})",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "DUR"
+        }
+      ],
+      "title": "Collectors",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "collector": 0,
+              "Value #SUCCESS": 1,
+              "Value #AGE": 2,
+              "Value #DUR": 3
+            },
+            "renameByName": {
+              "collector": "Collector",
+              "Value #SUCCESS": "State",
+              "Value #AGE": "Last success",
+              "Value #DUR": "Duration"
+            }
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "refresh": "5s",
@@ -7185,14 +9538,14 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(fbx_exporter_connection_bytes_down,job)",
+        "definition": "label_values({__name__=~\"fbx_exporter_authenticated|fbx_exporter_connection_bytes_down\"},job)",
         "includeAll": false,
         "label": "Job",
         "name": "job",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(fbx_exporter_connection_bytes_down,job)",
+          "query": "label_values({__name__=~\"fbx_exporter_authenticated|fbx_exporter_connection_bytes_down\"},job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -7206,14 +9559,14 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(fbx_exporter_connection_bytes_down,instance)",
+        "definition": "label_values({__name__=~\"fbx_exporter_authenticated|fbx_exporter_connection_bytes_down\"},instance)",
         "includeAll": false,
         "label": "Node",
         "name": "node",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(fbx_exporter_connection_bytes_down,instance)",
+          "query": "label_values({__name__=~\"fbx_exporter_authenticated|fbx_exporter_connection_bytes_down\"},instance)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -7241,6 +9594,6 @@
   "timezone": "browser",
   "title": "freebox-exporter-rs",
   "uid": "deddg8kngnmyoa",
-  "version": 29,
-  "weekStart": ""
+  "weekStart": "",
+  "id": null
 }
