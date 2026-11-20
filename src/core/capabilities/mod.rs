@@ -35,6 +35,17 @@ struct SystemProbe {
 #[derive(Deserialize, Clone, Debug)]
 struct ApiVersionInfo {
     api_version: Option<String>,
+    // any type: an unexpected one must not prevent reading api_version
+    box_model: Option<serde_json::Value>,
+    box_model_name: Option<serde_json::Value>,
+}
+
+/// A non empty text, None for any other value
+fn text(value: Option<serde_json::Value>) -> Option<String> {
+    match value {
+        Some(serde_json::Value::String(text)) if !text.is_empty() => Some(text),
+        _ => None,
+    }
 }
 
 /// First API version exposing SystemConfig.model_info, measured on a Freebox Delta
@@ -87,17 +98,17 @@ impl<'a> CapabilitiesAgent<'a> {
         let is_wifi_enabled = self.is_wifi_enabled().await?;
         // only vm, raid, vpn and ddns depend on these probes: their failure leaves those
         // capabilities unknown (None) instead of preventing the exporter from starting
-        let (api_major, probe) = match self.get_api_major_version().await {
-            Ok(api_major) => match self.probe_system(api_major).await {
-                Ok(probe) => (Some(api_major), Some(probe)),
+        let (api_major, probe, model) = match self.get_api_version().await {
+            Ok((api_major, model)) => match self.probe_system(api_major).await {
+                Ok(probe) => (Some(api_major), Some(probe), model),
                 Err(e) => {
                     warn!("cannot detect virtual machines and sensors support: {e}");
-                    (Some(api_major), None)
+                    (Some(api_major), None, model)
                 }
             },
             Err(e) => {
                 warn!("cannot detect freebox api version: {e}");
-                (None, None)
+                (None, None, None)
             }
         };
 
@@ -121,12 +132,15 @@ impl<'a> CapabilitiesAgent<'a> {
                 .zip(probe)
                 .map(|(major, probe)| major >= system::V6_SYSTEM_API_VERSION && probe.has_sensors),
             network_mode: lan_config.mode,
+            model,
         })
     }
 
-    /// Major version of the API supported by the box, e.g. 16 for "16.0".
-    /// Collectors compare it with the API version prefix they call
-    async fn get_api_major_version(&self) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
+    /// Major version of the API supported by the box, e.g. 16 for "16.0", and its model.
+    /// Collectors compare the version with the API version prefix they call
+    async fn get_api_version(
+        &self,
+    ) -> Result<(u32, Option<system::BoxModel>), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.client_factory.create_managed_client().await?.get()?;
         // api_url is <root>/api/ while api_version is served at <root>/api_version
         let url = format!(
@@ -149,7 +163,12 @@ impl<'a> CapabilitiesAgent<'a> {
             })?;
 
         info!("detected freebox api version: {version}");
-        Ok(major)
+        let model = system::BoxModel {
+            model: text(res.box_model),
+            model_name: text(res.box_model_name),
+        };
+        let model = (model != system::BoxModel::default()).then_some(model);
+        Ok((major, model))
     }
 
     /// Whether the hardware supports virtual machines, from SystemConfig.model_info, and
@@ -228,6 +247,8 @@ pub struct Capabilities {
     /// is unknown
     pub v6_system: Option<bool>,
     pub network_mode: Option<String>,
+    /// From /api_version, None when the box does not tell or its API version is unknown
+    pub model: Option<system::BoxModel>,
 }
 
 #[cfg(test)]
@@ -238,17 +259,58 @@ mod tests {
     use super::*;
     use crate::mappers::test_support::{mock_api, serve};
 
-    /// Loads capabilities of a box in `mode` announcing `api_version`, whose v6/system/
-    /// response is `system`
-    async fn load_system(mode: &str, api_version: &str, system: serde_json::Value) -> Capabilities {
+    /// Loads capabilities of a box in `mode`, whose /api_version and v6/system/ responses are
+    /// `api_version` and `v6_system`
+    async fn load_responses(
+        mode: &str,
+        api_version: serde_json::Value,
+        v6_system: serde_json::Value,
+    ) -> Capabilities {
         let (server, authenticator) = mock_api().await;
-        serve(&server, "/api/v4/lan/config", json!({ "success": true, "result": { "mode": mode } })).await;
-        serve(&server, "/api/v4/wifi/config", json!({ "success": true, "result": { "enabled": true } })).await;
-        serve(&server, "/api_version", json!({ "api_version": api_version })).await;
-        serve(&server, "/api/v6/system/", json!({ "success": true, "result": system })).await;
+        serve(
+            &server,
+            "/api/v4/lan/config",
+            json!({ "success": true, "result": { "mode": mode } }),
+        )
+        .await;
+        serve(
+            &server,
+            "/api/v4/wifi/config",
+            json!({ "success": true, "result": { "enabled": true } }),
+        )
+        .await;
+        serve(&server, "/api_version", api_version).await;
+        serve(&server, "/api/v6/system/", v6_system).await;
 
         let factory = authenticator.login().await.unwrap();
         CapabilitiesAgent::new(&factory).load().await.unwrap()
+    }
+
+    /// Loads capabilities of a box in `mode` announcing `api_version`, whose v6/system/
+    /// response is `system`
+    async fn load_system(mode: &str, api_version: &str, system: serde_json::Value) -> Capabilities {
+        load_responses(
+            mode,
+            json!({ "api_version": api_version }),
+            json!({ "success": true, "result": system }),
+        )
+        .await
+    }
+
+    /// /api_version of a Freebox Delta
+    fn delta_api_version() -> serde_json::Value {
+        json!({
+            "api_version": "16.1",
+            "box_model": "fbxgw7-r1/full",
+            "box_model_name": "Freebox v7 (r1)",
+        })
+    }
+
+    fn delta_model() -> Option<system::BoxModel> {
+        Some(system::BoxModel {
+            model: Some("fbxgw7-r1/full".to_string()),
+            model_name: Some("Freebox v7 (r1)".to_string()),
+        })
     }
 
     /// Loads capabilities of a box in `mode` announcing `api_version`, with or without VM
@@ -290,6 +352,39 @@ mod tests {
         assert_eq!(Some(false), load("3.0", false).await.ddns);
         assert_eq!(Some(true), load("4.0", false).await.ddns);
         assert_eq!(Some(false), load_mode("bridge", "16.0", false).await.ddns);
+    }
+
+    #[tokio::test]
+    async fn the_model_comes_from_api_version() {
+        // a v6/system/ without sensors list: the model does not depend on it
+        let ok = json!({ "success": true, "result": {} });
+        let caps = load_responses("router", delta_api_version(), ok).await;
+        assert_eq!(caps.model, delta_model());
+        assert_eq!(caps.v6_system, Some(false));
+    }
+
+    #[tokio::test]
+    async fn the_model_is_kept_when_the_system_probe_fails() {
+        let failed = json!({ "success": false, "error_code": "internal_error" });
+        let caps = load_responses("router", delta_api_version(), failed).await;
+        assert_eq!(caps.model, delta_model());
+        assert_eq!(caps.v6_system, None);
+    }
+
+    #[tokio::test]
+    async fn no_model_when_api_version_does_not_tell() {
+        let ok = json!({ "success": true, "result": {} });
+        let caps = load_responses("router", json!({ "api_version": "16.1" }), ok).await;
+        assert_eq!(caps.model, None);
+    }
+
+    #[tokio::test]
+    async fn an_unexpected_model_leaves_the_api_version_readable() {
+        let ok = json!({ "success": true, "result": {} });
+        let api_version = json!({ "api_version": "16.1", "box_model": 7, "box_model_name": "" });
+        let caps = load_responses("router", api_version, ok).await;
+        assert_eq!(caps.model, None);
+        assert_eq!(caps.raid, Some(true));
     }
 
     #[tokio::test]
