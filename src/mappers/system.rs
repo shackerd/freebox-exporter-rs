@@ -123,6 +123,10 @@ pub struct SystemMetricMap<'a> {
     managed_client: Option<ManagedHttpClient>,
     /// Whether the box lists its fans and sensors, see V6_SYSTEM_API_VERSION
     v6_system: bool,
+    /// Read from /api_version, see with_identity
+    api_version: Option<String>,
+    box_model_name: Option<String>,
+    device_name: Option<String>,
     fan_speed_metric: IntGaugeVec,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
@@ -169,6 +173,9 @@ impl<'a> SystemMetricMap<'a> {
             factory,
             managed_client: None,
             v6_system: false,
+            api_version: None,
+            box_model_name: None,
+            device_name: None,
             fan_speed_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_fan_speed_rpm"),
                 "speed of each fan of the box",
@@ -334,6 +341,20 @@ impl<'a> SystemMetricMap<'a> {
         self
     }
 
+    /// The version of the API, the model name and the device name read from /api_version when
+    /// the capabilities were detected: v4/system of a Freebox Delta does not give them
+    pub fn with_identity(
+        mut self,
+        api_version: Option<String>,
+        box_model_name: Option<String>,
+        device_name: Option<String>,
+    ) -> Self {
+        self.api_version = api_version;
+        self.box_model_name = box_model_name;
+        self.device_name = device_name;
+        self
+    }
+
     async fn get_v6_system(
         &mut self,
     ) -> Result<V6System, Box<dyn std::error::Error + Send + Sync>> {
@@ -458,19 +479,23 @@ impl<'a> SystemMetricMap<'a> {
             .set(1);
 
         // Set new metrics if available
-        if let Some(model_name) = &sys_cnf.box_model_name {
+        if let Some(model_name) = self
+            .box_model_name
+            .as_ref()
+            .or(sys_cnf.box_model_name.as_ref())
+        {
             self.box_model_name_metric
                 .with_label_values(&[model_name])
                 .set(1);
         }
 
-        if let Some(device_name) = &sys_cnf.device_name {
+        if let Some(device_name) = self.device_name.as_ref().or(sys_cnf.device_name.as_ref()) {
             self.device_name_metric
                 .with_label_values(&[device_name])
                 .set(1);
         }
 
-        if let Some(api_version) = &sys_cnf.api_version {
+        if let Some(api_version) = self.api_version.as_ref().or(sys_cnf.api_version.as_ref()) {
             self.api_version_metric
                 .with_label_values(&[api_version])
                 .set(1);
@@ -913,6 +938,31 @@ mod tests_collect {
 
         assert_eq!(before, during);
         assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
+    }
+
+    #[tokio::test]
+    async fn set_exposes_the_identity_of_the_capabilities() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_api_version";
+        // v4/system of a Freebox Delta has no api_version
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string()).with_identity(
+            Some("16.1".to_string()),
+            Some("Freebox v7 (r1)".to_string()),
+            Some("Freebox Server".to_string()),
+        );
+
+        serve(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        for line in [
+            format!("{prefix}_system_api_version{{api_version=\"16.1\"}} 1"),
+            format!("{prefix}_system_box_model_name{{model_name=\"Freebox v7 (r1)\"}} 1"),
+            format!("{prefix}_system_device_name{{device_name=\"Freebox Server\"}} 1"),
+        ] {
+            assert!(metrics.contains(&line), "{line} in {metrics:?}");
+        }
     }
 
     /// v6/system fans of a Freebox Delta, whose v4/system only has fan_rpm

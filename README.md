@@ -126,7 +126,7 @@ fbx_exporter_system_fan_speed_rpm{id="fan1_speed",name="Ventilateur 2"} 3154
 
 `fbx_exporter_system_temperature_celsius` has one series for each temperature sensor of the box. The `sensor` label is the sensor id without its `temp_` prefix, and `name` is the name given by the box.
 
-When the box API version is 6 or higher, and `/api/v6/system/` has a `sensors` list, the sensors come from this list. Otherwise, they come from the `temp_*` fields of `/api/v4/system`, and `name` is the same as `sensor`. The source is selected once, at startup, because the two sources use different ids for the same sensor. If the `/api/v6/system/` request fails, the system collector fails, as for a failure of `/api/v4/system`: it keeps the previous collection, and `collector_success{collector="system"}` is 0.
+When the box API version is 6 or higher, and `/api/v6/system/` has a `sensors` list, the sensors come from this list. Otherwise, they come from the `temp_*` fields of `/api/v4/system`, and `name` is the same as `sensor`. The source is selected at startup, and again only when the capabilities of the box change (see [Capabilities](#capabilities)), because the two sources use different ids for the same sensor. If the `/api/v6/system/` request fails, the system collector fails, as for a failure of `/api/v4/system`: it keeps the previous collection, and `collector_success{collector="system"}` is 0.
 
 The sensors depend on the model. On a Freebox Delta:
 
@@ -223,7 +223,7 @@ fbx_exporter_collector_last_success_timestamp_seconds{collector="vm"} 1794097253
 fbx_exporter_collector_duration_seconds{collector="vm"} 0.064
 ```
 
-`collector_success` is 0 when the collector failed. The lan_browser and wifi collectors also report 0 when the devices of an interface or an expected access point could not be fetched, while still exposing the others; failures of the optional wifi channel usage and neighbors endpoints, unavailable on some models, are only logged at debug level. Each collector fetches everything from the box before replacing its metrics, so a scrape during these requests still sees the previous collection, and a failed collector keeps exposing its last known values and its last success timestamp. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until the exporter restarts. Connecting to the box times out after 2 seconds, and each request after 5 seconds: raise `connect_timeout` and `request_timeout` in the `[api]` section if the box is reached through a slow link, such as a VPN.
+`collector_success` is 0 when the collector failed. The lan_browser and wifi collectors also report 0 when the devices of an interface or an expected access point could not be fetched, while still exposing the others; failures of the optional wifi channel usage and neighbors endpoints, unavailable on some models, are only logged at debug level. Each collector fetches everything from the box before replacing its metrics, so a scrape during these requests still sees the previous collection, and a failed collector keeps exposing its last known values and its last success timestamp. A collector requested in the configuration but whose support could not be detected at startup is exposed with `collector_success` 0 until its support is detected (see [Capabilities](#capabilities)). Connecting to the box times out after 2 seconds, and each request after 5 seconds: raise `connect_timeout` and `request_timeout` in the `[api]` section if the box is reached through a slow link, such as a VPN.
 
 A collector that never succeeded has no last success timestamp, so alert on both failing and stale collectors, for instance:
 
@@ -236,7 +236,7 @@ with a `for` duration of a few refresh intervals on the first rule.
 
 ## API Version Support
 
-Each new collector calls a fixed API version prefix, and is disabled when the box API version (read from `/api_version` at startup) is lower. The prefixes below were checked on a Freebox Delta (API 16): the vm, vpn and ddns endpoints answer identically from their minimum version up to 16. The raid minimum is the version of the first documentation of the endpoint, its actual introduction version is unknown:
+Each new collector calls a fixed API version prefix, and is disabled when the box API version (read from `/api_version`, see [Capabilities](#capabilities)) is lower. The prefixes below were checked on a Freebox Delta (API 16): the vm, vpn and ddns endpoints answer identically from their minimum version up to 16. The raid minimum is the version of the first documentation of the endpoint, its actual introduction version is unknown:
 
 | Collector | Minimum API version | Additional requirement |
 |-----------|---------------------|------------------------|
@@ -244,6 +244,18 @@ Each new collector calls a fixed API version prefix, and is disabled when the bo
 | raid | 8 | |
 | vpn | 4 | router mode |
 | ddns | 4 | router mode |
+
+## Capabilities
+
+At startup, the exporter detects what the box supports: API version, network mode, wifi, virtual machines and the sensors list. It detects them again:
+
+- after a restart of the box, e.g. for a firmware update: when the box no longer knows the session of the exporter, or when the collectors work again after all of them failed;
+- every hour, e.g. for a change of the network mode;
+- while a capability could not be detected, at most once a minute at first, then less and less often, down to once every 15 minutes.
+
+Nothing is detected while the box refuses the login, and only the capabilities of the collectors enabled in `[metrics]` count. A change is applied once two consecutive detections agree, since a box that just restarted may answer before all its services are up. The collectors are then rebuilt and collected once; their metrics replace the previous ones only if every collector that worked still works, otherwise the rebuild is attempted again later. After a rebuild, the series of a collector that is no longer supported disappear, and a collector that still fails loses its last success timestamp; the others go on, already collected, and the counters keep the values of the box. Disabling the wifi of the box is such a change: the wifi collector is removed, as when the exporter starts with the wifi disabled.
+
+`fbx_exporter_system_api_version`, `fbx_exporter_system_box_model_name` and `fbx_exporter_system_device_name` give the API version, model name and device name read from `/api_version` at the last detection, e.g. `16.1`, `Freebox v7 (r1)` and `Freebox Server`: `/api/v4/system` of a Freebox Delta does not have them.
 
 ## Virtual Machine Metrics
 
