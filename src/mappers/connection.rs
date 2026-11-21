@@ -5,7 +5,8 @@ use models::{
     XdslInfo, XdslStats, XdslStatus,
 };
 use prometheus_exporter::prometheus::{
-    register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, IntGauge, IntGaugeVec,
+    Registry,
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
@@ -88,353 +89,417 @@ pub struct ConnectionMetricMap<'a> {
 }
 
 impl<'a> ConnectionMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         Self {
             factory,
             media: None,
             link_labels: None,
             managed_client: None,
-            bytes_down_metric: register_int_gauge!(
+            bytes_down_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_bytes_down"),
-                format!("{prefix}_connection_bytes_down")
+                format!("{prefix}_connection_bytes_down"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_bytes_down gauge: {e}")),
-            bytes_up_metric: register_int_gauge!(
+            bytes_up_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_bytes_up"),
-                format!("{prefix}_connection_bytes_up")
+                format!("{prefix}_connection_bytes_up"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_bytes_up gauge: {e}")),
-            rate_down_metric: register_int_gauge!(
+            rate_down_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_rate_down"),
-                format!("{prefix}_connection_rate_down")
+                format!("{prefix}_connection_rate_down"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_rate_down gauge: {e}")),
-            rate_up_metric: register_int_gauge!(
+            rate_up_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_rate_up"),
-                format!("{prefix}_connection_rate_up")
+                format!("{prefix}_connection_rate_up"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_rate_up gauge: {e}")),
-            bandwidth_down_metric: register_int_gauge!(
+            bandwidth_down_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_bandwidth_down"),
-                format!("{prefix}_connection_bandwidth_down")
+                format!("{prefix}_connection_bandwidth_down"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_bandwidth_down gauge: {e}")
             }),
-            bandwidth_up_metric: register_int_gauge!(
+            bandwidth_up_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_bandwidth_up"),
-                format!("{prefix}_connection_bandwidth_up")
+                format!("{prefix}_connection_bandwidth_up"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_bandwidth_up gauge: {e}")
             }),
-            type_metric: register_int_gauge_vec!(
+            type_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_type"),
                 format!("{prefix}_connection_type"),
-                &["type"]
+                &["type"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_type gauge: {e}")),
-            media_metric: register_int_gauge_vec!(
+            media_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_media"),
                 format!("{prefix}_connection_media"),
-                &["media"]
+                &["media"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_media gauge: {e}")),
-            state_metric: register_int_gauge_vec!(
+            state_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_state"),
                 format!("{prefix}_connection_state"),
-                &["state"]
+                &["state"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_state gauge: {e}")),
-            ipv4_metric: register_int_gauge_vec!(
+            ipv4_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_ipv4"),
                 format!("{prefix}_connection_ipv4"),
-                &["ipv4"]
+                &["ipv4"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_ipv4 gauge: {e}")),
-            ipv6_metric: register_int_gauge_vec!(
+            ipv6_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_ipv6"),
                 format!("{prefix}_connection_ipv6"),
-                &["ipv6"]
+                &["ipv6"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_ipv6 gauge: {e}")),
-            ping_metric: register_int_gauge!(
+            ping_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_ping"),
-                format!("{prefix}_connection_conf_ping")
+                format!("{prefix}_connection_conf_ping"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_conf_ping gauge: {e}")),
-            is_secure_pass_metric: register_int_gauge!(
+            is_secure_pass_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_is_secure_pass"),
-                format!("{prefix}_connection_conf_is_secure_pass")
+                format!("{prefix}_connection_conf_is_secure_pass"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_is_secure_pass gauge: {e}")
             }),
-            remote_access_port_metric: register_int_gauge!(
+            remote_access_port_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_remote_access_port"),
-                format!("{prefix}_connection_conf_remote_access_port")
+                format!("{prefix}_connection_conf_remote_access_port"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_remote_access_port gauge: {e}")
             }),
-            remote_access_metric: register_int_gauge!(
+            remote_access_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_remote_access"),
-                format!("{prefix}_connection_conf_remote_access")
+                format!("{prefix}_connection_conf_remote_access"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_remote_access gauge: {e}")
             }),
-            wol_metric: register_int_gauge!(
+            wol_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_wol_conf"),
-                format!("{prefix}_connection_conf_wol")
+                format!("{prefix}_connection_conf_wol"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_conf_wol gauge: {e}")),
-            adblock_metric: register_int_gauge!(
+            adblock_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_adblock"),
-                format!("{prefix}_connection_conf_adblock")
+                format!("{prefix}_connection_conf_adblock"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_adblock gauge: {e}")
             }),
-            adblock_not_set_metric: register_int_gauge!(
+            adblock_not_set_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_adblock_not_set"),
-                format!("{prefix}_connection_conf_adblock_not_set")
+                format!("{prefix}_connection_conf_adblock_not_set"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot {prefix}_create connection_conf_adblock_not_set: {e}")
             }),
-            api_remote_access_metric: register_int_gauge!(
+            api_remote_access_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_api_remote_access"),
-                format!("{prefix}_connection_conf_api_remote_access")
+                format!("{prefix}_connection_conf_api_remote_access"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_api_remote_access gauge: {e}")
             }),
-            allow_token_request_metric: register_int_gauge!(
+            allow_token_request_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_conf_allow_token_request"),
-                format!("{prefix}_connection_conf_allow_token_request")
+                format!("{prefix}_connection_conf_allow_token_request"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_allow_token_request gauge: {e}")
             }),
-            remote_access_ip_metric: register_int_gauge_vec!(
+            remote_access_ip_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_conf_remote_access_ip"),
                 format!("{prefix}_connection_conf_remote_access_ip"),
-                &["remote_access_ip"]
+                &["remote_access_ip"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_conf_remote_access_ip gauge: {e}")
             }),
-            ipv6_enabled_metric: register_int_gauge!(
+            ipv6_enabled_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ipv6_conf_ipv6_enabled"),
-                format!("{prefix}_connection_ipv6_conf_ipv6_enabled")
+                format!("{prefix}_connection_ipv6_conf_ipv6_enabled"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_create connection_ipv6_conf_ipv6_enabled: {e}")
             }),
-            delegations_metric: register_int_gauge_vec!(
+            delegations_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_ipv6_conf_delegations"),
                 format!("{prefix}_connection_ipv6_conf_delegations"),
-                &["prefix", "next_hop"]
+                &["prefix", "next_hop"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_create connection_ipv6_conf_delegations: {e}")
             }),
-            sfp_has_power_report_metric: register_int_gauge!(
+            sfp_has_power_report_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_has_power_report"),
-                format!("{prefix}_connection_ftth_sfp_has_power_report")
+                format!("{prefix}_connection_ftth_sfp_has_power_report"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_has_power_report gauge: {e}")
             }),
-            sfp_has_signal_metric: register_int_gauge!(
+            sfp_has_signal_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_has_signal"),
-                format!("{prefix}_connection_ftth_sfp_has_signal")
+                format!("{prefix}_connection_ftth_sfp_has_signal"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_has_signal gauge: {e}")
             }),
-            sfp_model_metric: register_int_gauge_vec!(
+            sfp_model_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_model"),
                 format!("{prefix}_connection_ftth_sfp_model"),
-                &["sfp_model"]
+                &["sfp_model"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_model gauge: {e}")
             }),
-            sfp_vendor_metric: register_int_gauge_vec!(
+            sfp_vendor_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_vendor"),
                 format!("{prefix}_connection_ftth_sfp_vendor"),
-                &["sfp_vendor"]
+                &["sfp_vendor"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_vendor gauge: {e}")
             }),
-            sfp_pwr_tx_metric: register_int_gauge!(
+            sfp_pwr_tx_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_pwr_tx"),
-                format!("{prefix}_connection_ftth_sfp_pwr_tx")
+                format!("{prefix}_connection_ftth_sfp_pwr_tx"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_pwr_tx gauge: {e}")
             }),
-            sfp_pwr_rx_metric: register_int_gauge!(
+            sfp_pwr_rx_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_pwr_rx"),
-                format!("{prefix}_connection_ftth_sfp_pwr_rx")
+                format!("{prefix}_connection_ftth_sfp_pwr_rx"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_pwr_rx gauge: {e}")
             }),
-            link_metric: register_int_gauge!(
+            link_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ftth_link"),
-                format!("{prefix}_connection_ftth_link")
+                format!("{prefix}_connection_ftth_link"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_connection_ftth_link gauge: {e}")),
-            sfp_alim_ok_metric: register_int_gauge!(
+            sfp_alim_ok_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ffth_sfp_alim_ok"),
-                format!("{prefix}_connection_ffth_sfp_alim_ok")
+                format!("{prefix}_connection_ffth_sfp_alim_ok"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ffth_sfp_alim_ok gauge: {e}")
             }),
-            sfp_serial_metric: register_int_gauge_vec!(
+            sfp_serial_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_ftth_sfp_serial"),
                 format!("{prefix}_connection_ftth_sfp_serial"),
-                &["sfp_serial"]
+                &["sfp_serial"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ftth_sfp_serial gauge: {e}")
             }),
-            sfp_present_metric: register_int_gauge!(
+            sfp_present_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_connection_ffth_sfp_present"),
-                format!("{prefix}_connection_ffth_sfp_present")
+                format!("{prefix}_connection_ffth_sfp_present"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_ffth_sfp_present gauge: {e}")
             }),
-            xdsl_status_uptime: register_int_gauge_vec!(
+            xdsl_status_uptime: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_status_uptime"),
                 format!("{prefix}_connection_xdsl_status_uptime"),
-                &["status", "protocol", "modulation"]
+                &["status", "protocol", "modulation"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_status_uptime gauge: {e}")
             }),
-            xdsl_stats_maxrate: register_int_gauge_vec!(
+            xdsl_stats_maxrate: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_maxrate"),
                 format!("{prefix}_connection_xdsl_stats_maxrate"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_maxrate gauge: {e}")
             }),
-            xdsl_stats_rate: register_int_gauge_vec!(
+            xdsl_stats_rate: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rate"),
                 format!("{prefix}_connection_xdsl_stats_rate"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rate gauge: {e}")
             }),
-            xdsl_stats_snr: register_int_gauge_vec!(
+            xdsl_stats_snr: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_snr"),
                 format!("{prefix}_connection_xdsl_stats_snr"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_snr gauge: {e}")
             }),
-            xdsl_stats_attn: register_int_gauge_vec!(
+            xdsl_stats_attn: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_attn"),
                 format!("{prefix}_connection_xdsl_stats_attn"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_attn gauge: {e}")
             }),
-            xdsl_stats_fec: register_int_gauge_vec!(
+            xdsl_stats_fec: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_fec"),
                 format!("{prefix}_connection_xdsl_stats_fec"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_fec gauge: {e}")
             }),
-            xdsl_stats_crc: register_int_gauge_vec!(
+            xdsl_stats_crc: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_crc"),
                 format!("{prefix}_connection_xdsl_stats_crc"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_crc gauge: {e}")
             }),
-            xdsl_stats_hec: register_int_gauge_vec!(
+            xdsl_stats_hec: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_hec"),
                 format!("{prefix}_connection_xdsl_stats_hec"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_hec gauge: {e}")
             }),
-            xdsl_stats_es: register_int_gauge_vec!(
+            xdsl_stats_es: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_es"),
                 format!("{prefix}_connection_xdsl_stats_es"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_es gauge: {e}")
             }),
-            xdsl_stats_ses: register_int_gauge_vec!(
+            xdsl_stats_ses: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_ses"),
                 format!("{prefix}_connection_xdsl_stats_ses"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_ses gauge: {e}")
             }),
-            xdsl_stats_rxmt: register_int_gauge_vec!(
+            xdsl_stats_rxmt: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rxmt"),
                 format!("{prefix}_connection_xdsl_stats_rxmt"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rxmt gauge: {e}")
             }),
-            xdsl_stats_rxmt_corr: register_int_gauge_vec!(
+            xdsl_stats_rxmt_corr: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rxmt_corr"),
                 format!("{prefix}_connection_xdsl_stats_rxmt_corr"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rxmt_corr gauge: {e}")
             }),
-            xdsl_stats_rxmt_uncorr: register_int_gauge_vec!(
+            xdsl_stats_rxmt_uncorr: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rxmt_uncorr"),
                 format!("{prefix}_connection_xdsl_stats_rxmt_uncorr"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rxmt_uncorr gauge: {e}")
             }),
-            xdsl_stats_rtx_tx: register_int_gauge_vec!(
+            xdsl_stats_rtx_tx: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rtx_tx"),
                 format!("{prefix}_connection_xdsl_stats_rtx_tx"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rtx_tx gauge: {e}")
             }),
-            xdsl_stats_rtx_c: register_int_gauge_vec!(
+            xdsl_stats_rtx_c: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rtx_c"),
                 format!("{prefix}_connection_xdsl_stats_rtx_c"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rtx_c gauge: {e}")
             }),
-            xdsl_stats_rtx_uc: register_int_gauge_vec!(
+            xdsl_stats_rtx_uc: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_connection_xdsl_stats_rtx_uc"),
                 format!("{prefix}_connection_xdsl_stats_rtx_uc"),
-                &["direction"]
+                &["direction"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_connection_xdsl_stats_rtx_uc gauge: {e}")

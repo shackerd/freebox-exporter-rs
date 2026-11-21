@@ -5,7 +5,9 @@ use crate::core::common::{
 };
 use async_trait::async_trait;
 use log::{debug, warn};
-use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::prometheus::{
+    register_int_gauge_vec_with_registry, IntGaugeVec, Registry,
+};
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
@@ -64,13 +66,28 @@ pub struct LanBrowserMetricMap<'a> {
 }
 
 impl<'a> LanBrowserMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         let prfx = format!("{prefix}_lan_browser");
 
         Self {
             factory,
             managed_client: None,
-            device_gauge: register_int_gauge_vec!(
+            device_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_device"),
                 "device, 1 for active",
                 &[
@@ -82,31 +99,36 @@ impl<'a> LanBrowserMetricMap<'a> {
                     "l2ident_id",
                     "l2ident_type",
                     "vendor_name"
-                ]
+                ],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_devices gauge: {e}")),
-            device_l3_connectivity_gauge: register_int_gauge_vec!(
+            device_l3_connectivity_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_device_l3_connectivity"),
                 "device l3 connectivity, 1 for active",
-                &["ident", "iface", "addr", "name", "af"]
+                &["ident", "iface", "addr", "name", "af"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_device_l3 gauge: {e}")),
-            device_last_activity: register_int_gauge_vec!(
+            device_last_activity: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_device_last_activity"),
                 "device last activity timestamp",
-                &["iface", "name"]
+                &["iface", "name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_device_last_activity gauge: {e}")),
-            device_name_gauge: register_int_gauge_vec!(
+            device_name_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_device_name"),
                 "device name",
-                &["name", "source", "ident", "iface"]
+                &["name", "source", "ident", "iface"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_name gauge: {e}")),
-            iface_gauge: register_int_gauge_vec!(
+            iface_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_iface_hosts"),
                 "network interfaces",
-                &["name"]
+                &["name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_ifaces gauge: {e}")),
         }

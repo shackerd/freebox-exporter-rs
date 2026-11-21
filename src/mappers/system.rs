@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{
-    register_int_gauge, register_int_gauge_vec, IntGauge, IntGaugeVec,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, IntGauge, IntGaugeVec,
+    Registry,
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
@@ -122,6 +123,10 @@ pub struct SystemMetricMap<'a> {
     managed_client: Option<ManagedHttpClient>,
     /// Whether the box lists its fans and sensors, see V6_SYSTEM_API_VERSION
     v6_system: bool,
+    /// Read from /api_version, see with_identity
+    api_version: Option<String>,
+    box_model_name: Option<String>,
+    device_name: Option<String>,
     fan_speed_metric: IntGaugeVec,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
@@ -148,139 +153,179 @@ pub struct SystemMetricMap<'a> {
 }
 
 impl<'a> SystemMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         Self {
             factory,
             managed_client: None,
             v6_system: false,
-            fan_speed_metric: register_int_gauge_vec!(
+            api_version: None,
+            box_model_name: None,
+            device_name: None,
+            fan_speed_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_fan_speed_rpm"),
                 "speed of each fan of the box",
-                &["id", "name"]
+                &["id", "name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_fan_speed_rpm gauge: {e}")),
-            mac_metric: register_int_gauge_vec!(
+            mac_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_mac"),
                 format!("{prefix}_system_mac"),
-                &["mac"]
+                &["mac"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_mac gauge: {e}")),
-            box_flavor_metric: register_int_gauge_vec!(
+            box_flavor_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_box_flavor"),
                 format!("{prefix}_system_box_flavor"),
-                &["box_flavor"]
+                &["box_flavor"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_box_flavor gauge: {e}")),
-            box_model_name_metric: register_int_gauge_vec!(
+            box_model_name_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_box_model_name"),
                 format!("{prefix}_system_box_model_name"),
-                &["model_name"]
+                &["model_name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_box_model_name gauge: {e}")),
-            device_name_metric: register_int_gauge_vec!(
+            device_name_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_device_name"),
                 format!("{prefix}_system_device_name"),
-                &["device_name"]
+                &["device_name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_device_name gauge: {e}")),
-            api_version_metric: register_int_gauge_vec!(
+            api_version_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_api_version"),
                 format!("{prefix}_system_api_version"),
-                &["api_version"]
+                &["api_version"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_api_version gauge: {e}")),
-            temp_hdd_metric: register_int_gauge!(
+            temp_hdd_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_temp_hdd"),
-                format!("{prefix}_system_temp_hdd")
+                format!("{prefix}_system_temp_hdd"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_hdd gauge: {e}")),
-            temp_t1_metric: register_int_gauge!(
+            temp_t1_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_temp_t1"),
-                format!("{prefix}_system_temp_t1")
+                format!("{prefix}_system_temp_t1"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_t1 gauge: {e}")),
-            temp_t2_metric: register_int_gauge!(
+            temp_t2_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_temp_t2"),
-                format!("{prefix}_system_temp_t2")
+                format!("{prefix}_system_temp_t2"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_t2 gauge: {e}")),
-            temp_cpu_metric: register_int_gauge_vec!(
+            temp_cpu_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_temp_cpu"),
                 format!("{prefix}_system_temp_cpu CPU core temperature"),
-                &["core"]
+                &["core"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpu gauge: {e}")),
-            temperature_metric: register_int_gauge_vec!(
+            temperature_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_temperature_celsius"),
                 "temperature of each sensor reported by the box",
-                &["sensor", "name"]
+                &["sensor", "name"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_system_temperature_celsius gauge: {e}")
             }),
             // Legacy metrics for backward compatibility
-            temp_cpub_metric: register_int_gauge!(
+            temp_cpub_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_temp_cpub"),
-                format!("{prefix}_system_temp_cpub")
+                format!("{prefix}_system_temp_cpub"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpub gauge: {e}")),
-            temp_cpum_metric: register_int_gauge!(
+            temp_cpum_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_temp_cpum"),
-                format!("{prefix}_system_temp_cpum")
+                format!("{prefix}_system_temp_cpum"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_cpum gauge: {e}")),
-            disk_status_metric: register_int_gauge_vec!(
+            disk_status_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_disk_status"),
                 format!("{prefix}_system_disk_status"),
-                &["disk_status"]
+                &["disk_status"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_disk_status gauge: {e}")),
-            box_authenticated_metric: register_int_gauge!(
+            box_authenticated_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_box_authenticated"),
-                format!("{prefix}_system_box_authenticated")
+                format!("{prefix}_system_box_authenticated"),
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_system_box_authenticated gauge: {e}")
             }),
-            board_name_metric: register_int_gauge_vec!(
+            board_name_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_board_name"),
                 format!("{prefix}_system_board_name"),
-                &["board_name"]
+                &["board_name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_board_name gauge: {e}")),
-            fan_rpm_metric: register_int_gauge!(
+            fan_rpm_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_fan_rpm"),
-                format!("{prefix}_system_fan_rpm")
+                format!("{prefix}_system_fan_rpm"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_fan_rpm gauge: {e}")),
-            temp_sw_metric: register_int_gauge!(
+            temp_sw_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_temp_sw"),
-                format!("{prefix}_system_temp_sw")
+                format!("{prefix}_system_temp_sw"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_temp_sw gauge: {e}")),
-            uptime_val_metric: register_int_gauge!(
+            uptime_val_metric: register_int_gauge_with_registry!(
                 format!("{prefix}_system_uptime_val"),
-                format!("{prefix}_system_uptime_val")
+                format!("{prefix}_system_uptime_val"),
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_uptime_val gauge: {e}")),
-            user_main_storage_metric: register_int_gauge_vec!(
+            user_main_storage_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_user_main_storage"),
                 format!("{prefix}_system_user_main_storage"),
-                &["user_main_storage"]
+                &["user_main_storage"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_system_user_main_storage gauge: {e}")
             }),
-            serial_metric: register_int_gauge_vec!(
+            serial_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_serial"),
                 format!("{prefix}_system_serial"),
-                &["serial"]
+                &["serial"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_serial gauge: {e}")),
-            firmware_version_metric: register_int_gauge_vec!(
+            firmware_version_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_system_firmware_version"),
                 format!("{prefix}_system_firmware_version"),
-                &["firmware_version"]
+                &["firmware_version"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_system_firmware_version gauge: {e}")
@@ -293,6 +338,20 @@ impl<'a> SystemMetricMap<'a> {
     /// fields of v4/system and there is no fan list
     pub fn with_v6_system(mut self, v6_system: bool) -> Self {
         self.v6_system = v6_system;
+        self
+    }
+
+    /// The version of the API, the model name and the device name read from /api_version when
+    /// the capabilities were detected: v4/system of a Freebox Delta does not give them
+    pub fn with_identity(
+        mut self,
+        api_version: Option<String>,
+        box_model_name: Option<String>,
+        device_name: Option<String>,
+    ) -> Self {
+        self.api_version = api_version;
+        self.box_model_name = box_model_name;
+        self.device_name = device_name;
         self
     }
 
@@ -420,19 +479,23 @@ impl<'a> SystemMetricMap<'a> {
             .set(1);
 
         // Set new metrics if available
-        if let Some(model_name) = &sys_cnf.box_model_name {
+        if let Some(model_name) = self
+            .box_model_name
+            .as_ref()
+            .or(sys_cnf.box_model_name.as_ref())
+        {
             self.box_model_name_metric
                 .with_label_values(&[model_name])
                 .set(1);
         }
 
-        if let Some(device_name) = &sys_cnf.device_name {
+        if let Some(device_name) = self.device_name.as_ref().or(sys_cnf.device_name.as_ref()) {
             self.device_name_metric
                 .with_label_values(&[device_name])
                 .set(1);
         }
 
-        if let Some(api_version) = &sys_cnf.api_version {
+        if let Some(api_version) = self.api_version.as_ref().or(sys_cnf.api_version.as_ref()) {
             self.api_version_metric
                 .with_label_values(&[api_version])
                 .set(1);
@@ -875,6 +938,31 @@ mod tests_collect {
 
         assert_eq!(before, during);
         assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
+    }
+
+    #[tokio::test]
+    async fn set_exposes_the_identity_of_the_capabilities() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_api_version";
+        // v4/system of a Freebox Delta has no api_version
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string()).with_identity(
+            Some("16.1".to_string()),
+            Some("Freebox v7 (r1)".to_string()),
+            Some("Freebox Server".to_string()),
+        );
+
+        serve(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        for line in [
+            format!("{prefix}_system_api_version{{api_version=\"16.1\"}} 1"),
+            format!("{prefix}_system_box_model_name{{model_name=\"Freebox v7 (r1)\"}} 1"),
+            format!("{prefix}_system_device_name{{device_name=\"Freebox Server\"}} 1"),
+        ] {
+            assert!(metrics.contains(&line), "{line} in {metrics:?}");
+        }
     }
 
     /// v6/system fans of a Freebox Delta, whose v4/system only has fan_rpm

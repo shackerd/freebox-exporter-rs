@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use log::debug;
-use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::prometheus::{
+    register_int_gauge_vec_with_registry, IntGaugeVec, Registry,
+};
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
@@ -117,28 +119,46 @@ pub struct DhcpMetricMap<'a> {
 }
 
 impl<'a> DhcpMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         let prfx: String = format!("{prefix}_dhcp");
 
         Self {
             factory,
             managed_client: None,
-            lease_remaining_gauge: register_int_gauge_vec!(
+            lease_remaining_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_lease_remaining",),
                 "Lease remaining time in milliseconds".to_string(),
                 &["id", "hostname", "ip", "mac", "is_static"],
+                registry
             )
             .unwrap_or_else(|e| panic!("Failed to create gauge for {prfx}_lease_remaining: {e}")),
-            refresh_time_gauge: register_int_gauge_vec!(
+            refresh_time_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_refresh_time"),
                 "Refresh time in milliseconds".to_string(),
                 &["id", "hostname", "ip", "mac", "is_static"],
+                registry
             )
             .unwrap_or_else(|e| panic!("Failed to create gauge for {prfx}_refresh_time: {e}")),
-            assign_time_gauge: register_int_gauge_vec!(
+            assign_time_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_assign_time"),
                 "Assign time in milliseconds".to_string(),
                 &["id", "hostname", "ip", "mac", "is_static"],
+                registry
             )
             .unwrap_or_else(|e| panic!("Failed to create gauge for {prfx}_assign_time: {e}")),
         }

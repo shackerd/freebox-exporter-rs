@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use log::debug;
-use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::prometheus::{
+    register_int_gauge_vec_with_registry, IntGaugeVec, Registry,
+};
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
 use serde::Deserialize;
@@ -33,43 +35,68 @@ pub struct LanMetricMap<'a> {
 }
 
 impl<'a> LanMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         let prfx = format!("{prefix}_lan_config");
         Self {
             factory,
             managed_client: None,
-            name_dns_metric: register_int_gauge_vec!(
+            name_dns_metric: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_name_dns"),
                 format!("{prfx}_name_dns"),
-                &["name_dns"]
+                &["name_dns"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_name_dns gauge: {e}")),
-            name_mdns_metric: register_int_gauge_vec!(
+            name_mdns_metric: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_name_mdns"),
                 format!("{prfx}_name_mdns"),
-                &["name_mdns"]
+                &["name_mdns"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_name_mdns gauge: {e}")),
-            name_metric: register_int_gauge_vec!(
+            name_metric: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_name"),
                 format!("{prfx}_name"),
-                &["name"]
+                &["name"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_name gauge: {e}")),
-            mode_metric: register_int_gauge_vec!(
+            mode_metric: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_mode"),
                 format!("{prfx}_mode"),
-                &["mode"]
+                &["mode"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_mode gauge: {e}")),
-            name_netbios_metric: register_int_gauge_vec!(
+            name_netbios_metric: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_name_netbios"),
                 format!("{prfx}_name_netbios"),
-                &["name_netbios"]
+                &["name_netbios"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_name_netbios gauge: {e}")),
-            ip_metric: register_int_gauge_vec!(format!("{prfx}_ip"), format!("{prfx}_ip"), &["ip"])
-                .unwrap_or_else(|e| panic!("cannot create {prfx}_ip gauge: {e}")),
+            ip_metric: register_int_gauge_vec_with_registry!(
+                format!("{prfx}_ip"),
+                format!("{prfx}_ip"),
+                &["ip"],
+                registry
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prfx}_ip gauge: {e}")),
         }
     }
 

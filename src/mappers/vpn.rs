@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{
-    register_int_counter_vec, register_int_gauge_vec, IntCounterVec, IntGaugeVec,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
+    IntGaugeVec, Registry,
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
@@ -73,112 +74,142 @@ pub struct VpnMetricMap<'a> {
 }
 
 impl<'a> VpnMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         Self {
             factory,
             managed_client: None,
-            server_state_metric: register_int_gauge_vec!(
+            server_state_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_server_state"),
                 "VPN server state, always 1",
-                &["name", "type", "state"]
+                &["name", "type", "state"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_server_state gauge: {e}")),
-            server_started_metric: register_int_gauge_vec!(
+            server_started_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_server_started"),
                 "1 if the VPN server is started, 0 otherwise",
-                &["name", "type"]
+                &["name", "type"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_server_started gauge: {e}")),
-            server_connections_metric: register_int_gauge_vec!(
+            server_connections_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_server_connections"),
                 "number of active VPN server connections",
-                &["name", "type"]
+                &["name", "type"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_server_connections gauge: {e}")),
-            server_authenticated_connections_metric: register_int_gauge_vec!(
+            server_authenticated_connections_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_server_authenticated_connections"),
                 "number of authenticated VPN server connections",
-                &["name", "type"]
+                &["name", "type"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_server_authenticated_connections gauge: {e}")
             }),
-            connections_rx_bytes_metric: register_int_gauge_vec!(
+            connections_rx_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_connections_rx_bytes"),
                 "bytes received by the VPN connections currently open, drops when one closes",
-                &["vpn"]
+                &["vpn"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_connections_rx_bytes gauge: {e}")
             }),
-            connections_tx_bytes_metric: register_int_gauge_vec!(
+            connections_tx_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_connections_tx_bytes"),
                 "bytes sent by the VPN connections currently open, drops when one closes",
-                &["vpn"]
+                &["vpn"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_connections_tx_bytes gauge: {e}")
             }),
-            client_enabled_metric: register_int_gauge_vec!(
+            client_enabled_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_enabled"),
                 "1 if the VPN client is enabled, 0 otherwise",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_enabled gauge: {e}")),
-            client_up_metric: register_int_gauge_vec!(
+            client_up_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_up"),
                 "1 if the VPN client is up, 0 otherwise",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_up gauge: {e}")),
-            client_state_metric: register_int_gauge_vec!(
+            client_state_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_state"),
                 "VPN client state, always 1",
-                &["state"]
+                &["state"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_state gauge: {e}")),
-            client_last_error_metric: register_int_gauge_vec!(
+            client_last_error_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_last_error"),
                 "VPN client last error, always 1",
-                &["last_error"]
+                &["last_error"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_vpn_client_last_error gauge: {e}")),
-            client_rate_up_bytes_per_second_metric: register_int_gauge_vec!(
+            client_rate_up_bytes_per_second_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_rate_up_bytes_per_second"),
                 "VPN client upload rate in bytes per second",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_client_rate_up_bytes_per_second gauge: {e}")
             }),
-            client_rate_down_bytes_per_second_metric: register_int_gauge_vec!(
+            client_rate_down_bytes_per_second_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_rate_down_bytes_per_second"),
                 "VPN client download rate in bytes per second",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_client_rate_down_bytes_per_second gauge: {e}")
             }),
-            client_bytes_up_metric: register_int_counter_vec!(
+            client_bytes_up_metric: register_int_counter_vec_with_registry!(
                 format!("{prefix}_vpn_client_uploaded_bytes_total"),
                 "total bytes uploaded by the VPN client, as reported by the box",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_client_uploaded_bytes_total counter: {e}")
             }),
-            client_bytes_down_metric: register_int_counter_vec!(
+            client_bytes_down_metric: register_int_counter_vec_with_registry!(
                 format!("{prefix}_vpn_client_downloaded_bytes_total"),
                 "total bytes downloaded by the VPN client, as reported by the box",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_client_downloaded_bytes_total counter: {e}")
             }),
-            client_last_up_timestamp_seconds_metric: register_int_gauge_vec!(
+            client_last_up_timestamp_seconds_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_vpn_client_last_up_timestamp_seconds"),
                 "timestamp of the last successful VPN client connection",
-                &[]
+                &[],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {prefix}_vpn_client_last_up_timestamp_seconds gauge: {e}")
