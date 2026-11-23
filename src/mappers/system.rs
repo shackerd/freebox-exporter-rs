@@ -47,6 +47,14 @@ struct V6System {
     sensors: Option<Vec<Measure>>,
 }
 
+/// The model of the box, from box_model and box_model_name of /api_version,
+/// e.g. "fbxgw7-r1/full" and "Freebox v7 (r1)"
+#[derive(Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct BoxModel {
+    pub model: Option<String>,
+    pub model_name: Option<String>,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct SystemConfig {
     pub mac: Option<String>,
@@ -122,6 +130,8 @@ pub struct SystemMetricMap<'a> {
     managed_client: Option<ManagedHttpClient>,
     /// Whether the box lists its fans and sensors, see V6_SYSTEM_API_VERSION
     v6_system: bool,
+    /// Read once at startup, None when the box does not tell
+    model: Option<BoxModel>,
     fan_speed_metric: IntGaugeVec,
     mac_metric: IntGaugeVec,
     box_flavor_metric: IntGaugeVec,
@@ -139,6 +149,7 @@ pub struct SystemMetricMap<'a> {
     disk_status_metric: IntGaugeVec,
     box_authenticated_metric: IntGauge,
     board_name_metric: IntGaugeVec,
+    model_info_metric: IntGaugeVec,
     fan_rpm_metric: IntGauge,
     temp_sw_metric: IntGauge,
     uptime_val_metric: IntGauge,
@@ -153,6 +164,7 @@ impl<'a> SystemMetricMap<'a> {
             factory,
             managed_client: None,
             v6_system: false,
+            model: None,
             fan_speed_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_fan_speed_rpm"),
                 "speed of each fan of the box",
@@ -173,13 +185,15 @@ impl<'a> SystemMetricMap<'a> {
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_box_flavor gauge: {e}")),
             box_model_name_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_box_model_name"),
-                format!("{prefix}_system_box_model_name"),
+                format!(
+                    "{prefix}_system_box_model_name: deprecated, use {prefix}_system_model_info"
+                ),
                 &["model_name"]
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_box_model_name gauge: {e}")),
             device_name_metric: register_int_gauge_vec!(
                 format!("{prefix}_system_device_name"),
-                format!("{prefix}_system_device_name"),
+                format!("{prefix}_system_device_name: deprecated, always \"Freebox Server\""),
                 &["device_name"]
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_device_name gauge: {e}")),
@@ -248,6 +262,12 @@ impl<'a> SystemMetricMap<'a> {
                 &["board_name"]
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_system_board_name gauge: {e}")),
+            model_info_metric: register_int_gauge_vec!(
+                format!("{prefix}_system_model_info"),
+                "model of the box, from /api_version",
+                &["model", "model_name"]
+            )
+            .unwrap_or_else(|e| panic!("cannot create {prefix}_system_model_info gauge: {e}")),
             fan_rpm_metric: register_int_gauge!(
                 format!("{prefix}_system_fan_rpm"),
                 format!("{prefix}_system_fan_rpm")
@@ -293,6 +313,12 @@ impl<'a> SystemMetricMap<'a> {
     /// fields of v4/system and there is no fan list
     pub fn with_v6_system(mut self, v6_system: bool) -> Self {
         self.v6_system = v6_system;
+        self
+    }
+
+    /// The model of the box, read at startup
+    pub fn with_model(mut self, model: Option<BoxModel>) -> Self {
+        self.model = model;
         self
     }
 
@@ -342,6 +368,7 @@ impl<'a> SystemMetricMap<'a> {
 
     fn reset_all(&mut self) {
         self.fan_speed_metric.reset();
+        self.model_info_metric.reset();
         self.mac_metric.reset();
         self.box_flavor_metric.reset();
         self.box_model_name_metric.reset();
@@ -462,6 +489,14 @@ impl<'a> SystemMetricMap<'a> {
         self.board_name_metric
             .with_label_values(&[&sys_cnf.board_name.clone().unwrap_or_default()])
             .set(1);
+        if let Some(BoxModel { model, model_name }) = &self.model {
+            self.model_info_metric
+                .with_label_values(&[
+                    model.as_deref().unwrap_or_default(),
+                    model_name.as_deref().unwrap_or_default(),
+                ])
+                .set(1);
+        }
         self.fan_rpm_metric.set(sys_cnf.fan_rpm.unwrap_or_default());
         for (id, name, rpm) in fans {
             self.fan_speed_metric
@@ -1068,5 +1103,49 @@ mod tests_collect {
 
         assert_eq!(before, during);
         assert!(scrape(prefix).contains(&format!("{prefix}_system_uptime_val 200")));
+    }
+
+    #[tokio::test]
+    async fn set_exposes_the_model_read_at_startup() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_model";
+        // without v6/system: the model does not depend on the sensors list
+        let mut map =
+            SystemMetricMap::new(&factory, prefix.to_string()).with_model(Some(BoxModel {
+                model: Some("fbxgw7-r1/full".to_string()),
+                model_name: Some("Freebox v7 (r1)".to_string()),
+            }));
+
+        serve(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+
+        let line = format!(
+            "{prefix}_system_model_info{{model=\"fbxgw7-r1/full\",model_name=\"Freebox v7 (r1)\"}} 1"
+        );
+        let metrics = scrape(prefix);
+        assert!(metrics.contains(&line), "{line} in {metrics:?}");
+    }
+
+    /// guard: no model read at startup, no series
+    #[tokio::test]
+    async fn no_model_when_the_box_does_not_tell() {
+        let (server, authenticator) = mock_api().await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_system_no_model";
+        let mut map = SystemMetricMap::new(&factory, prefix.to_string());
+
+        serve(&server, "/api/v4/system", system(100)).await;
+        map.set(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        assert!(
+            metrics.contains(&format!("{prefix}_system_uptime_val 100")),
+            "{metrics:?}"
+        );
+        assert!(
+            !metrics.iter().any(|l| l.contains("_system_model_info")),
+            "{metrics:?}"
+        );
     }
 }
