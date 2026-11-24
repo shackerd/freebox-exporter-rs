@@ -9,3 +9,4 @@ pub mod core;
 pub mod discovery;
 pub mod logger;
 pub mod prometheus;
+pub mod redetection;

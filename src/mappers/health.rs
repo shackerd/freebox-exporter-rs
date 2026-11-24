@@ -1,6 +1,8 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use prometheus_exporter::prometheus::{self, GaugeVec, IntGaugeVec, Opts};
+#[cfg(test)]
+use prometheus_exporter::prometheus;
+use prometheus_exporter::prometheus::{GaugeVec, IntGaugeVec, Opts, Registry};
 
 /// Self-monitoring metrics describing the outcome of each collector run,
 /// so a failing collector is visible in Prometheus instead of only in the logs
@@ -45,17 +47,30 @@ impl CollectorHealth {
         }
     }
 
-    /// Builds the metrics and registers them into the default registry
+    /// Builds the metrics and registers them into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn register(prefix: &str) -> Self {
+        Self::register_in(prefix, prometheus::default_registry())
+    }
+
+    /// Builds the metrics and registers them into `registry`
+    pub fn register_in(prefix: &str, registry: &Registry) -> Self {
         let health = Self::new(prefix);
-        prometheus::register(Box::new(health.success.clone()))
+        registry
+            .register(Box::new(health.success.clone()))
             .unwrap_or_else(|e| panic!("cannot register {prefix}_collector_success gauge: {e}"));
-        prometheus::register(Box::new(health.last_success.clone())).unwrap_or_else(|e| {
-            panic!("cannot register {prefix}_collector_last_success_timestamp_seconds gauge: {e}")
-        });
-        prometheus::register(Box::new(health.duration.clone())).unwrap_or_else(|e| {
-            panic!("cannot register {prefix}_collector_duration_seconds gauge: {e}")
-        });
+        registry
+            .register(Box::new(health.last_success.clone()))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "cannot register {prefix}_collector_last_success_timestamp_seconds gauge: {e}"
+                )
+            });
+        registry
+            .register(Box::new(health.duration.clone()))
+            .unwrap_or_else(|e| {
+                panic!("cannot register {prefix}_collector_duration_seconds gauge: {e}")
+            });
         health
     }
 

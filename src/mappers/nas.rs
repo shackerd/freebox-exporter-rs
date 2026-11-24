@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use log::debug;
 use prometheus_exporter::prometheus::{
-    register_int_counter_vec, register_int_gauge_vec, IntCounterVec, IntGaugeVec,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
+    IntGaugeVec, Registry,
 };
 use prometheus_exporter::UpdateLock;
 use reqwest::Client;
@@ -112,178 +113,217 @@ pub struct NasMetricMap<'a> {
 }
 
 impl<'a> NasMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         Self {
             factory,
             managed_client: None,
 
             // Disk metrics with labels for disk identification
-            disk_total_bytes_metric: register_int_gauge_vec!(
+            disk_total_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_total_bytes"),
                 format!("{prefix}_nas_disk_total_bytes Total disk size in bytes"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_total_bytes gauge: {e}")),
 
-            disk_state_metric: register_int_gauge_vec!(
+            disk_state_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_state"),
                 format!("{prefix}_nas_disk_state Disk state (1=enabled, 0=disabled, -1=error, 2=formatting)"),
-                &["disk_id", "disk_type", "model", "serial", "state"]
+                &["disk_id", "disk_type", "model", "serial", "state"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_state gauge: {e}")),
 
-            disk_temperature_metric: register_int_gauge_vec!(
+            disk_temperature_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_temperature_celsius"),
                 format!("{prefix}_nas_disk_temperature_celsius Disk temperature in Celsius"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_temperature_celsius gauge: {e}")),
 
-            disk_spinning_metric: register_int_gauge_vec!(
+            disk_spinning_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_spinning"),
                 format!("{prefix}_nas_disk_spinning Disk spinning status (1=spinning, 0=not spinning)"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_spinning gauge: {e}")),
 
-            disk_idle_metric: register_int_gauge_vec!(
+            disk_idle_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_idle"),
                 format!("{prefix}_nas_disk_idle Disk idle status (1=idle, 0=active)"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_idle gauge: {e}")),
 
-            disk_idle_duration_metric: register_int_gauge_vec!(
+            disk_idle_duration_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_idle_duration_seconds"),
                 format!("{prefix}_nas_disk_idle_duration_seconds Disk idle duration in seconds"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_idle_duration_seconds gauge: {e}")),
 
-            disk_active_duration_metric: register_int_gauge_vec!(
+            disk_active_duration_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_active_duration_seconds"),
                 format!("{prefix}_nas_disk_active_duration_seconds Disk active duration in seconds"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_active_duration_seconds gauge: {e}")),
 
-            disk_time_before_spindown_metric: register_int_gauge_vec!(
+            disk_time_before_spindown_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_time_before_spindown_seconds"),
                 format!("{prefix}_nas_disk_time_before_spindown_seconds Time before disk spindown in seconds"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_time_before_spindown_seconds gauge: {e}")),
 
-            disk_connector_info_metric: register_int_gauge_vec!(
+            disk_connector_info_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_connector_info"),
                 format!("{prefix}_nas_disk_connector_info Disk physical connector ID"),
-                &["disk_id", "disk_type", "model", "serial", "connector"]
+                &["disk_id", "disk_type", "model", "serial", "connector"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_connector_info gauge: {e}")),
 
-            disk_table_type_info_metric: register_int_gauge_vec!(
+            disk_table_type_info_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_table_type_info"),
                 format!("{prefix}_nas_disk_table_type_info Disk partition table type"),
-                &["disk_id", "disk_type", "model", "serial", "table_type"]
+                &["disk_id", "disk_type", "model", "serial", "table_type"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_table_type_info gauge: {e}")),
 
-            disk_firmware_info_metric: register_int_gauge_vec!(
+            disk_firmware_info_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_firmware_info"),
                 format!("{prefix}_nas_disk_firmware_info Disk firmware version"),
-                &["disk_id", "disk_type", "model", "serial", "firmware"]
+                &["disk_id", "disk_type", "model", "serial", "firmware"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_firmware_info gauge: {e}")),
 
-            disk_operation_progress_metric: register_int_gauge_vec!(
+            disk_operation_progress_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_operation_progress_percent"),
                 format!("{prefix}_nas_disk_operation_progress_percent Disk operation progress percentage"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_operation_progress_percent gauge: {e}")),
 
-            disk_operation_steps_metric: register_int_gauge_vec!(
+            disk_operation_steps_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_disk_operation_steps"),
                 format!("{prefix}_nas_disk_operation_steps Disk operation steps (done/total)"),
-                &["disk_id", "disk_type", "model", "serial", "step_type"]
+                &["disk_id", "disk_type", "model", "serial", "step_type"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_operation_steps gauge: {e}")),
 
-            disk_read_requests_metric: register_int_counter_vec!(
+            disk_read_requests_metric: register_int_counter_vec_with_registry!(
                 format!("{prefix}_nas_disk_read_requests_total"),
                 format!("{prefix}_nas_disk_read_requests_total Read requests counted by the box since its start"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_read_requests_total counter: {e}")),
 
-            disk_read_error_requests_metric: register_int_counter_vec!(
+            disk_read_error_requests_metric: register_int_counter_vec_with_registry!(
                 format!("{prefix}_nas_disk_read_error_requests_total"),
                 format!("{prefix}_nas_disk_read_error_requests_total Failed read requests counted by the box since its start"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_read_error_requests_total counter: {e}")),
 
-            disk_write_requests_metric: register_int_counter_vec!(
+            disk_write_requests_metric: register_int_counter_vec_with_registry!(
                 format!("{prefix}_nas_disk_write_requests_total"),
                 format!("{prefix}_nas_disk_write_requests_total Write requests counted by the box since its start"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_write_requests_total counter: {e}")),
 
-            disk_write_error_requests_metric: register_int_counter_vec!(
+            disk_write_error_requests_metric: register_int_counter_vec_with_registry!(
                 format!("{prefix}_nas_disk_write_error_requests_total"),
                 format!("{prefix}_nas_disk_write_error_requests_total Failed write requests counted by the box since its start"),
-                &["disk_id", "disk_type", "model", "serial"]
+                &["disk_id", "disk_type", "model", "serial"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_disk_write_error_requests_total counter: {e}")),
 
             // Partition metrics with labels for partition identification
-            partition_total_bytes_metric: register_int_gauge_vec!(
+            partition_total_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_total_bytes"),
                 format!("{prefix}_nas_partition_total_bytes Partition total size in bytes"),
-                &["partition_id", "disk_id", "label", "fstype"]
+                &["partition_id", "disk_id", "label", "fstype"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_total_bytes gauge: {e}")),
 
-            partition_used_bytes_metric: register_int_gauge_vec!(
+            partition_used_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_used_bytes"),
                 format!("{prefix}_nas_partition_used_bytes Partition used space in bytes"),
-                &["partition_id", "disk_id", "label", "fstype"]
+                &["partition_id", "disk_id", "label", "fstype"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_used_bytes gauge: {e}")),
 
-            partition_free_bytes_metric: register_int_gauge_vec!(
+            partition_free_bytes_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_free_bytes"),
                 format!("{prefix}_nas_partition_free_bytes Partition free space in bytes"),
-                &["partition_id", "disk_id", "label", "fstype"]
+                &["partition_id", "disk_id", "label", "fstype"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_free_bytes gauge: {e}")),
 
-            partition_state_metric: register_int_gauge_vec!(
+            partition_state_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_state"),
                 format!("{prefix}_nas_partition_state Partition state (1=mounted, 0=unmounted, -1=error, 2=checking, 3=formatting, 4=mounting, 5=maintenance, 6=umounting, 7=ejecting)"),
-                &["partition_id", "disk_id", "label", "fstype", "state"]
+                &["partition_id", "disk_id", "label", "fstype", "state"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_state gauge: {e}")),
 
-            partition_fsck_result_metric: register_int_gauge_vec!(
+            partition_fsck_result_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_fsck_result"),
                 format!("{prefix}_nas_partition_fsck_result File system check result (0=no_run_yet, 1=running, 2=fs_clean, 3=fs_corrected, 4=fs_needs_correction, -1=failed)"),
-                &["partition_id", "disk_id", "label", "fstype", "fsck_result"]
+                &["partition_id", "disk_id", "label", "fstype", "fsck_result"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_fsck_result gauge: {e}")),
 
-            partition_operation_progress_metric: register_int_gauge_vec!(
+            partition_operation_progress_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_operation_progress_percent"),
                 format!("{prefix}_nas_partition_operation_progress_percent Partition operation progress percentage"),
-                &["partition_id", "disk_id", "label", "fstype"]
+                &["partition_id", "disk_id", "label", "fstype"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_operation_progress_percent gauge: {e}")),
 
-            partition_operation_steps_metric: register_int_gauge_vec!(
+            partition_operation_steps_metric: register_int_gauge_vec_with_registry!(
                 format!("{prefix}_nas_partition_operation_steps"),
                 format!("{prefix}_nas_partition_operation_steps Partition operation steps (done/total)"),
-                &["partition_id", "disk_id", "label", "fstype", "step_type"]
+                &["partition_id", "disk_id", "label", "fstype", "step_type"],
+                registry,
             )
             .unwrap_or_else(|e| panic!("cannot create {prefix}_nas_partition_operation_steps gauge: {e}")),
         }

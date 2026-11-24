@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::debug;
-use prometheus_exporter::prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus_exporter::prometheus::{
+    register_int_gauge_vec_with_registry, IntGaugeVec, Registry,
+};
 use prometheus_exporter::UpdateLock;
 use regex::Regex;
 use reqwest::Client;
@@ -101,223 +103,271 @@ pub struct SwitchMetricMap<'a> {
 }
 
 impl<'a> SwitchMetricMap<'a> {
+    /// Registers its metrics into the default registry, as the tests read it
+    #[cfg(test)]
     pub fn new(factory: &'a AuthenticatedHttpClientFactory<'a>, prefix: String) -> Self {
+        Self::new_in(
+            factory,
+            prefix,
+            prometheus_exporter::prometheus::default_registry(),
+        )
+    }
+
+    /// Registers its metrics into `registry`, the registry of its generation of collectors
+    pub fn new_in(
+        factory: &'a AuthenticatedHttpClientFactory<'a>,
+        prefix: String,
+        registry: &Registry,
+    ) -> Self {
         let prfx: String = format!("{prefix}_switch");
         let stats_prfx: String = format!("{prfx}_stats");
 
         Self {
             factory,
             managed_client: None,
-            rx_packets_rate_gauge: register_int_gauge_vec!(
+            rx_packets_rate_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_packets_rate"),
                 "rx packet rate",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_packet_rate gauge: {e}")),
-            rx_good_bytes_gauge: register_int_gauge_vec!(
+            rx_good_bytes_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_good_bytes"),
                 "rx good bytes",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_good_bytes gauge: {e}")),
-            rx_oversize_packets_gauge: register_int_gauge_vec!(
+            rx_oversize_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_oversize_packets"),
                 "rx oversize packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_rx_oversize_packets gauge: {e}")
             }),
-            rx_unicast_packets_gauge: register_int_gauge_vec!(
+            rx_unicast_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_unicast_packets"),
                 "rx unicast packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_unicast_packets gauge: {e}")),
-            tx_bytes_rate_gauge: register_int_gauge_vec!(
+            tx_bytes_rate_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_bytes_rate"),
                 "tx bytes rate",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_bytes_rate gauge: {e}")),
-            tx_unicast_packets_gauge: register_int_gauge_vec!(
+            tx_unicast_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_unicast_packets"),
                 "tx unicast packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_unicast_packets gauge: {e}")),
-            rx_bytes_rate_gauge: register_int_gauge_vec!(
+            rx_bytes_rate_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_bytes_rate"),
                 "rx bytes rate",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_bytes_rate gauge: {e}")),
-            tx_packets_gauge: register_int_gauge_vec!(
+            tx_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_packets"),
                 "tx packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_packets gauge: {e}")),
-            tx_collisions_gauge: register_int_gauge_vec!(
+            tx_collisions_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_collisions"),
                 "tx collisions",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_collisions gauge: {e}")),
-            tx_packets_rate_gauge: register_int_gauge_vec!(
+            tx_packets_rate_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_packets_rate"),
                 "tx packets rate",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_packets_rate gauge: {e}")),
-            tx_fcs_gauge: register_int_gauge_vec!(
+            tx_fcs_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_fcs"),
                 "tx fcs",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_fcs gauge: {e}")),
-            tx_bytes_gauge: register_int_gauge_vec!(
+            tx_bytes_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_bytes"),
                 "tx bytes",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_bytes gauge: {e}")),
-            rx_jabber_packets_gauge: register_int_gauge_vec!(
+            rx_jabber_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_jabber_packets"),
                 "rx jabber packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_jabber_packets gauge: {e}")),
-            tx_single_gauge: register_int_gauge_vec!(
+            tx_single_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_single"),
                 "tx single",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_single gauge: {e}")),
-            tx_excessive_gauge: register_int_gauge_vec!(
+            tx_excessive_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_excessive"),
                 "tx excessive",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_excessive gauge: {e}")),
-            rx_pause_gauge: register_int_gauge_vec!(
+            rx_pause_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_pause"),
                 "rx pause",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_pause gauge: {e}")),
-            rx_multicast_packets_gauge: register_int_gauge_vec!(
+            rx_multicast_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_multicast_packets"),
                 "rx multicast packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_rx_multicast_packets gauge: {e}")
             }),
-            tx_pause_gauge: register_int_gauge_vec!(
+            tx_pause_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_pause"),
                 "tx pause",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_pause gauge: {e}")),
-            rx_good_packets_gauge: register_int_gauge_vec!(
+            rx_good_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_good_packets"),
                 "tx good packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_good_packets gauge: {e}")),
-            rx_broadcast_packets_gauge: register_int_gauge_vec!(
+            rx_broadcast_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_broadcast_packets"),
                 "rx broadcast packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_rx_broadcast_packets gauge: {e}")
             }),
-            tx_multiple_gauge: register_int_gauge_vec!(
+            tx_multiple_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_multiple"),
                 "tx multiple",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_multiple gauge: {e}")),
-            tx_deferred_gauge: register_int_gauge_vec!(
+            tx_deferred_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_deferred"),
                 "tx deferred",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_deferred gauge: {e}")),
-            tx_late_gauge: register_int_gauge_vec!(
+            tx_late_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_late"),
                 "tx late",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_tx_late gauge: {e}")),
-            tx_multicast_packets_gauge: register_int_gauge_vec!(
+            tx_multicast_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_multicast_packets"),
                 "tx multicast packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_tx_multicast_packets gauge: {e}")
             }),
-            rx_fcs_packets_gauge: register_int_gauge_vec!(
+            rx_fcs_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_fcs_packets"),
                 "rx fcs packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_fcs_packets gauge: {e}")),
-            tx_broadcast_packets_gauge: register_int_gauge_vec!(
+            tx_broadcast_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_tx_broadcast_packets"),
                 "tx broadcast packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_tx_broadcast_packets gauge: {e}")
             }),
-            rx_err_packets_gauge: register_int_gauge_vec!(
+            rx_err_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_err_packets"),
                 "rx err packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_err_packets gauge: {e}")),
-            rx_fragments_packets_gauge: register_int_gauge_vec!(
+            rx_fragments_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_fragments_packets"),
                 "rx fragments packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_rx_fragments_packets gauge: {e}")
             }),
-            rx_bad_bytes_gauge: register_int_gauge_vec!(
+            rx_bad_bytes_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_bad_bytes"),
                 "rx bad bytes",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {stats_prfx}_rx_bad_bytes gauge: {e}")),
-            rx_undersize_packets_gauge: register_int_gauge_vec!(
+            rx_undersize_packets_gauge: register_int_gauge_vec_with_registry!(
                 format!("{stats_prfx}_rx_undersize_packets"),
                 "rx undersize packets",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| {
                 panic!("cannot create {stats_prfx}_rx_undersize_packets gauge: {e}")
             }),
-            port_status_gauge: register_int_gauge_vec!(
+            port_status_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_port_status"),
                 "port status, 1 for link up",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_port_status gauge: {e}")),
-            port_speed_gauge: register_int_gauge_vec!(
+            port_speed_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_port_speed"),
                 "port status speed",
-                &["port"]
+                &["port"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_port_speed gauge: {e}")),
-            port_mac_list_gauge: register_int_gauge_vec!(
+            port_mac_list_gauge: register_int_gauge_vec_with_registry!(
                 format!("{prfx}_port_mac_list"),
                 "port mac list, always 1",
-                &["port", "mac", "hostname"]
+                &["port", "mac", "hostname"],
+                registry
             )
             .unwrap_or_else(|e| panic!("cannot create {prfx}_port_mac_list gauge: {e}")),
         }

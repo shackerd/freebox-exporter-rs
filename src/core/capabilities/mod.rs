@@ -1,3 +1,4 @@
+use crate::core::configuration::sections::CapabilitiesConfiguration;
 use crate::mappers::wifi::models::WifiConfig;
 
 use super::common::{
@@ -6,7 +7,7 @@ use super::common::{
     transport::{get_api_result, FreeboxResponse, FreeboxResponseError},
 };
 use crate::mappers::{ddns, raid, system, vm, vpn};
-use log::{debug, info, warn};
+use log::{debug, warn};
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -39,6 +40,7 @@ struct ApiVersionInfo {
     // any type: an unexpected one must not prevent reading api_version
     box_model: Option<serde_json::Value>,
     box_model_name: Option<serde_json::Value>,
+    device_name: Option<serde_json::Value>,
 }
 
 /// A non empty text, None for any other value
@@ -49,16 +51,43 @@ fn text(value: Option<serde_json::Value>) -> Option<String> {
     }
 }
 
+/// What /api_version tells about the box
+struct ApiVersion {
+    major: u32,
+    version: String,
+    model: Option<system::BoxModel>,
+    device_name: Option<String>,
+}
+
 /// First API version exposing SystemConfig.model_info, measured on a Freebox Delta
 const MODEL_INFO_MIN_API_VERSION: u32 = 6;
 
 pub struct CapabilitiesAgent<'a> {
     client_factory: &'a AuthenticatedHttpClientFactory<'a>,
+    /// Logs what is detected at debug level rather than info, for a detection done again
+    quiet: bool,
 }
 
 impl<'a> CapabilitiesAgent<'a> {
     pub fn new(client_factory: &'a AuthenticatedHttpClientFactory) -> Self {
-        CapabilitiesAgent { client_factory }
+        CapabilitiesAgent {
+            client_factory,
+            quiet: false,
+        }
+    }
+
+    /// Logs what is detected at debug level, as for a periodic detection
+    pub fn quiet(mut self) -> Self {
+        self.quiet = true;
+        self
+    }
+
+    fn detected_level(&self) -> log::Level {
+        if self.quiet {
+            log::Level::Debug
+        } else {
+            log::Level::Info
+        }
     }
 
     /// Load the capabilities of the Freebox
@@ -91,7 +120,8 @@ impl<'a> CapabilitiesAgent<'a> {
             .unwrap_or("")
             .eq_ignore_ascii_case("router");
 
-        info!(
+        log::log!(
+            self.detected_level(),
             "detected freebox network mode: {}",
             lan_config.mode.as_deref().unwrap_or("unknown")
         );
@@ -99,15 +129,15 @@ impl<'a> CapabilitiesAgent<'a> {
         let is_wifi_enabled = self.is_wifi_enabled().await?;
         // only vm, raid, vpn and ddns depend on these probes: their failure leaves those
         // capabilities unknown (None) instead of preventing the exporter from starting
-        let (api_major, probe, model) = match self.get_api_version().await {
-            Ok((api_major, model)) => match self.probe_system(api_major).await {
-                Ok(probe) => (Some(api_major), Some(probe), model),
+        let (api, probe) = match self.get_api_version().await {
+            Ok(api) => match self.probe_system(api.major).await {
+                Ok(probe) => (Some(api), Some(probe)),
                 Err(e) => {
                     warn!(
                         "cannot detect virtual machines and sensors support: {}",
                         with_causes(e.as_ref())
                     );
-                    (Some(api_major), None, model)
+                    (Some(api), None)
                 }
             },
             Err(e) => {
@@ -115,9 +145,10 @@ impl<'a> CapabilitiesAgent<'a> {
                     "cannot detect freebox api version: {}",
                     with_causes(e.as_ref())
                 );
-                (None, None, None)
+                (None, None)
             }
         };
+        let api_major = api.as_ref().map(|api| api.major);
 
         Ok(Capabilities {
             connection: Some(true),
@@ -139,15 +170,18 @@ impl<'a> CapabilitiesAgent<'a> {
                 .zip(probe)
                 .map(|(major, probe)| major >= system::V6_SYSTEM_API_VERSION && probe.has_sensors),
             network_mode: lan_config.mode,
-            model,
+            api_version: api.as_ref().map(|api| api.version.clone()),
+            model: api.as_ref().and_then(|api| api.model.clone()),
+            device_name: api.and_then(|api| api.device_name),
         })
     }
 
-    /// Major version of the API supported by the box, e.g. 16 for "16.0", and its model.
-    /// Collectors compare the version with the API version prefix they call
+    /// Version of the API supported by the box, e.g. "16.1", its major version, 16, and the
+    /// model of the box. Collectors compare the major version with the API version prefix they
+    /// call
     async fn get_api_version(
         &self,
-    ) -> Result<(u32, Option<system::BoxModel>), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<ApiVersion, Box<dyn std::error::Error + Send + Sync>> {
         let client = self.client_factory.create_managed_client().await?.get()?;
         // api_url is <root>/api/ while api_version is served at <root>/api_version
         let url = format!(
@@ -169,13 +203,20 @@ impl<'a> CapabilitiesAgent<'a> {
                 )))
             })?;
 
-        info!("detected freebox api version: {version}");
+        log::log!(
+            self.detected_level(),
+            "detected freebox api version: {version}"
+        );
         let model = system::BoxModel {
             model: text(res.box_model),
             model_name: text(res.box_model_name),
         };
-        let model = (model != system::BoxModel::default()).then_some(model);
-        Ok((major, model))
+        Ok(ApiVersion {
+            major,
+            version,
+            model: (model != system::BoxModel::default()).then_some(model),
+            device_name: text(res.device_name),
+        })
     }
 
     /// Whether the hardware supports virtual machines, from SystemConfig.model_info, and
@@ -202,8 +243,14 @@ impl<'a> CapabilitiesAgent<'a> {
             .and_then(|m| m.has_vm)
             .unwrap_or(false);
 
-        info!("detected freebox virtual machines support: {has_vm}");
-        info!("detected freebox sensors list: {has_sensors}");
+        log::log!(
+            self.detected_level(),
+            "detected freebox virtual machines support: {has_vm}"
+        );
+        log::log!(
+            self.detected_level(),
+            "detected freebox sensors list: {has_sensors}"
+        );
         Ok(SystemProbe { has_vm, has_sensors })
     }
 
@@ -232,7 +279,7 @@ impl<'a> CapabilitiesAgent<'a> {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct Capabilities {
     #[allow(dead_code)] // maybe use it in the future
     pub connection: Option<bool>,
@@ -254,8 +301,100 @@ pub struct Capabilities {
     /// is unknown
     pub v6_system: Option<bool>,
     pub network_mode: Option<String>,
+    /// Version of the API, e.g. "16.1", None when it could not be read
+    pub api_version: Option<String>,
     /// From /api_version, None when the box does not tell or its API version is unknown
     pub model: Option<system::BoxModel>,
+    /// From /api_version, e.g. "Freebox Server"
+    pub device_name: Option<String>,
+}
+
+impl Capabilities {
+    /// Whether every capability depending on a detection is known: the API version, read for
+    /// vm, raid, vpn and ddns, and the sensors list of v6/system/
+    pub fn is_complete(&self) -> bool {
+        [self.vm, self.raid, self.vpn, self.ddns, self.v6_system]
+            .iter()
+            .all(Option::is_some)
+    }
+
+    /// The capabilities that differ from `other`, e.g. "raid: Some(false) -> Some(true)"
+    pub fn changes(&self, other: &Capabilities) -> String {
+        let fields = [
+            ("connection", self.connection, other.connection),
+            ("system", self.system, other.system),
+            ("lan", self.lan, other.lan),
+            ("lan_browser", self.lan_browser, other.lan_browser),
+            ("switch", self.switch, other.switch),
+            ("wifi", self.wifi, other.wifi),
+            ("dhcp", self.dhcp, other.dhcp),
+            ("nas", self.nas, other.nas),
+            ("vm", self.vm, other.vm),
+            ("raid", self.raid, other.raid),
+            ("vpn", self.vpn, other.vpn),
+            ("ddns", self.ddns, other.ddns),
+            ("v6_system", self.v6_system, other.v6_system),
+        ];
+        let mut changes: Vec<String> = fields
+            .iter()
+            .filter(|(_, before, after)| before != after)
+            .map(|(name, before, after)| format!("{name}: {before:?} -> {after:?}"))
+            .collect();
+        if self.api_version != other.api_version {
+            changes.push(format!(
+                "api_version: {:?} -> {:?}",
+                self.api_version, other.api_version
+            ));
+        }
+        if self.model != other.model {
+            changes.push(format!("model: {:?} -> {:?}", self.model, other.model));
+        }
+        if self.device_name != other.device_name {
+            changes.push(format!(
+                "device_name: {:?} -> {:?}",
+                self.device_name, other.device_name
+            ));
+        }
+        if self.network_mode != other.network_mode {
+            changes.push(format!(
+                "network_mode: {:?} -> {:?}",
+                self.network_mode, other.network_mode
+            ));
+        }
+        changes.join(", ")
+    }
+
+    /// The capabilities that matter for `conf`: those of the collectors it does not enable are
+    /// set to `Some(false)`, so that their change neither rebuilds the collectors nor keeps a
+    /// detection pending
+    pub fn for_configuration(&self, conf: &CapabilitiesConfiguration) -> Capabilities {
+        let keep = |enabled: Option<bool>, capability: Option<bool>| {
+            if enabled == Some(true) {
+                capability
+            } else {
+                Some(false)
+            }
+        };
+        Capabilities {
+            connection: keep(conf.connection, self.connection),
+            system: keep(conf.system, self.system),
+            lan: keep(conf.lan, self.lan),
+            lan_browser: keep(conf.lan_browser, self.lan_browser),
+            switch: keep(conf.switch, self.switch),
+            wifi: keep(conf.wifi, self.wifi),
+            dhcp: keep(conf.dhcp, self.dhcp),
+            nas: keep(conf.nas, self.nas),
+            vm: keep(conf.vm, self.vm),
+            raid: keep(conf.raid, self.raid),
+            vpn: keep(conf.vpn, self.vpn),
+            ddns: keep(conf.ddns, self.ddns),
+            v6_system: keep(conf.system, self.v6_system),
+            network_mode: self.network_mode.clone(),
+            api_version: self.api_version.clone(),
+            model: self.model.clone(),
+            device_name: self.device_name.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -332,6 +471,96 @@ mod tests {
 
     async fn load(api_version: &str, has_vm: bool) -> Capabilities {
         load_mode("router", api_version, has_vm).await
+    }
+
+    #[tokio::test]
+    async fn the_identity_of_the_box_comes_from_api_version() {
+        let ok = json!({ "success": true, "result": {} });
+        // /api_version of a Freebox Delta; an unexpected type is ignored
+        let api_version = json!({
+            "api_version": "16.1",
+            "box_model_name": "Freebox v7 (r1)",
+            "device_name": 7,
+        });
+        let caps = load_responses("router", api_version, ok).await;
+
+        assert_eq!(Some("16.1".to_string()), caps.api_version);
+        assert_eq!(
+            Some(system::BoxModel {
+                model: None,
+                model_name: Some("Freebox v7 (r1)".to_string()),
+            }),
+            caps.model
+        );
+        assert_eq!(None, caps.device_name);
+        assert_eq!(Some(true), caps.raid, "the api version is still read");
+    }
+
+    #[tokio::test]
+    async fn a_change_of_model_is_named() {
+        let before = load("16.0", true).await;
+        let mut after = before.clone();
+        after.model = delta_model();
+
+        assert_eq!(
+            format!("model: None -> {:?}", delta_model()),
+            before.changes(&after)
+        );
+    }
+
+    #[tokio::test]
+    async fn the_api_version_is_kept() {
+        assert_eq!(
+            Some("16.0".to_string()),
+            load("16.0", true).await.api_version
+        );
+    }
+
+    #[tokio::test]
+    async fn only_the_capabilities_of_the_enabled_collectors_count() {
+        let caps = load("16.0", true).await;
+        let conf: CapabilitiesConfiguration =
+            toml::from_str("system = true\nwifi = true\nprefix = \"test\"").unwrap();
+
+        let relevant = caps.for_configuration(&conf);
+
+        // enabled: as detected
+        assert_eq!(caps.system, relevant.system);
+        assert_eq!(caps.wifi, relevant.wifi);
+        assert_eq!(caps.v6_system, relevant.v6_system);
+        // not enabled: the same whatever the box answers
+        for (name, value) in [
+            ("vm", relevant.vm),
+            ("raid", relevant.raid),
+            ("vpn", relevant.vpn),
+            ("ddns", relevant.ddns),
+            ("switch", relevant.switch),
+        ] {
+            assert_eq!(Some(false), value, "{name}");
+        }
+        let mut other = caps.clone();
+        other.raid = Some(false);
+        other.vm = None;
+        assert_eq!(relevant, other.for_configuration(&conf));
+        assert!(relevant.is_complete());
+    }
+
+    /// the identity of the box is exposed by the system collector, whatever the configuration:
+    /// it is kept as detected
+    #[tokio::test]
+    async fn the_identity_of_the_box_is_kept_for_the_configuration() {
+        let ok = json!({ "success": true, "result": {} });
+        let mut api_version = delta_api_version();
+        api_version["device_name"] = json!("Freebox Server");
+        let caps = load_responses("router", api_version, ok).await;
+        let conf: CapabilitiesConfiguration =
+            toml::from_str("system = true\nprefix = \"test\"").unwrap();
+
+        let relevant = caps.for_configuration(&conf);
+
+        assert_eq!(Some("16.1".to_string()), relevant.api_version);
+        assert_eq!(delta_model(), relevant.model);
+        assert_eq!(Some("Freebox Server".to_string()), relevant.device_name);
     }
 
     #[tokio::test]

@@ -8,7 +8,9 @@ use lan::LanMetricMap;
 use lanbrowser::LanBrowserMetricMap;
 use log::{error, warn};
 use nas::NasMetricMap;
-use prometheus_exporter::UpdateLock;
+use prometheus_exporter::{prometheus::Registry, UpdateLock};
+
+use crate::core::redetection::CycleOutcome;
 use raid::RaidMetricMap;
 use switch::SwitchMetricMap;
 use system::SystemMetricMap;
@@ -57,6 +59,8 @@ pub struct Mapper<'a> {
     health: CollectorHealth,
     /// Checked after a failed collection, to log in again when the box restarted
     session: Option<&'a AuthenticatedHttpClientFactory<'a>>,
+    /// Collectors that failed in the last run
+    failed: Vec<&'static str>,
 }
 
 impl<'a> Mapper<'a> {
@@ -66,6 +70,7 @@ impl<'a> Mapper<'a> {
         caps: Capabilities,
         api_conf: ApiConfiguration,
         policies: Option<PoliciesConfiguration>,
+        registry: &Registry,
     ) -> Self {
         let mut maps: Vec<NamedMetricMap<'a>> = vec![];
 
@@ -73,9 +78,10 @@ impl<'a> Mapper<'a> {
             if e {
                 maps.push((
                     "connection",
-                    Box::new(ConnectionMetricMap::new(
+                    Box::new(ConnectionMetricMap::new_in(
                         factory,
                         conf.prefix.to_owned().unwrap(),
+                        registry,
                     )),
                 ));
             }
@@ -89,9 +95,13 @@ impl<'a> Mapper<'a> {
                 maps.push((
                     "system",
                     Box::new(
-                        SystemMetricMap::new(factory, conf.prefix.to_owned().unwrap())
+                        SystemMetricMap::new_in(factory, conf.prefix.to_owned().unwrap(), registry)
                             .with_v6_system(caps.v6_system.unwrap_or(false))
-                            .with_model(caps.model.clone()),
+                            .with_identity(
+                                caps.api_version.clone(),
+                                caps.model.clone(),
+                                caps.device_name.clone(),
+                            ),
                     ),
                 ));
             }
@@ -105,7 +115,11 @@ impl<'a> Mapper<'a> {
             if e {
                 maps.push((
                     "lan",
-                    Box::new(LanMetricMap::new(factory, conf.prefix.to_owned().unwrap())),
+                    Box::new(LanMetricMap::new_in(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                        registry,
+                    )),
                 ));
             }
         } else {
@@ -119,8 +133,11 @@ impl<'a> Mapper<'a> {
                 if !caps.lan_browser.unwrap_or(false) {
                     warn!("lan_browser is incompatible with detected freebox mode ({}), the option has been disabled", network_mode);
                 } else {
-                    let lan_browser_map =
-                        LanBrowserMetricMap::new(factory, conf.prefix.to_owned().unwrap());
+                    let lan_browser_map = LanBrowserMetricMap::new_in(
+                        factory,
+                        conf.prefix.to_owned().unwrap(),
+                        registry,
+                    );
                     maps.push(("lan_browser", Box::new(lan_browser_map)));
                 }
             }
@@ -135,9 +152,10 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "switch",
-                        Box::new(SwitchMetricMap::new(
+                        Box::new(SwitchMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     ));
                 }
@@ -159,11 +177,12 @@ impl<'a> Mapper<'a> {
                     };
                     let wifi_policies = policies.as_ref().unwrap_or(&default_policies);
 
-                    let wifi_map = wifi::WifiMetricMap::new(
+                    let wifi_map = wifi::WifiMetricMap::new_in(
                         factory,
                         conf.prefix.to_owned().unwrap(),
                         Duration::seconds(api_conf.refresh.unwrap_or(5) as i64),
                         wifi_policies,
+                        registry,
                     );
                     maps.push(("wifi", Box::new(wifi_map)));
                 }
@@ -179,9 +198,10 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "dhcp",
-                        Box::new(dhcp::DhcpMetricMap::new(
+                        Box::new(dhcp::DhcpMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     ));
                 }
@@ -197,7 +217,11 @@ impl<'a> Mapper<'a> {
                 } else {
                     maps.push((
                         "nas",
-                        Box::new(NasMetricMap::new(factory, conf.prefix.to_owned().unwrap())),
+                        Box::new(NasMetricMap::new_in(
+                            factory,
+                            conf.prefix.to_owned().unwrap(),
+                            registry,
+                        )),
                     ));
                 }
             }
@@ -210,9 +234,10 @@ impl<'a> Mapper<'a> {
                 // The Freebox downloads stats endpoint is available across supported modes.
                 maps.push((
                     "download",
-                    Box::new(DownloadMetricMap::new(
+                    Box::new(DownloadMetricMap::new_in(
                         factory,
                         conf.prefix.to_owned().unwrap(),
+                        registry,
                     )),
                 ));
             }
@@ -230,9 +255,10 @@ impl<'a> Mapper<'a> {
                 match caps.vm {
                     Some(true) => maps.push((
                         "vm",
-                        Box::new(VmMetricMap::new(
+                        Box::new(VmMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     )),
                     Some(false) => warn!(
@@ -240,7 +266,7 @@ impl<'a> Mapper<'a> {
                         vm::MIN_API_VERSION
                     ),
                     None => {
-                        error!("vm support could not be detected at startup, the option is disabled until the exporter restarts");
+                        error!("vm support could not be detected at startup, the option is disabled until the capabilities are detected again");
                         undetected.push("vm");
                     }
                 }
@@ -254,9 +280,10 @@ impl<'a> Mapper<'a> {
                 match caps.raid {
                     Some(true) => maps.push((
                         "raid",
-                        Box::new(RaidMetricMap::new(
+                        Box::new(RaidMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     )),
                     Some(false) => warn!(
@@ -264,7 +291,7 @@ impl<'a> Mapper<'a> {
                         raid::MIN_API_VERSION
                     ),
                     None => {
-                        error!("raid support could not be detected at startup, the option is disabled until the exporter restarts");
+                        error!("raid support could not be detected at startup, the option is disabled until the capabilities are detected again");
                         undetected.push("raid");
                     }
                 }
@@ -278,9 +305,10 @@ impl<'a> Mapper<'a> {
                 match caps.vpn {
                     Some(true) => maps.push((
                         "vpn",
-                        Box::new(VpnMetricMap::new(
+                        Box::new(VpnMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     )),
                     Some(false) => warn!(
@@ -288,7 +316,7 @@ impl<'a> Mapper<'a> {
                         vpn::MIN_API_VERSION
                     ),
                     None => {
-                        error!("vpn support could not be detected at startup, the option is disabled until the exporter restarts");
+                        error!("vpn support could not be detected at startup, the option is disabled until the capabilities are detected again");
                         undetected.push("vpn");
                     }
                 }
@@ -302,9 +330,10 @@ impl<'a> Mapper<'a> {
                 match caps.ddns {
                     Some(true) => maps.push((
                         "ddns",
-                        Box::new(DdnsMetricMap::new(
+                        Box::new(DdnsMetricMap::new_in(
                             factory,
                             conf.prefix.to_owned().unwrap(),
+                            registry,
                         )),
                     )),
                     Some(false) => warn!(
@@ -312,7 +341,7 @@ impl<'a> Mapper<'a> {
                         ddns::MIN_API_VERSION
                     ),
                     None => {
-                        error!("ddns support could not be detected at startup, the option is disabled until the exporter restarts");
+                        error!("ddns support could not be detected at startup, the option is disabled until the capabilities are detected again");
                         undetected.push("ddns");
                     }
                 }
@@ -323,7 +352,7 @@ impl<'a> Mapper<'a> {
             );
         }
 
-        let health = CollectorHealth::register(conf.prefix.as_deref().unwrap());
+        let health = CollectorHealth::register_in(conf.prefix.as_deref().unwrap(), registry);
         for name in undetected {
             health.observe(
                 name,
@@ -337,6 +366,7 @@ impl<'a> Mapper<'a> {
             maps,
             health,
             session: Some(factory),
+            failed: vec![],
         }
     }
 
@@ -358,6 +388,20 @@ impl<'a> Mapper<'a> {
         Ok(())
     }
 
+    /// Collectors that failed in the last run
+    pub fn failed_collectors(&self) -> &[&'static str] {
+        &self.failed
+    }
+
+    /// Collectors that did not fail in the last run
+    pub fn working_collectors(&self) -> Vec<&'static str> {
+        self.maps
+            .iter()
+            .map(|(name, _)| *name)
+            .filter(|name| !self.failed.contains(name))
+            .collect()
+    }
+
     /// error_code of the login while the box refuses it, e.g. invalid_token for a revoked app
     pub fn login_refusal(&self) -> Option<String> {
         self.session.and_then(|factory| factory.login_refusal())
@@ -368,8 +412,9 @@ impl<'a> Mapper<'a> {
     pub async fn set_all(
         &mut self,
         lock: &UpdateLock,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut failed = false;
+    ) -> Result<CycleOutcome, Box<dyn std::error::Error + Send + Sync>> {
+        let mut outcome = CycleOutcome::default();
+        self.failed.clear();
         for (name, map) in self.maps.iter_mut() {
             let started = std::time::Instant::now();
             let res = map.set(lock).await;
@@ -380,12 +425,15 @@ impl<'a> Mapper<'a> {
                 .session
                 .is_some_and(|factory| factory.login_refusal().is_some())
             {
-                return Ok(());
+                return Ok(CycleOutcome::default());
             }
 
             if let Err(e) = &res {
                 error!("collector {name} failed: {}", with_causes(e.as_ref()));
-                failed = true;
+                outcome.failed += 1;
+                self.failed.push(name);
+            } else {
+                outcome.succeeded += 1;
             }
 
             // a scrape waits for the health update to complete instead of returning part of it
@@ -399,13 +447,14 @@ impl<'a> Mapper<'a> {
         }
 
         // a restarted box rejects the previous sessions: one request, after a failure only
-        if let Some(factory) = self.session.filter(|_| failed) {
+        if let Some(factory) = self.session.filter(|_| outcome.failed > 0) {
             if factory.expire_clients_if_session_lost().await {
                 warn!("the box no longer knows the session, probably after a restart: logging in again");
+                outcome.session_lost = true;
             }
         }
 
-        Ok(())
+        Ok(outcome)
     }
 }
 
@@ -470,6 +519,7 @@ mod tests {
             maps,
             health: CollectorHealth::new("test"),
             session: None,
+            failed: vec![],
         }
     }
 
@@ -496,6 +546,7 @@ mod tests {
                 address: None,
             },
             None,
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         assert!(mapper.maps.is_empty());
@@ -530,10 +581,62 @@ mod tests {
                 address: None,
             },
             None,
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         let names: Vec<&str> = mapper.maps.iter().map(|(name, _)| *name).collect();
         assert_eq!(vec!["vm", "raid", "vpn", "ddns"], names);
+    }
+
+    #[tokio::test]
+    async fn the_system_collector_exposes_the_identity_read_from_api_version() {
+        use crate::mappers::test_support::{scrape, serve, update_lock};
+
+        let (server, authenticator) = crate::mappers::test_support::mock_api().await;
+        // v4/system of a Freebox Delta: no api_version, box_model_name nor device_name
+        serve(
+            &server,
+            "/api/v4/system",
+            serde_json::json!({ "success": true, "result": { "uptime_val": 1 } }),
+        )
+        .await;
+        let factory = authenticator.login().await.unwrap();
+        let prefix = "test_mapper_identity";
+        let conf: CapabilitiesConfiguration =
+            toml::from_str(&format!("system = true\nprefix = \"{prefix}\"")).unwrap();
+        let caps: Capabilities = serde_json::from_str(
+            r#"{ "system": true, "api_version": "16.1",
+                 "model": { "model": "fbxgw7-r1/full", "model_name": "Freebox v7 (r1)" },
+                 "device_name": "Freebox Server" }"#,
+        )
+        .unwrap();
+
+        let mut mapper = Mapper::new(
+            &factory,
+            conf,
+            caps,
+            ApiConfiguration {
+                refresh: Some(5),
+                connect_timeout: None,
+                request_timeout: None,
+                address: None,
+            },
+            None,
+            prometheus_exporter::prometheus::default_registry(),
+        );
+        mapper.set_all(update_lock()).await.unwrap();
+
+        let metrics = scrape(prefix);
+        for line in [
+            format!("{prefix}_system_api_version{{api_version=\"16.1\"}} 1"),
+            format!("{prefix}_system_box_model_name{{model_name=\"Freebox v7 (r1)\"}} 1"),
+            format!("{prefix}_system_device_name{{device_name=\"Freebox Server\"}} 1"),
+            format!(
+                "{prefix}_system_model_info{{model=\"fbxgw7-r1/full\",model_name=\"Freebox v7 (r1)\"}} 1"
+            ),
+        ] {
+            assert!(metrics.contains(&line), "{line} in {metrics:?}");
+        }
     }
 
     #[tokio::test]
@@ -559,6 +662,7 @@ mod tests {
                 address: None,
             },
             None,
+            prometheus_exporter::prometheus::default_registry(),
         );
 
         assert!(mapper.maps.is_empty());
@@ -590,6 +694,7 @@ mod tests {
             maps: vec![("scripted", Box::new(map))],
             health: CollectorHealth::register(prefix),
             session: None,
+            failed: vec![],
         };
 
         mapper.set_all(update_lock()).await.unwrap();
@@ -1034,6 +1139,7 @@ mod session_renewal {
             )],
             health: CollectorHealth::new("test"),
             session: Some(factory),
+            failed: vec![],
         }
     }
 
@@ -1044,13 +1150,22 @@ mod session_renewal {
         let factory = authenticator.login().await.unwrap();
         let mut mapper = mapper(&factory, "test_session_restart");
 
-        mapper.set_all(update_lock()).await.unwrap();
+        let outcome = mapper.set_all(update_lock()).await.unwrap();
         assert_eq!(Some(1.0), mapper.health.success("lan"));
+        assert_eq!(
+            (false, 1, 0),
+            (outcome.session_lost, outcome.succeeded, outcome.failed)
+        );
 
         // the box restarts: the session of the collector is no longer valid
         fake.restart();
-        mapper.set_all(update_lock()).await.unwrap();
+        let outcome = mapper.set_all(update_lock()).await.unwrap();
         assert_eq!(Some(0.0), mapper.health.success("lan"));
+        // told, to detect the capabilities again
+        assert_eq!(
+            (true, 0, 1),
+            (outcome.session_lost, outcome.succeeded, outcome.failed)
+        );
 
         // the collector does not wait for its client to expire, 30 minutes later
         mapper.set_all(update_lock()).await.unwrap();
@@ -1069,8 +1184,9 @@ mod session_renewal {
 
         // the box keeps the session, but the collector fails, as during a fibre outage
         *fake.lan_down.lock().unwrap() = true;
-        mapper.set_all(update_lock()).await.unwrap();
+        let outcome = mapper.set_all(update_lock()).await.unwrap();
         assert_eq!(Some(0.0), mapper.health.success("lan"));
+        assert!(!outcome.session_lost);
         *fake.lan_down.lock().unwrap() = false;
         mapper.set_all(update_lock()).await.unwrap();
 
@@ -1116,6 +1232,7 @@ mod session_renewal {
             ],
             health: CollectorHealth::new("test"),
             session: Some(&factory),
+            failed: vec![],
         };
         mapper.set_all(update_lock()).await.unwrap();
         assert_eq!(None, mapper.login_refusal());
