@@ -21,8 +21,11 @@ use crate::{
     core::{
         authenticator::Authenticator,
         capabilities::{Capabilities, CapabilitiesAgent},
-        common::http_client_factory::{
-            login_refusal, AuthenticatedHttpClientFactory, REFUSED_LOGIN_RETRY,
+        common::{
+            error_chain::with_causes,
+            http_client_factory::{
+                login_refusal, AuthenticatedHttpClientFactory, REFUSED_LOGIN_RETRY,
+            },
         },
         configuration::Configuration,
         redetection::{Decision, Redetection},
@@ -152,7 +155,10 @@ impl<'a> Rebuilder<'_, 'a> {
         let detected = match CapabilitiesAgent::new(self.factory).quiet().load().await {
             Ok(detected) => Some(detected.for_configuration(&self.conf.metrics)),
             Err(e) => {
-                debug!("cannot detect the capabilities: {e}");
+                debug!(
+                    "cannot detect the capabilities: {}",
+                    with_causes(e.as_ref())
+                );
                 None
             }
         };
@@ -183,7 +189,7 @@ impl<'a> Rebuilder<'_, 'a> {
                 *capabilities = detected;
             }
             Err(e) => {
-                error!("cannot rebuild the collectors: {e}");
+                error!("cannot rebuild the collectors: {}", with_causes(e.as_ref()));
                 redetection.rebuild_failed(Instant::now());
             }
         }
